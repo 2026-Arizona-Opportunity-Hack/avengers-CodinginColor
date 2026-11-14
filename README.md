@@ -43,9 +43,9 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 
 ## Team
 
-- Ash — UI and shared visual components (Person 3)
-- [Ibrahim Ali](https://github.com/ibrahim-alii) — core backend and Orca coordination (Person 2)
-- Aayan Mapara — data ingestion and reconciliation (Person 1)
+- [Ash](https://github.com/ashworks1706) — UI and shared visual components (Person 3)
+- [Ibrahim Ali](https://github.com/ibrahim-alii) — core backend (Person 2)
+- [Aayan Mapara](https://github.com/amapara27) — data ingestion and reconciliation (Person 1)
 - [Soumya Mejari](https://github.com/smejari1) — outreach and follow-ups (Person 4)
 - [Nathan Narrik](https://github.com/nathannarik) — reporting, deployment and integration QA (Person 5)
 
@@ -84,7 +84,9 @@ Coordination follows the [Hackathon Agent Board guide](https://marvelous-relativ
 This repository has an original Python implementation; no extra Python packages
 are required. Install Python 3 and GitHub CLI, then run `gh auth login`.
 
-Create one issue using the **Agent message board** template and pin it in GitHub.
+Use the pinned [Agent Message Board #3](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/3)
+for all teammates and their agents. Do not create another board.
+Never close or unpin the board; close separate task issues instead.
 The CLI discovers an open issue titled exactly **Agent Message Board**. To select
 a different issue, set `BOARD_ISSUE` (PowerShell: `$env:BOARD_ISSUE = '7'`).
 
@@ -104,7 +106,7 @@ an agent automatically. Polls read all comment pages, so increase the interval
 for large boards. Authentication and API errors stop the command visibly.
 
 Local cursors live in ignored `.board-state/`, separately per issue and GitHub
-login. Sessions sharing a checkout and login share a cursor; use separate Orca
+login. Sessions sharing a checkout and login share a cursor; use separate
 worktrees for independent readers. Delete a cursor to replay existing comments.
 Set teammate ownership in AGENTS.md before parallel edits. Claude reads those
 instructions through CLAUDE.md; Codex and other agents should read AGENTS.md.
