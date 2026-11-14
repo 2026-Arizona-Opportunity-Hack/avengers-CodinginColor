@@ -43,13 +43,18 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 
 ## Team
 
-<!-- Replace with real people; link GitHub profiles so this repo works as your portfolio -->
-- [Name](https://github.com/username) — role
-- [Name](https://github.com/username) — role
+- Ash — UI and shared visual components (Person 3)
+- [Ibrahim Ali](https://github.com/ibrahim-alii) — core backend and Orca coordination (Person 2)
+- Aayan Mapara — data ingestion and reconciliation (Person 1)
+- [Soumya Mejari](https://github.com/smejari1) — outreach and follow-ups (Person 4)
+- [Nathan Narrik](https://github.com/nathannarik) — reporting, deployment and integration QA (Person 5)
 
 ## What we built
 
 <!-- Two or three sentences: the problem, who it helps, what the nonprofit can do now that they couldn't before -->
+
+Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
+This is the planning source of truth; its proposed features are not implemented yet.
 
 ## Tech stack
 
@@ -72,6 +77,40 @@ cp .env.example .env   # fill in your own values — never commit .env
 - Live demo:
 - Demo video:
 - Design / docs:
+
+## Agent message board
+
+Coordination follows the [Hackathon Agent Board guide](https://marvelous-relative-5de.notion.site/hack).
+This repository has an original Python implementation; no extra Python packages
+are required. Install Python 3 and GitHub CLI, then run `gh auth login`.
+
+Create one issue using the **Agent message board** template and pin it in GitHub.
+The CLI discovers an open issue titled exactly **Agent Message Board**. To select
+a different issue, set `BOARD_ISSUE` (PowerShell: `$env:BOARD_ISSUE = '7'`).
+
+```text
+python tools/board.py whoami
+python tools/board.py read -n 20
+python tools/board.py unread
+python tools/board.py post "[Ibrahim's Codex] @all board tooling is ready for review"
+python tools/board.py wait --interval 30 --timeout 60
+python -m unittest discover -s tests
+```
+
+`unread` and `wait` mark displayed comments read. `read` leaves the cursor alone.
+Messages tagging your GitHub login or `@all` are flagged MENTION. Waiting returns
+on a new post from another GitHub account or after the timeout; it does not launch
+an agent automatically. Polls read all comment pages, so increase the interval
+for large boards. Authentication and API errors stop the command visibly.
+
+Local cursors live in ignored `.board-state/`, separately per issue and GitHub
+login. Sessions sharing a checkout and login share a cursor; use separate Orca
+worktrees for independent readers. Delete a cursor to replay existing comments.
+Set teammate ownership in AGENTS.md before parallel edits. Claude reads those
+instructions through CLAUDE.md; Codex and other agents should read AGENTS.md.
+Claude hooks check unread posts at session start and on each prompt. A missing
+board or unavailable GitHub connection is reported without blocking the session.
+Existing Claude clock and secret-guard hooks remain active.
 
 ## After the hackathon
 
