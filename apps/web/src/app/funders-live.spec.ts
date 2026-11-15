@@ -16,7 +16,8 @@ const packet: ApiFunderPacket = {
 };
 function setup(admin = true) {
   const signedIn = signal(true), epoch = signal(1);
-  const store = { donors: signal([{ id: 'funder', name: 'Example Foundation' }]),
+  const historicalDonors = signal([{ id: 'funder', name: 'Example Foundation' }]);
+  const store = { historicalDonors, donors: signal([{ id: 'funder', name: 'Example Foundation' }]),
     programs: signal([{ id: 'program', title: 'Academy' }]), isAdmin: signal(admin), signedIn, sessionEpoch: epoch };
   const api = { request: vi.fn(async (_path: string, _init?: RequestInit, _parse?: string): Promise<unknown> => packet) };
   TestBed.configureTestingModule({ providers: [{ provide: Store, useValue: store }, { provide: Api, useValue: api }] });
@@ -99,4 +100,10 @@ it('prints only the successfully loaded current packet', async () => {
   f.page.print(); expect(print).not.toHaveBeenCalled();
   await f.settle(); f.page.print(); expect(print).toHaveBeenCalledOnce();
   f.page.from.set('2026-02-01'); f.page.print(); expect(print).toHaveBeenCalledOnce();
+});
+
+it('keeps archived funders selectable when they leave active donor worklists', async () => {
+  const f = setup(); f.store.donors.set([]); await f.settle();
+  expect(f.fixture.nativeElement.querySelector('select').textContent).toContain('Example Foundation');
+  expect(f.api.request.mock.calls[0][0]).toContain('funderId=funder');
 });
