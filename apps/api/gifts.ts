@@ -12,7 +12,7 @@ const FIELDS = `id, org_id, donor_id, campaign_id, amount_cents::text AS amount_
   currency, to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS occurred_at,
   status, source, external_id, source_row`;
 const Query = z.strictObject({
-  donor_id: IdSchema,
+  donor_id: IdSchema.optional(),
   limit: z.string().regex(/^\d+$/).transform(Number).pipe(z.int().min(1).max(100)).default(50),
   offset: z.string().regex(/^\d+$/).transform(Number).pipe(z.int().nonnegative()).default(0),
 });
@@ -45,9 +45,9 @@ export function gifts(env: Env, db: Database, verify: (header: string | undefine
     const identity = await verify(req.get('Authorization'));
     const query = valid(Query.safeParse(req.query));
     const items = await withMember(db, env.CIC_ORG_ID, identity, async client => {
-      await scoped(client, query.donor_id);
-      const rows = await client.query(`SELECT ${FIELDS} FROM gifts WHERE org_id=$1 AND donor_id=$2
-        ORDER BY occurred_at, id LIMIT $3 OFFSET $4`, [env.CIC_ORG_ID, query.donor_id, query.limit, query.offset]);
+      if (query.donor_id) await scoped(client, query.donor_id);
+      const rows = await client.query(`SELECT ${FIELDS} FROM gifts WHERE org_id=$1 AND ($2::uuid IS NULL OR donor_id=$2)
+        ORDER BY occurred_at, id LIMIT $3 OFFSET $4`, [env.CIC_ORG_ID, query.donor_id ?? null, query.limit, query.offset]);
       return rows.rows.map(toGift);
     });
     res.json({ items, limit: query.limit, offset: query.offset });

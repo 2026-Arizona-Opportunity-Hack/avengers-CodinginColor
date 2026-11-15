@@ -174,7 +174,7 @@ export class DonorsPage {
     if (window.getSelection()?.toString()) return;
     this.router.navigate(['/donors', id]);
   }
-  protected readonly money = money;
+  protected readonly money = (cents: number) => money(cents, this.store.currency());
   protected readonly dateShort = dateShort;
   protected readonly relativeDue = relativeDue;
   protected readonly now = today();

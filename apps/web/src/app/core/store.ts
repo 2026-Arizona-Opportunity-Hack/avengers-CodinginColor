@@ -7,6 +7,7 @@ import {
 import { Api, ApiDonor, ApiDonorPatch, ApiError, ApiMe, LiveConfig } from './api';
 import { money, quarterOf, today } from './format';
 import * as outreach from './outreach-live';
+import * as history from './history-live';
 
 const STORE_KEY = 'cadence.dataset';
 const SESSION_KEY = 'cadence.session';
@@ -111,7 +112,10 @@ export class Store {
     return this.isAdmin() ? all : all.filter((d) => d.owner_id === this.me().id);
   });
   private readonly visibleIds = computed(() => new Set(this.donors().map((d) => d.id)));
-  readonly gifts = computed(() => this.data().gifts.filter((g) => this.visibleIds().has(g.donor_id)));
+  readonly selectedCurrency = signal('USD');
+  readonly currencies = computed(() => [...new Set(this.data().gifts.filter(g => this.visibleIds().has(g.donor_id)).map(g => g.currency))].sort());
+  readonly currency = computed(() => this.currencies().includes(this.selectedCurrency()) ? this.selectedCurrency() : this.currencies()[0] ?? 'USD');
+  readonly gifts = computed(() => this.data().gifts.filter((g) => this.visibleIds().has(g.donor_id) && g.currency === this.currency()));
   readonly communications = computed(() => this.data().communications.filter((c) => this.visibleIds().has(c.donor_id)));
   readonly followUps = computed(() => this.data().followUps.filter((f) => this.visibleIds().has(f.donor_id)));
   readonly drafts = computed(() => this.data().drafts.filter((d) =>
@@ -204,17 +208,18 @@ export class Store {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
       if (generation !== this.liveLoadGeneration) return;
       const request: outreach.Request = (path, init) => this.api.request(path, init);
-      const [followUps, drafts, apiKeys] = await Promise.all([
+      const [followUps, drafts, apiKeys, gifts, communications, catalog] = await Promise.all([
         outreach.loadFollowUps(request, me.role === 'admin' ? 'all' : 'mine'),
         outreach.loadDrafts(request),
         me.role === 'admin' ? outreach.loadApiKeys(request) : Promise.resolve([]),
+        history.loadGifts(request), history.loadContacts(request), history.loadCatalog(request),
       ]);
       if (generation !== this.liveLoadGeneration) return;
       const current = this.data();
-      const queues = outreachGeneration === this.outreachLoadGeneration ? { followUps, drafts }
-        : { followUps: current.followUps, drafts: current.drafts };
+      const queues = outreachGeneration === this.outreachLoadGeneration ? { followUps, drafts, communications }
+        : { followUps: current.followUps, drafts: current.drafts, communications: current.communications };
       this.loadLive(me, donors);
-      this.data.update((d) => ({ ...d, ...queues, apiKeys }));
+      this.data.update((d) => ({ ...d, ...queues, ...catalog, gifts, apiKeys }));
       this.api.status.set('ready');
     } catch (e) {
       if (generation !== this.liveLoadGeneration) return;
@@ -346,10 +351,16 @@ export class Store {
     }
   }
 
-  logCommunication(input: { donor_id: string; kind: CommunicationKind; summary: string; body: string; occurred_at: string }) {
+  async logCommunication(input: { donor_id: string; kind: CommunicationKind; summary: string; body: string; occurred_at: string }): Promise<boolean> {
+    if (this.live()) {
+      if (input.kind === 'note') { this.notice.set(NOT_CONNECTED); return false; }
+      return this.outreachWrite(request => history.logContact(request, input.donor_id, input.kind, input.occurred_at,
+        [input.summary, input.body].filter(Boolean).join('\n')));
+    }
     this.mutate((d) => d.communications.push({
       id: uid('cm'), member_id: this.me().id, direction: input.kind === 'note' ? 'internal' : 'outbound', draft_id: null, ...input,
     }), `communication.${input.kind}`, input.donor_id);
+    return true;
   }
 
   async addFollowUp(input: { donor_id: string; action: string; due_on: string; kind?: FollowUp['kind'] }): Promise<boolean> {
@@ -526,11 +537,12 @@ export class Store {
       const request: outreach.Request = (path, init) => this.api.request(path, init);
       await run(request);
       const generation = ++this.outreachLoadGeneration;
-      const [followUps, drafts] = await Promise.all([
+      const [followUps, drafts, communications] = await Promise.all([
         outreach.loadFollowUps(request, this.isAdmin() ? 'all' : 'mine'), outreach.loadDrafts(request),
+        history.loadContacts(request),
       ]);
       if (epoch !== this.sessionEpoch() || generation !== this.outreachLoadGeneration) return;
-      this.data.update((d) => ({ ...d, followUps, drafts }));
+      this.data.update((d) => ({ ...d, followUps, drafts, communications }));
     });
   }
 

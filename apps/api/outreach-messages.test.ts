@@ -196,6 +196,15 @@ test('logging a call is a qualifying contact; the timeline shows only visible do
   assert.deepEqual(timeline.items.map((c: { channel: string }) => c.channel), ['meeting', 'call']);
   assert.equal(timeline.items[1].note, 'Interested in visiting a class');
   assert.equal((await call('GET', `/api/v1/donors/${DONOR_A}/communications`, 'board-b')).status, 404);
+  const all = await (await call('GET', '/api/v1/communications?limit=1&offset=0', 'board-a')).json();
+  assert.equal(all.items.length, 1); assert.equal(all.items[0].donor_id, DONOR_A);
+  assert.equal(all.items[0].channel, 'meeting');
+  const next = await (await call('GET', '/api/v1/communications?limit=1&offset=1', 'board-a')).json();
+  assert.equal(next.items[0].channel, 'call');
+  assert.deepEqual((await (await call('GET', '/api/v1/communications', 'board-b')).json()).items, []);
+  assert.equal((await call('GET', '/api/v1/communications')).status, 401);
+  assert.equal((await call('GET', '/api/v1/communications?limit=101', 'board-a')).status, 400);
+  assert.equal((await call('GET', '/api/v1/communications?offset=-1', 'board-a')).status, 400);
 });
 
 test('the message routes are mounted in the real app behind its session and origin checks', async (t) => {

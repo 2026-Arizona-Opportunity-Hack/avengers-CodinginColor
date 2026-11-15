@@ -329,7 +329,7 @@ export class OutreachPage {
   protected readonly date = date;
   protected readonly dateShort = dateShort;
   protected readonly relativeDue = relativeDue;
-  protected readonly money = money;
+  protected readonly money = (cents: number) => money(cents, this.store.currency());
   protected readonly now = today();
   protected readonly quarter = quarterOf(this.now);
   protected readonly tab = signal<Tab>('approve');
