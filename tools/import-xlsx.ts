@@ -1,13 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
-import { createRequire } from 'node:module';
 import { Unzip, UnzipInflate, zipSync } from 'fflate';
 import readXlsxFile from 'read-excel-file/node';
 import { previewCsv } from './import-preview.ts';
 
 type SaxParser = { on(event: string, listener: (...args: any[]) => void): void; parse(xml: string): unknown };
-// saxen ships no type declarations; the reader uses the same parser internally.
-const { Parser } = createRequire(import.meta.url)('saxen') as { Parser: new () => SaxParser };
+// saxen ships no type declarations; the reader uses the same parser internally. A static import
+// (not createRequire) lets Vercel's file tracer bundle it with the function.
+// @ts-ignore no declaration file for 'saxen'
+import { Parser as SaxenParser } from 'saxen';
+const Parser = SaxenParser as unknown as new () => SaxParser;
 type Attrs = Record<string, string>;
 const MAX_BYTES = 5 * 1024 * 1024, MAX_ENTRIES = 256, MAX_ENTRY = 8 * 1024 * 1024;
 const MAX_TOTAL = 16 * 1024 * 1024, MAX_ROWS = 20_001, MAX_COLS = 200;
