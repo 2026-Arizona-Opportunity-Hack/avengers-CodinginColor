@@ -19,7 +19,13 @@ export async function migrate(client: MigrationClient, directory: string): Promi
     // The runner owns the transaction so SQL changes and ledger entry commit together.
     const wrapped = /^\s*BEGIN;([\s\S]*)COMMIT;\s*$/.exec(source);
     if (!wrapped) throw new Error(`Migration must be wrapped in BEGIN/COMMIT: ${name}`);
-    return { name, sql: wrapped[1], checksum: createHash('sha256').update(source).digest('hex') };
+    const hash = (text: string) => createHash('sha256').update(text).digest('hex');
+    // Git may check out the same SQL with LF or CRLF. New ledger entries use LF;
+    // retain exact legacy raw/LF/CRLF hashes without ignoring any other text edit.
+    const lf = source.replace(/\r\n/g, '\n');
+    const checksum = hash(lf);
+    const acceptedChecksums = new Set([hash(source), checksum, hash(lf.replace(/\n/g, '\r\n'))]);
+    return { name, sql: wrapped[1], checksum, acceptedChecksums };
   }));
   await client.query('SELECT pg_advisory_lock(467829001::bigint)');
   try {
@@ -33,7 +39,7 @@ export async function migrate(client: MigrationClient, directory: string): Promi
     for (const previous of applied) {
       const file = pending.find(item => item.name === previous.name);
       if (!file) throw new Error(`Applied migration missing: ${previous.name}`);
-      if (file.checksum !== previous.sha256) throw new Error(`Modified applied migration: ${previous.name}`);
+      if (typeof previous.sha256 !== 'string' || !file.acceptedChecksums.has(previous.sha256)) throw new Error(`Modified applied migration: ${previous.name}`);
     }
     const latest = applied.at(-1)?.name;
     if (typeof latest === 'string' && pending.some(file => file.name < latest &&
