@@ -130,3 +130,22 @@ test('funder packet CSV is a safe attachment; missing funder or program is 404, 
     assert.equal((await get(`/api/v1/reports/funder-packet?${q}`, 'admin')).status, 400, q);
   }
 });
+
+test('the reporting routes are mounted in the real app behind its auth and origin checks', async (t) => {
+  const { createApp } = await import('./app.ts');
+  const env = EnvSchema.parse({ DATABASE_URL: 'postgresql://localhost/test', CIC_ORG_ID: ORG,
+    CLERK_SECRET_KEY: 'sk_test_fixture', CLERK_JWT_ISSUER: 'https://example.clerk.accounts.dev', APP_ORIGIN: 'http://localhost:4200' });
+  const db: Database = { connect: async () => assert.fail('unauthenticated requests must not reach the database') };
+  const server = createApp(env, db, async () => { throw new HttpError(401); }).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>((r) => server.close(() => r())); });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  for (const path of ['/api/v1/reports/retention?asOf=2026-11-14',
+    `/api/v1/reports/funder-packet?funderId=${FUNDER}&programId=${AI}&from=2026-01-01&to=2027-01-01`]) {
+    assert.equal((await fetch(base + path)).status, 401, path);
+    assert.equal((await fetch(base + path, { headers: { Origin: 'https://evil.example' } })).status, 403, path);
+  }
+  assert.equal((await fetch(`${base}/api/v1/reports/nope`)).status, 404);
+});
