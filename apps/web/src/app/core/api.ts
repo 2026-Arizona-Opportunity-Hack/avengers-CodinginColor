@@ -8,6 +8,11 @@ import type { Consent, Role } from './models';
  * a Clerk publishable key is safe in the browser, and the API checks every request.
  */
 export interface LiveConfig { apiBase: string; clerkPublishableKey: string; }
+export interface DebriefInput {
+  request_id: string; reviewed: true; note: string; occurred_at: string;
+  next_action?: { title: string; due_at: string };
+  draft?: { channel: 'email' | 'sms'; subject: string | null; body: string };
+}
 
 export type LiveStatus = 'off' | 'loading' | 'signed-out' | 'ready' | 'error';
 
@@ -145,6 +150,10 @@ export class Api {
   }
 
   me() { return this.request<ApiMe>('/api/v1/me'); }
+
+  saveDebrief(donorId: string, body: DebriefInput) {
+    return this.request(`/api/v1/donors/${encodeURIComponent(donorId)}/debrief`, { method: 'POST', body: JSON.stringify(body) });
+  }
 
   /** Every donor this member may see. The API caps a page at 100, so this pages until done. */
   async allDonors(includeArchived = false): Promise<ApiDonor[]> {

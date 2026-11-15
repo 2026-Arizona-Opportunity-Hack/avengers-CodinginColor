@@ -73,6 +73,11 @@ What's built on `main` (API, database and rules):
 - **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
   donor. Messages are drafted from templates and need human approval, then go out from the
   person's own email or phone and are logged once. Nothing is sent automatically.
+  Live donor records also offer **Review meeting notes**: paste notes locally, edit the proposed
+  contact note, optional action and draft, enter explicit Phoenix dates, then review before saving.
+  `Action:`, `Due: YYYY-MM-DDTHH:mm`, `Subject:` and `Draft:` lines prefill optional fields; dates or
+  times in ordinary prose are never inferred. Saves are atomic and uncertain retries reuse the same request
+  identity. Raw pasted notes never go to a model; drafts still require separate approval/send.
 - **Reporting:** a retention breakdown (new, reactivated, increased, flat, decreased, lapsed), scoped
   to each member's own donors, and an admin-only, audited funder packet CSV from the API. A
   read-only, hashed API key gives CIC's dashboard aggregate totals, and that summary API hides any
