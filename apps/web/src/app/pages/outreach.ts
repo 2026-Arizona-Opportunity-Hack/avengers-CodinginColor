@@ -11,7 +11,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
 
 /**
  * Outreach inbox: a queue on the left, the one selected item on the right. Every message is
- * drafted by Cadence, approved by a person and sent by a person from their own email or phone.
+ * drafted by Coding in Color, approved by a person and sent by a person from their own email or phone.
  */
 @Component({
   selector: 'app-outreach',
@@ -22,7 +22,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
       <header class="page-head">
         <div>
           <h1>Follow-ups and messages</h1>
-          <p class="lede">Next steps, quarterly touches and thank-yous. Cadence drafts; a person approves and sends every message.</p>
+          <p class="lede">Next steps, quarterly touches and thank-yous. Coding in Color drafts; a person approves and sends every message.</p>
         </div>
       </header>
 
@@ -57,7 +57,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
             <section class="pane" aria-live="polite" [attr.aria-label]="selectedDraft() ? 'Message to ' + recipient(selectedDraft()!) : 'No message selected'">
               @if (selectedDraft(); as d) {
                 <ol class="trail" aria-label="Approval trail">
-                  <li class="done"><span class="dot" aria-hidden="true"></span>Drafted by Cadence<small>{{ date(d.created_at) }}</small></li>
+                  <li class="done"><span class="dot" aria-hidden="true"></span>Drafted by Coding in Color<small>{{ date(d.created_at) }}</small></li>
                   <li [class.done]="d.status === 'approved'" [class.now]="d.status === 'pending'"><span class="dot" aria-hidden="true"></span>
                     Approved by a person<small>{{ d.status === 'approved' ? store.member(d.approved_by)?.name : 'Waiting for you' }}</small></li>
                   <li [class.now]="d.status === 'approved'"><span class="dot" aria-hidden="true"></span>Sent by a person<small>From their own {{ d.channel === 'text' ? 'phone' : 'email' }}</small></li>
@@ -225,7 +225,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
             <section class="pane" aria-live="polite">
               @if (selectedSent(); as d) {
                 <ol class="trail" aria-label="Audit trail">
-                  <li class="done"><span class="dot" aria-hidden="true"></span>Drafted by Cadence<small>{{ date(d.created_at) }}</small></li>
+                  <li class="done"><span class="dot" aria-hidden="true"></span>Drafted by Coding in Color<small>{{ date(d.created_at) }}</small></li>
                   <li class="done"><span class="dot" aria-hidden="true"></span>Approved by {{ store.member(d.approved_by)?.name }}<small>{{ d.approved_at ? date(d.approved_at) : '' }}</small></li>
                   <li class="done"><span class="dot" aria-hidden="true"></span>Send recorded by {{ store.member(d.sent_by)?.name ?? 'member' }}<small>{{ d.sent_at ? date(d.sent_at!) : 'Date unavailable' }}</small></li>
                 </ol>

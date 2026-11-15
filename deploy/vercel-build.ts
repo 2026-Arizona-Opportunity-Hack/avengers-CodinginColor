@@ -7,7 +7,7 @@ export type WebConfig = { apiBase: string; clerkPublishableKey: string };
 
 /** Same-origin config: apiBase "" means the API is served from this host. Only public values belong here. */
 export function webConfig(env: Record<string, string | undefined>): WebConfig {
-  const key = env.CLERK_PUBLISHABLE_KEY;
+  const key = env.CLERK_PUBLISHABLE_KEY ?? env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
   if (!key || !/^pk_(test|live)_\S+$/.test(key)) {
     // Never echo the value: a secret key pasted by mistake must not reach build logs.
     throw new Error('CLERK_PUBLISHABLE_KEY must be set to a Clerk publishable key (pk_test_… or pk_live_…)');

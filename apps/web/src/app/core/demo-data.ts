@@ -115,7 +115,7 @@ const TEMPLATES: Template[] = [
   {
     id: 't-digest', name: 'Board assignment digest', purpose: 'assignment_digest', channel: 'email',
     subject: 'Your donors for {{quarter}}',
-    body: 'Hi {{first_name}},\n\nYou are the contact for {{donor_count}} donors this quarter. {{open_count}} have an open next step. Your list is in Cadence under Donors.\n\nThank you for carrying these relationships.\nDana',
+    body: 'Hi {{first_name}},\n\nYou are the contact for {{donor_count}} donors this quarter. {{open_count}} have an open next step. Your list is in Coding in Color under Donors.\n\nThank you for carrying these relationships.\nDana',
   },
 ];
 

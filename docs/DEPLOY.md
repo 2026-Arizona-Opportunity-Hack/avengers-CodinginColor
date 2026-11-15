@@ -76,7 +76,7 @@ OHack recurring budget) or another approved plan. Neon and Clerk are $0 on the p
 
 ## 4. The web service
 
-**Vercel** (chosen on #30). Import the GitHub repo as a new Vercel project. `vercel.json`
+**Vercel** (chosen on #30). Use the existing project connected to this repository. `vercel.json`
 already sets the install and build steps.
 
 > **Root Directory must be the repository root (leave it blank).** If it's set to `apps/web`,
@@ -84,14 +84,14 @@ already sets the install and build steps.
 > demo data. `/healthz`, `/config.json` and `/api/*` then all return the web page with a 200.
 > That's what `cadence-cic.vercel.app` served on Nov 15, and the smoke check fails 5 of 7 checks.
 > To fix it, go to **Settings → Build and Deployment → Root Directory**, clear the field,
-> set Framework Preset to **Other** and Node.js to **24.x**, then redeploy.
+> set Framework Preset to **Express** and Node.js to **24.x**, then redeploy.
 
 | Setting | Value |
 |---|---|
-| Framework | Detected as Express from `src/index.ts`, which default-exports the app (no `listen`) |
+| Framework | Pinned to Express in `vercel.json`; runs `src/index.ts`, which default-exports the app (no `listen`) |
 | Node.js version | 24.x (Angular's build needs 24.15 or newer) |
 | Install | `npm ci && npm ci --prefix apps/web` |
-| Build | builds `apps/web`, then `node deploy/vercel-build.ts` copies it into `public/` and writes `config.json` (same-origin API plus the Clerk publishable key) |
+| Build | validates required runtime settings without printing values, builds `apps/web`, then `node deploy/vercel-build.ts` copies it into `public/` and writes `config.json` (same-origin API plus the Clerk publishable key) |
 | Routing | static files from `public/`; page routes rewrite to `index.html`; `/api/*` and `/healthz` reach the API |
 
 Check these on the **first deploy**; none have been verified on Vercel yet:
@@ -115,6 +115,10 @@ to start, logging only the variable *names*, if any is missing or invalid):
 | `APP_ORIGIN` | the production URL, exact origin, e.g. `https://<project>.vercel.app` | no |
 | `CLERK_PUBLISHABLE_KEY` | `pk_test_…` / `pk_live_…`, written into the web app's `config.json` at build time; **the build fails without it** | no (public) |
 | `CIC_WEB_DEMO_MODE` | optional: `1` deliberately ships the web app on demo data (no `config.json`) | no |
+
+`NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` is accepted as an alias for `CLERK_PUBLISHABLE_KEY`. Use matching test or live Clerk keys. Set these variables for each environment you deploy. `APP_ORIGIN` must match the exact domain used to open the app; production values do not automatically authorize a preview domain. Keep `CIC_WEB_DEMO_MODE` unset for the connected application.
+
+Before redeploying, apply all committed migrations locally with the migration owner. The Vercel build never runs privileged migrations. Validate configuration locally with `node --env-file-if-exists=.env deploy/check-env.ts`.
 
 **Never** set `MIGRATION_DATABASE_URL` on the web service. It's only used from a
 person's machine for migrations, provisioning and seeding.
