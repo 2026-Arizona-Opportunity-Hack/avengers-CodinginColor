@@ -1,5 +1,6 @@
 import { Client } from 'pg';
 import { z } from 'zod';
+import { isRuntimeLogin } from './provision.ts';
 
 interface SeedClient {
   query(sql: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
@@ -41,10 +42,8 @@ function giftsFor(pattern: Pattern, a: number, c: (k: number) => number | null):
 }
 
 async function assertPrivileged(client: SeedClient) {
-  const [who] = (await client.query(`SELECT r.rolsuper AS superuser,
-      pg_has_role(current_user, 'cic_runtime', 'MEMBER') AS runtime
-    FROM pg_roles r WHERE r.rolname = current_user`)).rows;
-  if (!who?.superuser && who?.runtime) throw new SeedError('Refusing to seed with the runtime login; use MIGRATION_DATABASE_URL');
+  // Shared with provisioning: SET (can become cic_runtime), not mere creator membership.
+  if (await isRuntimeLogin(client)) throw new SeedError('Refusing to seed with the runtime login; use MIGRATION_DATABASE_URL');
 }
 
 /**

@@ -88,6 +88,20 @@ test('the seeded ledger exercises every retention segment and the funder packet 
   assert.ok(funder.n >= 2, 'a foundation funder needs AI Academy gifts for the packet demo');
 });
 
+test('a non-superuser CREATEROLE migration owner can seed (same guard as provisioning)', async (t) => {
+  const db = new PGlite();
+  t.after(() => db.close());
+  await db.exec(`CREATE ROLE migration_owner NOLOGIN CREATEROLE BYPASSRLS;
+    ALTER DATABASE postgres OWNER TO migration_owner; GRANT CREATE ON SCHEMA public TO migration_owner;
+    SET SESSION AUTHORIZATION migration_owner;`);
+  const client = { query: async (sql: string, values?: unknown[]) => values
+    ? db.query<Record<string, unknown>>(sql, values)
+    : (await db.exec(sql)).at(-1)! };
+  await migrate(client, migrations);
+  await provision(client, ORG, roster);
+  assert.ok((await seedDemo(client, ORG)).gifts >= 50);
+});
+
 test('refuses to run without provisioning, against real data, or on the runtime login', async (t) => {
   const bare = await database(t, false);
   await assert.rejects(seedDemo(bare.client, ORG), /provision/i);
