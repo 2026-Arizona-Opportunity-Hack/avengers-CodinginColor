@@ -6,9 +6,11 @@ import {
 } from './models';
 import { Api, ApiDonor, ApiDonorPatch, ApiError, ApiMe, LiveConfig } from './api';
 import { money, quarterOf, today } from './format';
+import * as outreach from './outreach-live';
 
 const STORE_KEY = 'cadence.dataset';
 const SESSION_KEY = 'cadence.session';
+const SIGNED_IN_KEY = 'cadence.signed-in';
 
 function load<T>(key: string): T | null {
   try {
@@ -75,9 +77,18 @@ export class Store {
   readonly live = signal(false);
   /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
   readonly notice = signal<string | null>(null);
+  private liveLoadGeneration = 0;
   private readonly rawMetadata = new Map<string, Record<string, unknown>>();
   private readonly data = signal<Dataset>(this.initial());
   readonly sessionId = signal<string>(load<string>(SESSION_KEY) ?? 'm-ceo');
+  /** Demo mode only: whether someone picked a demo account. Live mode asks Clerk instead. */
+  private readonly demoSignedIn = signal<boolean>(load<boolean>(SIGNED_IN_KEY) ?? false);
+  readonly signedIn = computed(() => (this.live() ? this.api.status() === 'ready' : this.demoSignedIn()));
+  /**
+   * Changes whenever a session starts or ends. Async work captures it before a request and
+   * drops the result if it changed, so a late response can never repopulate a signed-out view.
+   */
+  readonly sessionEpoch = signal(0);
 
   readonly members = computed(() => this.data().members);
   readonly programs = computed(() => this.data().programs);
@@ -119,6 +130,7 @@ export class Store {
     // Live donor records stay in memory only: no donor PII is written to browser storage.
     effect(() => { if (!this.live()) save(STORE_KEY, this.data()); });
     effect(() => { if (!this.live()) save(SESSION_KEY, this.sessionId()); });
+    effect(() => { if (!this.live()) save(SIGNED_IN_KEY, this.demoSignedIn()); });
   }
 
   private initial(): Dataset {
@@ -143,6 +155,27 @@ export class Store {
 
   setSession(id: string) { if (!this.live()) this.sessionId.set(id); }
 
+  /** Demo sign-in: no password exists because no real account exists. Live mode uses Clerk. */
+  signInDemo(id: string) {
+    if (this.live() || !this.members().some((m) => m.id === id)) return;
+    this.sessionId.set(id);
+    this.demoSignedIn.set(true);
+    this.sessionEpoch.update((n) => n + 1);
+  }
+
+  async signOut() {
+    this.liveLoadGeneration++;
+    this.sessionEpoch.update((n) => n + 1);
+    if (this.live()) await this.api.signOut();
+    else this.demoSignedIn.set(false);
+    this.notice.set(null);
+  }
+
+  /** Initials for avatars. */
+  initials(name: string) {
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
+  }
+
   resetDemo() {
     if (this.live()) return;
     this.data.set(buildDemoDataset());
@@ -150,9 +183,12 @@ export class Store {
 
   /** Switches to live mode and loads the signed-in member's data once Clerk has a session. */
   connect(config: LiveConfig) {
+    this.liveLoadGeneration++;
     this.live.set(true);
     this.data.set(this.emptyDataset([], []));
     void this.api.start(config, () => void this.refreshLive(), () => {
+      this.liveLoadGeneration++;
+      this.sessionEpoch.update((n) => n + 1);
       this.rawMetadata.clear();
       this.data.set(this.emptyDataset([], []));
       this.notice.set(null);
@@ -160,12 +196,23 @@ export class Store {
   }
 
   async refreshLive() {
+    const generation = ++this.liveLoadGeneration;
     this.api.status.set('loading');
     try {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
+      if (generation !== this.liveLoadGeneration) return;
+      const request: outreach.Request = (path, init) => this.api.request(path, init);
+      const [followUps, drafts, apiKeys] = await Promise.all([
+        outreach.loadFollowUps(request, me.role === 'admin' ? 'all' : 'mine'),
+        outreach.loadDrafts(request),
+        me.role === 'admin' ? outreach.loadApiKeys(request) : Promise.resolve([]),
+      ]);
+      if (generation !== this.liveLoadGeneration) return;
       this.loadLive(me, donors);
+      this.data.update((d) => ({ ...d, followUps, drafts, apiKeys }));
       this.api.status.set('ready');
     } catch (e) {
+      if (generation !== this.liveLoadGeneration) return;
       this.api.fail(e instanceof ApiError ? e.message : 'Could not load your data.');
     }
   }
@@ -193,6 +240,7 @@ export class Store {
     ];
     this.data.set(this.emptyDataset(members, donors.map(fromApiDonor)));
     this.sessionId.set(me.id);
+    this.sessionEpoch.update((n) => n + 1);
   }
 
   private putDonor(saved: ApiDonor) {
@@ -279,11 +327,14 @@ export class Store {
   }
 
   private async liveWrite(run: () => Promise<void>): Promise<boolean> {
+    const epoch = this.sessionEpoch();
     try {
       await run();
+      if (epoch !== this.sessionEpoch()) return false;
       this.notice.set(null);
       return true;
     } catch (e) {
+      if (epoch !== this.sessionEpoch()) return false;
       this.notice.set(e instanceof ApiError ? e.message : 'The change could not be saved.');
       return false;
     }
@@ -463,7 +514,19 @@ export class Store {
     return result;
   }
 
-  createApiKey(label: string): string {
+  async createApiKey(label: string): Promise<string | null> {
+    if (!this.isAdmin()) return null;
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      let secret: string | null = null;
+      await this.liveWrite(async () => {
+        const result = await outreach.issueApiKey((path, init) => this.api.request(path, init), label, this.me().id);
+        if (epoch !== this.sessionEpoch()) return;
+        this.data.update((d) => ({ ...d, apiKeys: [...d.apiKeys, result.key] }));
+        secret = result.secret;
+      });
+      return secret;
+    }
     const bytes = crypto.getRandomValues(new Uint8Array(24));
     const secret = `cic_live_${Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 32)}`;
     const key: ApiKey = {
@@ -474,8 +537,18 @@ export class Store {
     return secret;
   }
 
-  revokeApiKey(id: string) {
+  async revokeApiKey(id: string): Promise<boolean> {
+    if (!this.isAdmin()) return false;
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      return this.liveWrite(async () => {
+        const result = await outreach.revokeApiKey((path, init) => this.api.request(path, init), id);
+        if (epoch !== this.sessionEpoch()) return;
+        this.data.update((d) => ({ ...d, apiKeys: d.apiKeys.map((k) => k.id === id ? { ...k, revoked_at: result.revoked_at } : k) }));
+      });
+    }
     this.mutate((d) => { d.apiKeys.find((k) => k.id === id)!.revoked_at = nowIso(); }, 'apikey.revoke', id);
+    return true;
   }
 
   saveCustomField(field: CustomField, originalKey: string | null) {

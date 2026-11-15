@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -186,4 +188,19 @@ test('drafts CLI forwards confirmed dates without guessing or losing excluded ro
     assert.equal(bad.status, 1, flags.join(' '));
     assert.equal(bad.stdout, '');
   }
+});
+
+test('drafts CLI forwards an explicit column mapping into preview and review', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cic-drafts-'));
+  try {
+    const input = join(directory, 'gifts.csv'), mapping = join(directory, 'mapping.json');
+    writeFileSync(input, 'Given,Surname,Mail,Gift\nAvery,Smith,avery@example.org,12.34');
+    writeFileSync(mapping, JSON.stringify({ Given: 'first_name', Surname: 'last_name', Mail: 'email', Gift: 'amount_decimal' }));
+    const cli = fileURLToPath(new URL('../tools/import-drafts.ts', import.meta.url));
+    const result = spawnSync(process.execPath, [cli, 'spreadsheet', input, '--mapping', mapping,
+      '--currency', 'USD', '--status', 'settled', '--refund-cents', '0', '--occurred-at', reviewed.occurred_at], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(JSON.parse(result.stdout).giftDrafts, 1);
+    assert.doesNotMatch(result.stdout + result.stderr, /avery@example/);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
 });

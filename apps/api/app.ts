@@ -26,6 +26,8 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
       res.set('Access-Control-Allow-Methods', 'GET, POST, PATCH');
       res.set('Access-Control-Allow-Headers', /^\/api\/v1\/imports(?:\/|$)/.test(req.path)
         ? 'Authorization, Content-Type, X-Import-Source, X-Import-Filename' : 'Authorization, Content-Type');
+      if (/^\/api\/v1\/(?:summary|activity)\/?$/i.test(req.path))
+        res.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, X-API-Key');
       res.sendStatus(204);
       return;
     }

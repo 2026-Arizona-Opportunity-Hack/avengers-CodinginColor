@@ -141,3 +141,15 @@ decisions; terminal rows cannot reopen. Minimal hashes/results remain for safe r
 Gift source-row provenance is unique per organization even across owner visibility.
 Existing duplicate provenance aborts the migration; it never deletes history.
 This migration adds storage, not an import HTTP endpoint. Tests: `node --test tests/import-ledger.test.ts`.
+
+`007_owner_followups.sql` extends the admin-only reassignment function: only open
+follow-ups move with the donor; completed history keeps its prior owner. The
+assignment role receives only org-scoped follow-up reads and `owner_id` updates.
+Runtime cannot change task ownership directly. A failed task update rolls back
+the donor update and audit together. Tests: `node --test tests/owner-followups.test.ts`.
+
+`008_import_provenance_uuid.sql` compares gift provenance batch IDs as UUIDs,
+so uppercase and lowercase UUID aliases cannot bypass uniqueness across owners.
+Organization scope and exact row keys remain distinct. Historical aliases abort
+the transaction, preserving both gifts and the prior index for operator review;
+the migration never deletes history. Tests: `node --test tests/import-provenance-uuid.test.ts`.

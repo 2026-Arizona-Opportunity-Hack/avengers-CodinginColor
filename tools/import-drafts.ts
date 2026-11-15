@@ -4,6 +4,7 @@ import { basename } from 'node:path';
 import { GiftWriteSchema, IdSchema } from '../packages/contracts/index.ts';
 import type { DonorWrite, GiftWrite } from '../packages/contracts/index.ts';
 import { previewCsv } from './import-preview.ts';
+import { previewXlsx } from './import-xlsx.ts';
 import { createReviewPlan, fingerprintFile, resolveReview } from './import-review.ts';
 
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -77,20 +78,24 @@ const counts = (items: string[]) => items.reduce<Record<string, number>>(
 if (import.meta.main) {
   try {
     const [source, file, ...extra] = process.argv.slice(2);
-    if (!source || !file || !file.toLowerCase().endsWith('.csv')) throw new Error(
+    if (!source || !file || !/\.(csv|xlsx)$/i.test(file)) throw new Error(
       'Usage: node tools/import-drafts.ts <spreadsheet|zeffy|benevity|az_gives|united_way> ' +
-      '<file.csv> [--currency USD --status settled --refund-cents 0 ' +
+      '<file.csv|file.xlsx> [--mapping mapping.json] [--currency USD --status settled --refund-cents 0 ' +
       '--occurred-at 2026-11-14T00:00:00-07:00] [--date-format MM/DD/YYYY --utc-offset ±HH:MM]');
     const flags = new Map([['--currency', 'currency'], ['--status', 'status'],
       ['--refund-cents', 'refund_cents'], ['--occurred-at', 'occurred_at']]);
     const values: Record<string, unknown> = {};
     const dates = new Map<string, string>();
+    let mappingFile: string | undefined;
     for (let i = 0; i < extra.length; i += 2) {
       const option = extra[i], dateFlag = option === '--date-format' || option === '--utc-offset';
       const field = flags.get(option);
-      if (!field && !dateFlag) throw new Error('Unknown option');
+      if (!field && !dateFlag && option !== '--mapping') throw new Error('Unknown option');
       if (extra[i + 1] === undefined) throw new Error(`Missing value for ${option}`);
-      if (dateFlag) {
+      if (option === '--mapping') {
+        if (mappingFile) throw new Error('Duplicate mapping option');
+        mappingFile = extra[i + 1];
+      } else if (dateFlag) {
         if (dates.has(option)) throw new Error(`Duplicate option ${option}`);
         dates.set(option, extra[i + 1]);
       } else {
@@ -105,9 +110,17 @@ if (import.meta.main) {
     if (refund !== undefined && !/^\d+$/.test(refund)) throw new Error('Refund cents must be a nonnegative integer');
     if (refund !== undefined) values.refund_cents = Number(refund);
     const bytes = await readFile(file);
-    if (bytes.length > MAX_BYTES) throw new Error('CSV exceeds 5 MiB');
-    const preview = previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes), source,
-      basename(file), undefined, dateOptions);
+    if (bytes.length > MAX_BYTES) throw new Error('Import exceeds 5 MiB');
+    let mapping: unknown = {};
+    if (mappingFile) {
+      const content = await readFile(mappingFile, 'utf8');
+      if (Buffer.byteLength(content) > MAX_BYTES) throw new Error('Mapping exceeds 5 MiB');
+      try { mapping = JSON.parse(content); } catch { throw new Error('Mapping file must contain valid JSON'); }
+    }
+    const preview = file.toLowerCase().endsWith('.xlsx')
+      ? await previewXlsx(bytes, source, basename(file), mapping, dateOptions)
+      : previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes), source,
+        basename(file), mapping, dateOptions);
     const batch_id = randomUUID();
     const drafts = buildImportDrafts(preview, { batch_id, values });
     const base = { org_id: '00000000-0000-4000-8000-000000000000', batch_id,

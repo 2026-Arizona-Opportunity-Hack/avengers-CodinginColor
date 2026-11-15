@@ -70,8 +70,10 @@ test('drafts are rendered from templates for visible donors who allow contact', 
   const res = await call('POST', '/api/v1/drafts', 'board-a', thanks);
   assert.equal(res.status, 201);
   const draft = await res.json();
-  assert.deepEqual({ ...draft, id: undefined }, { id: undefined, channel: 'email', recipient: 'avery@example.org',
+  assert.deepEqual({ ...draft, id: undefined, created_at: undefined }, { id: undefined, created_at: undefined,
+    donor_id: DONOR_A, owner_id: BOARD_A, author_id: BOARD_A, channel: 'email', recipient: 'avery@example.org',
     subject: 'Thank you from Coding in Color', body: draft.body, status: 'draft' });
+  assert.match(draft.created_at, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/);
   assert.match(draft.body, /^Hi Avery,/);
   assert.equal((await call('POST', '/api/v1/drafts', 'board-b', thanks)).status, 404);
   assert.equal((await call('POST', '/api/v1/drafts', 'board-a', { ...thanks, donor_id: DENIED })).status, 409);
@@ -95,6 +97,38 @@ test('approval binds content: edits drop it, other owners cannot approve, compos
   assert.equal((await call('POST', `/api/v1/drafts/${draft.id}/manual-send`, 'board-a', { confirmed: true })).status, 409);
   assert.equal((await call('PATCH', `/api/v1/drafts/${draft.id}`, 'board-a', { subject: 'Hi\r\nBcc: x@evil.test' })).status, 400);
   assert.equal((await call('POST', `/api/v1/drafts/${draft.id}/approve`, 'admin')).status, 200);
+});
+
+test('members list their open drafts, scoped by owner and filterable by status', async (t) => {
+  const { call } = await setup(t);
+  const first = await (await call('POST', '/api/v1/drafts', 'board-a', thanks)).json();
+  const second = await (await call('POST', '/api/v1/drafts', 'board-a', thanks)).json();
+  assert.equal((await call('POST', `/api/v1/drafts/${second.id}/approve`, 'board-a')).status, 200);
+  const mine = await (await call('GET', '/api/v1/drafts', 'board-a')).json();
+  assert.deepEqual(mine.items.map((d: { id: string }) => d.id).sort(), [first.id, second.id].sort());
+  const item = mine.items.find((d: { id: string }) => d.id === second.id);
+  assert.deepEqual(Object.keys(item).sort(), ['approved_at', 'approved_by', 'author_id', 'body', 'channel', 'created_at',
+    'donor_id', 'id', 'owner_id', 'recipient', 'status', 'subject']);
+  assert.deepEqual([item.donor_id, item.status, item.approved_by], [DONOR_A, 'approved', BOARD_A]);
+  const approved = await (await call('GET', '/api/v1/drafts?status=approved', 'board-a')).json();
+  assert.deepEqual(approved.items.map((d: { id: string }) => d.id), [second.id]);
+  assert.deepEqual((await (await call('GET', '/api/v1/drafts', 'board-b')).json()).items, []);
+  assert.equal((await (await call('GET', '/api/v1/drafts', 'admin')).json()).items.length, 2);
+  assert.equal((await call('GET', '/api/v1/drafts?status=everything', 'board-a')).status, 400);
+  assert.equal((await call('GET', '/api/v1/drafts')).status, 401);
+});
+
+test('listed drafts carry the current donor owner, apart from their author', async (t) => {
+  const { call, asOwner } = await setup(t);
+  const byAdmin = await (await call('POST', '/api/v1/drafts', 'admin', thanks)).json();
+  assert.deepEqual([byAdmin.owner_id, byAdmin.author_id], [BOARD_A, ADMIN]);
+  const listed = async (who: string) => (await (await call('GET', '/api/v1/drafts', who)).json()).items;
+  assert.deepEqual((await listed('board-a')).map((d: { id: string; owner_id: string; author_id: string }) =>
+    [d.id, d.owner_id, d.author_id]), [[byAdmin.id, BOARD_A, ADMIN]]);
+  await asOwner(`UPDATE donors SET owner_id = '${BOARD_B}' WHERE id = '${DONOR_A}'`);
+  assert.deepEqual(await listed('board-a'), []);
+  assert.deepEqual((await listed('board-b')).map((d: { owner_id: string; author_id: string }) => [d.owner_id, d.author_id]),
+    [[BOARD_B, ADMIN]]);
 });
 
 test('compose rechecks consent, contact and archive after approval', async (t) => {

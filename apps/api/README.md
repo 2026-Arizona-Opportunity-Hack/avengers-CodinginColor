@@ -16,7 +16,9 @@ process liveness, not proof that Clerk or the database is configured or reachabl
 `GET /api/v1/me` takes `Authorization: Bearer <Clerk session token>` and returns
 only `{id, org_id, role}`. Missing/invalid sessions get 401, disallowed origins or
 memberships get 403, and dependency failures get 503 without underlying messages.
-Only exact `APP_ORIGIN` is allowed by CORS. Configure invitation-only registration
+Only exact `APP_ORIGIN` is allowed by CORS. Summary/activity preflights also allow
+`X-API-Key`; the request still requires a valid scoped read API key.
+Configure invitation-only registration
 in Clerk; require verified primary email and MFA for admins. Each request verifies
 the signed token's issuer/authorized party, checks the live session and user, and
 checks current database membership. Admin tokens must contain a verified second
@@ -67,7 +69,9 @@ row lock, revalidates, and audits `gift.correct` atomically; identity and
 provenance cannot be rewritten. Gifts are never hard-deleted.
 
 Import staging requires an active admin with verified MFA. `POST /api/v1/imports`
-accepts raw UTF-8 `text/csv` up to 4 MiB, with `X-Import-Source` and basename-only
+accepts raw UTF-8 `text/csv` or original `.xlsx` bytes with MIME
+`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, up to 4 MiB,
+with `X-Import-Source` and basename-only
 `X-Import-Filename`. The server computes the file hash and batch UUID; exact replay
 resumes the existing batch and changing its source label gives409. Staging writes
 no donor or gift rows. `POST /:batchId/layout` accepts reviewed column mapping,
@@ -76,6 +80,9 @@ explicit batch financial metadata and optional paired date-format/UTC-offset.
 returns bounded pages. `POST /:batchId/abandon` irreversibly purges staged bytes
 and layout. All routes are under `/api/v1/imports`, enforced by membership and
 database RLS; foreign batches are404. Stage/layout/abandon are audited atomically.
+Malformed batch path UUIDs also return404 `import_not_found` after authorization.
+Blank or duplicate CSV headers return400 `invalid_csv`; invalid column mappings
+and decision body IDs remain400 `invalid_mapping` and `invalid_decision` respectively.
 Review uses two phases: `POST /:id/donors/plan`, then `/donors/review` with
 `{plan_hash,decisions}`; after donors are ready, `/gifts/plan`, then `/gifts/review`
 with `{donor_plan_hash,plan_hash,decisions}`. Decisions contain kind, row, action
@@ -93,8 +100,13 @@ back. Identical retries/re-uploads return the saved result with `replayed:true`.
 Raw bytes, layout and decisions are purged on success. Excluded CSV records require
 explicit `layout.skip_records:[recordNumber,...]` before review; otherwise commit
 fails400. Their validation issues are available on preview row pages. No financial
-defaults or client-supplied write operations are accepted. This is CSV-only until
-the Data-owned XLSX ingestion handoff; the UI must wire these server routes.
+defaults or client-supplied write operations are accepted. XLSX uses the reviewed
+bounded parser and stages its validated cells as CSV, with the original workbook's
+fingerprint retained for replay. The normalized CSV must also fit 4 MiB. One visible
+sheet is supported; formulas, macros, unsafe archives and numeric date cells are
+rejected. Enter workbook dates as text and review their format/timezone. Invalid
+workbooks return400 `invalid_xlsx`, oversized input returns413, and wrong MIME or
+extension returns415. The UI must wire these server routes.
 
 `tests/import-native.test.ts` provides optional real-PostgreSQL concurrency proof
 using `CIC_NATIVE_TEST_URL`. It accepts only an empty disposable loopback database

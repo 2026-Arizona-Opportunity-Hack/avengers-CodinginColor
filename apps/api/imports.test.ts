@@ -23,6 +23,13 @@ test('imports stage exact bytes with server identity, resume safely, validate la
   for(const value of [{...layout,org_id:'bad'},{...layout,batch_values:{amount_cents:1}},{mapping:{missing:'email'}},
     {date_format:'MM/DD/YYYY'}]) assert.equal((await call('POST',`/${batch.batch_id}/layout`,value)).status,400);
   const mapped=await call('POST',`/${batch.batch_id}/layout`,layout); assert.equal(mapped.status,200);
+  for(const mapping of [{missing:'email'},{email:'unknown_target'}]) {
+    const invalid=await call('POST',`/${batch.batch_id}/layout`,{mapping});
+    assert.equal(invalid.status,400); assert.deepEqual(await invalid.json(),{error:'invalid_mapping'});
+  }
+  const invalidDecision=await call('POST',`/${batch.batch_id}/donors/review`,{
+    plan_hash:'sha256:'+'0'.repeat(64),decisions:[{kind:'donor',row:0,action:'link',donor_id:'bad'}]});
+  assert.equal(invalidDecision.status,400); assert.deepEqual(await invalidDecision.json(),{error:'invalid_decision'});
   const rows=await call('GET',`/${batch.batch_id}/rows?kind=donor&limit=1`);
   assert.equal(rows.status,200); assert.equal((await rows.json() as {items:unknown[]}).items.length,1);
   assert.equal((await call('POST',`/${batch.batch_id}/abandon`)).status,200);
@@ -38,4 +45,36 @@ test('import upload rejects unsupported media, invalid CSV and excessive payload
   assert.equal((await call('POST','','x'.repeat(4194305))).status,413);
   await sql.exec('SET SESSION AUTHORIZATION postgres; RESET ROLE');
   assert.equal((await sql.query<{n:number}>('SELECT count(*)::int AS n FROM donors')).rows[0].n,0);
+});
+
+test('invalid CSV headers have a stable public error and leave no staged batches',async t=>{
+  const {call,sql}=await importFixture(t);
+  for(const raw of ['email,EMAIL\na@example.org,b@example.org','first_name,first-name\nA,B',
+    'email,\na@example.org,B',' , \nA,B']) {
+    const response=await call('POST','',raw);
+    assert.equal(response.status,400);
+    assert.deepEqual(await response.json(),{error:'invalid_csv'});
+  }
+  await sql.exec('SET SESSION AUTHORIZATION postgres; RESET ROLE');
+  assert.equal((await sql.query<{n:number}>('SELECT count(*)::int AS n FROM import_batches')).rows[0].n,1); // foreign fixture only
+});
+
+test('every import batch route conceals malformed IDs like missing IDs after authorization',async t=>{
+  const {call}=await importFixture(t);
+  const hash='sha256:'+'0'.repeat(64);
+  const routes:[string,string,unknown][]=[['GET','',undefined],['GET','/rows',undefined],
+    ['GET','/plan/rows?kind=donor',undefined],['POST','/layout',layout],['POST','/abandon',undefined],
+    ['POST','/donors/plan',undefined],['POST','/gifts/plan',undefined],
+    ['POST','/donors/review',{plan_hash:hash,decisions:[]}],
+    ['POST','/gifts/review',{plan_hash:hash,donor_plan_hash:hash,decisions:[]}],
+    ['POST','/commit',{plan_hash:hash,donor_plan_hash:hash}]];
+  for(const [method,path,body] of routes) {
+    for(const id of ['not-a-uuid','00000000-0000-4000-8000-000000000099']) {
+      const response=await call(method,`/${id}${path}`,body);
+      assert.equal(response.status,404,`${method} ${path} ${id}`);
+      assert.deepEqual(await response.json(),{error:'import_not_found'});
+    }
+    assert.equal((await call(method,`/not-a-uuid${path}`,body,null)).status,401);
+    assert.equal((await call(method,`/not-a-uuid${path}`,body,'board')).status,403);
+  }
 });

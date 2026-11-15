@@ -16,7 +16,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         <div>
           <p class="label eyebrow">Add donor</p>
           <h1>Add one donor by hand</h1>
-          <p class="lede">For people who gave outside Zeffy or Benevity, or whom a board member just met. Files with many rows go through Import.</p>
+          <p class="lede">Someone who gave outside an import, or a person a board member just met.</p>
         </div>
       </header>
 

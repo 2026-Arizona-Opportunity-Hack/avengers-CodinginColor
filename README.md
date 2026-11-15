@@ -73,6 +73,11 @@ numbers in memory; it never writes donors or gifts.
 
 ## Run it locally
 
+Live workspaces load the server-scoped follow-up queue and drafts. Administrators
+can issue and revoke real aggregate API keys from **Read API**; the secret is shown
+once and is never stored in the browser dataset. Other live workflows remain
+tracked separately; demo actions do not persist to the server.
+
 Tests and checks need no accounts or keys:
 
 ```bash
@@ -138,11 +143,9 @@ All supplied samples lack currency, and the AZ Gives sample's dates stay unconfi
 until a reviewer passes both date flags, so every preview remains `needs_review`.
 External transaction IDs are optional in
 the backend baseline; reimport safety still needs reconciliation logic.
-Phone formatting is normalized without guessing
-a country; contact-person names do not assign owners. XLSX, Jev suggestions,
-donor/gift deduplication, saved review decisions and transactional import remain
-follow-up work against the baseline published in [backend issue #7](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/7),
-with persistence integration after the shared foundation is reviewed and merged.
+Phone formatting is normalized without guessing a country; contact-person names
+do not assign owners. Local review helpers and the CSV import API are described
+below; XLSX upload still needs a backend integration.
 
 For ambiguous headers, pass an optional JSON mapping file as the final argument:
 `node tools/import-preview.ts spreadsheet export.csv mapping.json`.
@@ -151,6 +154,47 @@ Keys must exactly match source headers. Targets are `first_name`, `last_name`,
 `currency`, `external_id`, `amount_decimal`, or `amount_cents`; null explicitly
 ignores a column while retaining its raw cells. Unknown targets/headers and
 multiple columns targeting the same field are rejected.
+
+`node tools/import-xlsx.ts <source> <file.xlsx> [mapping.json] [--date-format FMT --utc-offset ±HH:MM]`
+previews a limited `.xlsx` by converting it to CSV text for the same validation
+(counts only; errors contain no cell values). Accepted: one visible
+worksheet, at most 5 MiB, 256 entries, 8 MiB per entry / 16 MiB inflated, 20,001
+rows by 200 columns, ordinary ZIP archives, text/number cells (numbers stay exact text).
+Physical blank rows and row numbers are retained for review/provenance. Rejected:
+formulas, date-formatted cells (enter dates as text and confirm the format),
+hidden/multiple sheets, DOCTYPE/ENTITY XML, duplicate, truncated or malformed archive
+entries, and ZIP64. Text dates require a reviewer-selected format and fixed UTC offset;
+Excel date serials are unsupported because their timezone cannot be inferred.
+This is not full Excel support.
+
+`node tools/import-drafts.ts <source> <file.csv|file.xlsx> --mapping mapping.json
+--currency USD --status settled --refund-cents 0 --occurred-at 2026-11-15T12:00:00Z`
+passes explicit mappings and reviewer facts into the shared draft/review pipeline;
+`--mapping` is optional and confirmed dates use `--date-format` plus `--utc-offset`.
+Its output contains counts only. Missing financial facts stay unresolved. Excluded
+record numbers remain available in the returned drafts for the API's `skip_records`.
+
+For optional TypeSafe Jev suggestions, set `TYPESAFE_API_KEY` and run
+`node tools/import-suggest.ts <source> <file.csv>`. `JEV_API_KEY` is a legacy fallback.
+The client calls only `https://api.typesafe.ai/v1/systemone` with `jev-latest`;
+known mappings are resolved locally, and only unknown header names are sent.
+No donor row or sample value is sent. All suggestions require human approval;
+write approved choices to a mapping JSON file before preview or draft creation.
+This command makes a paid API request for each unknown header, so run it only
+when you choose to use the service.
+
+The five accepted source labels (`spreadsheet`, `zeffy`, `benevity`, `az_gives`,
+`united_way`) identify provenance. They are not verified provider-specific adapters;
+real export schemas, timezones and status/refund meanings remain unverified.
+The live `/api/v1/imports` upload accepts raw CSV with
+`Content-Type: text/csv; charset=utf-8` and original `.xlsx` bytes with
+`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Both require
+an admin with MFA, `X-Import-Source`, `X-Import-Filename` and a file up to 4 MiB.
+XLSX uses the reviewed parser, stages validated cells for the existing two-phase
+review and atomic commit, and retains the original workbook fingerprint for safe
+reimport. Only one visible worksheet is supported; macros, formulas, unsafe ZIPs
+and numeric date cells are rejected. Converted staging data must also fit 4 MiB.
+The live import screen remains a separate integration task.
 
 ```json
 {"Contribution Value":"amount_decimal","When Received":"occurred_at","Money Code":"currency","Unused":null}
