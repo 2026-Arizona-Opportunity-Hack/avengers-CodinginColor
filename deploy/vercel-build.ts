@@ -1,6 +1,6 @@
 // Vercel build step (#30): publish the built web app from public/ (same origin as the API) and write
 // the runtime config.json the web app reads to switch from demo data to the live API (#59).
-import { cp, mkdir, writeFile } from 'node:fs/promises';
+import { cp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 export type WebConfig = { apiBase: string; clerkPublishableKey: string };
@@ -17,11 +17,13 @@ export function webConfig(env: Record<string, string | undefined>): WebConfig {
 
 /**
  * Copy the web build into the output directory and write config.json. Without a key the build fails,
- * unless CIC_WEB_DEMO_MODE=1 asks for the app's built-in demo data on purpose.
+ * unless CIC_WEB_DEMO_MODE=1 asks for the app's built-in demo data on purpose. The output directory is
+ * generated (gitignored) and emptied first, so a previous live build's config.json can't survive a demo build.
  */
 export async function buildForVercel(options: { dist: string; out: string; env: Record<string, string | undefined> }) {
   const demo = options.env.CIC_WEB_DEMO_MODE === '1';
   const config = demo ? null : webConfig(options.env);
+  await rm(options.out, { recursive: true, force: true });
   await mkdir(options.out, { recursive: true });
   await cp(options.dist, options.out, { recursive: true });
   if (config) await writeFile(join(options.out, 'config.json'), JSON.stringify(config));

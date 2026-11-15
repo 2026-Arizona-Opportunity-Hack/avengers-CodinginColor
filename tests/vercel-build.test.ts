@@ -33,3 +33,17 @@ test('the build copies the web app into public/ and writes config.json; demo mod
   await buildForVercel({ dist, out: demo, env: { CIC_WEB_DEMO_MODE: '1' } });
   await assert.rejects(readFile(join(demo, 'config.json')), /ENOENT/);   // no config = the app's demo mode
 });
+
+test('a demo build after a live build leaves no stale config.json or old assets behind', async (t) => {
+  const root = await mkdtemp(join(tmpdir(), 'cic-vercel-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const dist = join(root, 'dist'), out = join(root, 'public');
+  await mkdir(dist, { recursive: true });
+  await writeFile(join(dist, 'index.html'), '<app-root></app-root>');
+  await buildForVercel({ dist, out, env: { CLERK_PUBLISHABLE_KEY: 'pk_test_abc123' } });
+  await writeFile(join(out, 'old-chunk.js'), 'stale');
+  await buildForVercel({ dist, out, env: { CIC_WEB_DEMO_MODE: '1', CLERK_PUBLISHABLE_KEY: 'pk_test_abc123' } });
+  await assert.rejects(readFile(join(out, 'config.json')), /ENOENT/);
+  await assert.rejects(readFile(join(out, 'old-chunk.js')), /ENOENT/);
+  assert.equal(await readFile(join(out, 'index.html'), 'utf8'), '<app-root></app-root>');
+});
