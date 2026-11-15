@@ -3,15 +3,15 @@
     "SessionStart": [
       {
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/session-clock.sh" },
-          { "type": "command", "command": "python tools/board.py unread" }
+          { "type": "command", "command": "python .claude/hooks/run.py session-clock" },
+          { "type": "command", "command": "python .claude/hooks/run.py board-unread" }
         ]
       }
     ],
     "UserPromptSubmit": [
       {
         "hooks": [
-          { "type": "command", "command": "python tools/board.py unread" }
+          { "type": "command", "command": "python .claude/hooks/run.py board-unread" }
         ]
       }
     ],
@@ -19,7 +19,7 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/guard-secrets.sh" }
+          { "type": "command", "command": "python .claude/hooks/run.py guard-secrets" }
         ]
       }
     ]
