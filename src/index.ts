@@ -18,4 +18,4 @@ const env = parsed.data;
 const db = new Pool({ connectionString: env.DATABASE_URL, max: 3, idleTimeoutMillis: 10_000,
   connectionTimeoutMillis: 5000, statement_timeout: 10_000 });
 
-export default express().use(createApp(env, db, createVerifier(env, clerkProvider(env))));
+export default express().disable('x-powered-by').use(createApp(env, db, createVerifier(env, clerkProvider(env))));
