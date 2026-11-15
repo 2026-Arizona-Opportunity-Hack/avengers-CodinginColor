@@ -22,7 +22,7 @@ export function packetQuery(funderId: string, programId: string, from: string, t
       <header class="page-head"><div><h1>Funder reports</h1><p class="lede">Gift history, program outcomes and provenance for one funder.</p></div></header>
       <form class="toolbar glass no-print" (submit)="$event.preventDefault()" aria-label="Funder packet settings">
         <label class="field">Funder<select class="select" [value]="selectedFunder()" (change)="funderId.set($any($event.target).value)">
-          @for (donor of store.donors(); track donor.id) { <option [value]="donor.id">{{ donor.name }}</option> }
+          @for (donor of store.historicalDonors(); track donor.id) { <option [value]="donor.id">{{ donor.name }}</option> }
         </select></label>
         <label class="field">Program<select class="select" [value]="selectedProgram()" (change)="programId.set($any($event.target).value)">
           @for (program of store.programs(); track program.id) { <option [value]="program.id">{{ program.title }}</option> }
@@ -73,7 +73,7 @@ export class LiveFundersPage {
   protected readonly through = signal(today());
   protected readonly funderId = signal('');
   protected readonly programId = signal('');
-  protected readonly selectedFunder = computed(() => this.funderId() || this.store.donors()[0]?.id || '');
+  protected readonly selectedFunder = computed(() => this.funderId() || this.store.historicalDonors()[0]?.id || '');
   protected readonly selectedProgram = computed(() => this.programId() || this.store.programs()[0]?.id || '');
   protected readonly query = computed(() => packetQuery(this.selectedFunder(), this.selectedProgram(), this.from(), this.through()));
   protected readonly packet = signal<ApiFunderPacket | null>(null);

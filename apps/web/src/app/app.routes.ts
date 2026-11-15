@@ -12,6 +12,8 @@ const signedIn: CanMatchFn = (_route, segments: UrlSegment[]) => inject(Store).s
   || inject(Router).createUrlTree(['/sign-in'], { queryParams: { next: '/' + segments.map((s) => s.path).join('/') } });
 
 export const routes: Routes = [
+  { path: 'impact', title: 'Your impact | Coding in Color', loadComponent: () => import('./pages/donor-impact').then(m => m.DonorImpactPage) },
+  { path: 'sign-up', title: 'Accept invitation', loadComponent: () => import('./pages/invitation-sign-up').then(m => m.InvitationSignUpPage) },
   { path: 'sign-in', title: 'Sign in · Coding in Color', loadComponent: () => import('./pages/sign-in').then((m) => m.SignInPage) },
   {
     path: '',
@@ -20,6 +22,7 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', title: 'Overview · Coding in Color', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
       { path: 'donors', title: 'Donors · Coding in Color', loadComponent: () => import('./pages/donors').then((m) => m.DonorsPage) },
+      { path: 'ask', title: 'Ask your data · Coding in Color', loadComponent: () => import('./pages/ask-data').then(m => m.AskDataPage) },
       { path: 'donors/new', title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
       { path: 'donors/:id', title: 'Donor · Coding in Color', loadComponent: () => import('./pages/donor-detail').then((m) => m.DonorDetailPage) },
       { path: 'donations', title: 'Donations · Coding in Color', loadComponent: () => import('./pages/donations').then((m) => m.DonationsPage) },

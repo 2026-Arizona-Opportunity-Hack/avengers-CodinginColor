@@ -1,5 +1,12 @@
 # Core API foundation
 
+`POST /api/v1/ask-data` accepts only `{question}` (1–500 characters) and requires a member session.
+Supported intent includes visible/my donors; new/reactivated/increased/flat/decreased/lapsed/retained;
+settled/pending/void gifts; this/last year; USD/EUR/GBP/CAD/AUD/JPY; and strict “over” net thresholds.
+USD and current Phoenix year are explicit defaults. Unknown terms clarify instead of broadening.
+Results are bounded to 50 and RLS-scoped; no SQL or writes come from the model. The optional
+shared `OPENAI_*` adapter receives typed nonpersonal filters only and has a deterministic fallback.
+
 Requires Node 24+, `npm ci`, a migrated PostgreSQL database and Clerk instance.
 Copy root `.env.example` to `.env` and supply actual values privately. Configure
 `CIC_ORG_ID` to CIC's database organization UUID; callers cannot choose an org.
@@ -134,3 +141,24 @@ OPENAI_MODEL. Missing key/model, timeout or invalid output uses deterministic
 templates. Grounded update proposals expose only synthetic fact categories to the
 provider; donor details, gift amounts and outcome text stay local. Reviewed drafts
 remain unapproved until the existing exact-content approval flow is completed.
+
+Admin/MFA `POST /api/v1/invitations` accepts `{request_id,email,role?}` (default
+board), saves role intent, then sends one Clerk invitation outside SQL. Identical
+sent retries return200 without another email. Failed/queued delivery never grants
+access; explicit retry of a failed request may send again. Ten attempts per admin
+per hour are allowed. GET lists up to200; POST `/:id/revoke` closes database intent
+before provider cleanup. Only sent/unexpired intent may be claimed from a verified
+primary Clerk email at /me. Existing inactive memberships stay inactive. Roles
+never come from client email, query parameters or Clerk public metadata.
+
+P2 donor impact is independent of staff membership. Admin/MFA POST
+`/api/v1/impact/invitations` accepts `{request_id,donor_id,requested:true}` and
+emails the canonical donor contact a Clerk sign-up link. Delivery grants no data
+access. Admin POST `/impact/access` then requires `{donor_id,clerk_subject,opt_in:true}`;
+the same-instance user's verified primary email must match the selected donor.
+GET `/impact/access` lists grants; POST `/impact/access/:id/revoke` closes access.
+Admin GET `/impact/outcomes` lists approved facts and actual publication state;
+POST `/impact/outcomes/:id/publication` with `{published:true|false}` explicitly
+publishes or withdraws a version. Corrections require republishing. Donor GET
+`/impact?limit=50&offset=0` returns no private IDs, contact details or notes and
+requires a live verified identity plus its own active opted-in grant.
