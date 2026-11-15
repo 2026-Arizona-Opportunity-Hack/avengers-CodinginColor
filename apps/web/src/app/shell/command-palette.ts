@@ -69,7 +69,7 @@ export class CommandPalette {
 
   protected readonly pages = computed(() => this.nav().flatMap((g) => g.items));
   protected readonly actions = computed(() => ACTIONS.filter((a) =>
-    (!a.admin || this.store.isAdmin()) && (!this.store.live() || ['/account', '/outreach', '/funders'].includes(a.path))));
+    (!a.admin || this.store.isAdmin()) && (!this.store.live() || ['/account', '/outreach', '/funders', '/import'].includes(a.path))));
 
   protected go(path: string) {
     this.openChange.emit(false);
