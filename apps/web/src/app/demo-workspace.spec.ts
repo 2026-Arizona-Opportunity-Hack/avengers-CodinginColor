@@ -63,15 +63,14 @@ it('retains persona and signed-out state when the same demo tab reloads', async 
   restored.resetDemo(); expect(restored.donor(donorId)?.name).not.toBe('Judge edited demo donor');
 });
 
-it('leaves demo mode only for explicit live entry, keeping live roles protected', async () => {
-  sessionStorage.setItem('cadence.demo-workspace', '1'); history.replaceState({}, '', '/sign-in?demo=0');
+it.each(['/', '/sign-in', '/sign-in?demo=0'])('keeps public entry %s synthetic even with deployed live config', async (path) => {
+  history.replaceState({}, '', path);
   const fetch = vi.fn(async () => new Response(JSON.stringify({ apiBase: '', clerkPublishableKey: 'pk_test_synthetic' }),
     { headers: { 'Content-Type': 'application/json' } })); vi.stubGlobal('fetch', fetch);
   const start = vi.spyOn(TestBed.inject(Api), 'start').mockResolvedValue();
   const store = TestBed.inject(Store); await initializeWorkspace(store);
-  expect(fetch).toHaveBeenCalledOnce(); expect(start).toHaveBeenCalledOnce();
-  expect(sessionStorage.getItem('cadence.demo-workspace')).toBeNull();
-  expect(store.live()).toBe(true); expect(store.demoMode()).toBe(false); expect(store.isAdmin()).toBe(false);
+  expect(fetch).not.toHaveBeenCalled(); expect(start).not.toHaveBeenCalled();
+  expect(store.live()).toBe(false); expect(store.demoMode()).toBe(true); expect(store.signedIn()).toBe(false);
 });
 
 it('Try Now re-enters the central admin dashboard after logout without resetting demo edits', async () => {

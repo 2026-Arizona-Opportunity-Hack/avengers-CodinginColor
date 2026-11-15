@@ -12,10 +12,10 @@ const signedIn: CanMatchFn = (_route, segments: UrlSegment[]) => inject(Store).s
   || inject(Router).createUrlTree(['/sign-in'], { queryParams: { next: '/' + segments.map((s) => s.path).join('/') } });
 
 export const routes: Routes = [
-  { path: 'impact', title: 'Your impact | Coding in Color', loadComponent: () => import('./pages/donor-impact').then(m => m.DonorImpactPage) },
-  { path: 'sign-up', title: 'Accept invitation', loadComponent: () => import('./pages/invitation-sign-up').then(m => m.InvitationSignUpPage) },
-  { path: 'setup-security', title: 'Set up two-step verification · Coding in Color', loadComponent: () => import('./pages/setup-security').then(m => m.SetupSecurityPage) },
-  { path: 'sign-in', title: 'Sign in · Coding in Color', loadComponent: () => import('./pages/sign-in').then((m) => m.SignInPage) },
+  { path: 'impact', redirectTo: 'sign-in' },
+  { path: 'sign-up', redirectTo: 'sign-in' },
+  { path: 'setup-security', redirectTo: 'sign-in' },
+  { path: 'sign-in', title: 'Try Now · Coding in Color', loadComponent: () => import('./pages/sign-in').then((m) => m.SignInPage) },
   {
     path: '',
     canMatch: [signedIn],
@@ -34,7 +34,7 @@ export const routes: Routes = [
       { path: 'api', title: 'Read API · Coding in Color', canMatch: [adminOnly], loadComponent: () => import('./pages/api-access').then((m) => m.ApiAccessPage) },
       { path: 'settings', title: 'Settings · Coding in Color', canMatch: [adminOnly], loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage) },
       { path: 'not-connected', title: 'Not connected yet · Coding in Color', loadComponent: () => import('./pages/not-connected').then((m) => m.NotConnectedPage) },
-      { path: 'account', title: 'Account · Coding in Color', loadComponent: () => import('./pages/account').then((m) => m.AccountPage) },
+      { path: 'account', title: 'Profile · Coding in Color', loadComponent: () => import('./pages/account').then((m) => m.AccountPage) },
     ],
   },
   { path: '**', redirectTo: '' },
