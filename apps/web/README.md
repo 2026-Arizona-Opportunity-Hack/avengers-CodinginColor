@@ -59,12 +59,13 @@ send logging with scoped history. Quarterly touches require a logged contact.
 The admin Funder reports screen now requests the server's funder/program/period
 packet and downloads its audited CSV. Print/PDF uses the same loaded report.
 Amounts remain per-currency with unattributed gifts separate; unavailable outcome
-data is never replaced with zero. Approved outcome upload is a separate remaining
-integration requirement.
+data is never replaced with zero. Administrators can upload and review aggregate JSON outcomes, then explicitly approve them.
+The example uses the selected program and period; fill the actual source and results.
+Reports refresh after persistence. Same program/period/metric uploads correct prior approved values.
 Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
 server routes have not landed (donations, add donor, import,
-funder reports, settings) are hidden. Any other write shows "not
+settings) are hidden. Any other write shows "not
 connected yet" instead of pretending to save. Other owners appear as a short member
 ID until the API has a member directory route.
 
