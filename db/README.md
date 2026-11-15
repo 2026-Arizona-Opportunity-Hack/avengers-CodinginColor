@@ -130,3 +130,14 @@ Runtime has column-level grants and **no DELETE** on any of them.
   - A failed delivery can never be `qualifying`.
 
 Rules for queues and messages live in `packages/outreach`. Tests: `node --test tests/outreach-db.test.ts`.
+
+## Import staging (`006_import_review.sql`)
+
+`import_batches` is restricted to the current organization's admins. File bytes
+are bounded to 4 MiB; one active batch per organization/file SHA prevents replay
+through a changed source label. Creator, organization and file identity are immutable
+to the runtime role. Committing or abandoning requires purging bytes, layout and
+decisions; terminal rows cannot reopen. Minimal hashes/results remain for safe retries.
+Gift source-row provenance is unique per organization even across owner visibility.
+Existing duplicate provenance aborts the migration; it never deletes history.
+This migration adds storage, not an import HTTP endpoint. Tests: `node --test tests/import-ledger.test.ts`.
