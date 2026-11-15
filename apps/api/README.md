@@ -8,6 +8,11 @@ migration owner. Provision an active membership matching each invited Clerk user
 subject using an administrative connection. There is no public sign-up endpoint.
 
 Run `npm run start:api`, `npm run typecheck`, and `npm run test:api`.
+The start command loads `.env` when present; deployments may inject all required
+environment variables without creating a file. Configuration validation still
+rejects missing or invalid values. Public `GET /healthz` returns
+`{"status":"ok"}` without authenticating or connecting to PostgreSQL. This is
+process liveness, not proof that Clerk or the database is configured or reachable.
 `GET /api/v1/me` takes `Authorization: Bearer <Clerk session token>` and returns
 only `{id, org_id, role}`. Missing/invalid sessions get 401, disallowed origins or
 memberships get 403, and dependency failures get 503 without underlying messages.

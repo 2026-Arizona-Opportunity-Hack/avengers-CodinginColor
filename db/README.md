@@ -1,17 +1,28 @@
 # Database foundation
 
-Apply `migrations/001_core.sql` once to a fresh PostgreSQL database using a
-privileged migration connection, never the API runtime connection:
+Apply pending migrations to a fresh PostgreSQL database using a privileged
+migration connection, never the API runtime connection:
 
 ```powershell
-psql "$env:MIGRATION_DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_core.sql
+node --env-file-if-exists=.env db/migrate.ts
 node --test tests/core-schema.test.mjs
+node --test tests/migrate.test.ts
 ```
 
 Tests execute PostgreSQL through PGlite in memory, including the migration,
 RLS, runtime permissions, transaction rollback, source identity and financial
 constraints. They do not provision or verify Neon. `npm ci` installs the test
 dependency. PGlite is a development dependency, not the application database.
+
+The runner serializes migration clients with a session advisory lock and records
+filenames/checksums in `schema_migrations`. Each migration and its ledger entry
+commit together. Repeat runs skip applied SQL; modified/missing applied files or
+older pending versions fail. Migration files must use `NNN_name.sql` and wrap
+their SQL in `BEGIN;` / `COMMIT;`; the runner owns the actual transaction.
+Do not manually apply SQL then run the ledger against that existing database:
+there is no automatic history adoption. Review an adoption procedure or recreate
+only a disposable development database. Hosted migrations use a direct TLS
+connection; application runtime uses a separate restricted pooled connection.
 
 The migration creates `cic_runtime` as a restricted NOLOGIN/NOBYPASSRLS role.
 An operator must create a separate non-owner application login and grant it
