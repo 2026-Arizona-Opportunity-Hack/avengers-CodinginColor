@@ -42,12 +42,12 @@ import { IMPORT_FIELDS, LiveImports, importTotals, type ImportDecision, type Imp
             <div class="fields">
               @if (!mapped('currency')) { <label class="field">Currency for missing values<input class="input" name="currency" maxlength="3" placeholder="USD" [value]="layout().batch_values.currency ?? ''" /></label> }
               @if (!mapped('occurred_at')) { <label class="field">Gift timestamp with timezone, only if missing<input class="input" name="occurred_at" placeholder="2026-11-01T12:00:00-07:00" [value]="layout().batch_values.occurred_at ?? ''" /></label> }
-              <label class="field">Confirmed gift status<select class="input" name="status" required [value]="layout().batch_values.status ?? ''"><option value="">Choose status</option><option value="settled">Settled</option><option value="pending">Pending</option><option value="void">Void</option></select></label>
-              <label class="field">Confirmed refund per row, integer cents<input class="input" name="refund_cents" type="number" min="0" step="1" required [value]="layout().batch_values.refund_cents ?? ''" /></label>
+              @if (!mapped('status')) { <label class="field">Confirmed gift status<select class="input" name="status" required [value]="layout().batch_values.status ?? ''"><option value="">Choose status</option><option value="settled">Settled</option><option value="pending">Pending</option><option value="void">Void</option></select></label> }
+              @if (!mapped('refund_cents')) { <label class="field">Confirmed refund per row, integer cents<input class="input" name="refund_cents" type="number" min="0" step="1" required [value]="layout().batch_values.refund_cents ?? ''" /></label> }
               <label class="field">Text date format, if needed<select class="input" name="date_format" [value]="layout().date_format ?? ''"><option value="">Timestamp already includes timezone</option>@for (f of dateFormats; track f) { <option [value]="f">{{ f }}</option> }</select></label>
               <label class="field">UTC offset for text dates<input class="input" name="utc_offset" placeholder="-07:00" [value]="layout().utc_offset ?? '-07:00'" /></label>
             </div>
-            <p>Confirm these batch facts against the source. A single refund value applies to every included row; split files with different refund/status facts before importing.</p>
+            <p>Confirm batch facts against the source. Mapped status and refund columns retain each row's facts; batch values apply only when that column is unmapped.</p>
             <p>{{ p.counts.rows }} source rows; {{ p.counts.donors }} donor drafts; {{ p.counts.gifts }} gift drafts; {{ p.counts.excluded }} invalid rows excluded.</p>
             @for (issue of p.issues; track $index) { <p role="status">{{ issue.field }}: {{ issue.code }}</p> }
             @if (invalidRows().length) { <label><input type="checkbox" [checked]="skipInvalid()" (change)="skipInvalid.set($any($event.target).checked); applied.set(false)" /> I reviewed and acknowledge excluding all {{ invalidRows().length }} invalid source records.</label> }
@@ -183,10 +183,17 @@ export class LiveImportPage {
   protected applyLayout(event: Event) {
     event.preventDefault(); const form = new FormData(event.target as HTMLFormElement);
     return this.run(async () => {
-      const refund = String(form.get('refund_cents') ?? '').trim(), status = String(form.get('status') ?? '');
-      if (!/^\d+$/.test(refund) || !Number.isSafeInteger(Number(refund)) || !['settled', 'pending', 'void'].includes(status))
-        throw new Error('Confirm a gift status and nonnegative integer refund cents for each included row.');
-      const batch_values: ImportLayout['batch_values'] = { status, refund_cents: Number(refund) };
+      const batch_values: ImportLayout['batch_values'] = {};
+      if (!this.mapped('status')) {
+        const status = String(form.get('status') ?? '');
+        if (!['settled', 'pending', 'void'].includes(status)) throw new Error('Confirm a gift status for each included row.');
+        batch_values.status = status;
+      }
+      if (!this.mapped('refund_cents')) {
+        const refund = String(form.get('refund_cents') ?? '').trim();
+        if (!/^\d+$/.test(refund) || !Number.isSafeInteger(Number(refund))) throw new Error('Confirm nonnegative integer refund cents.');
+        batch_values.refund_cents = Number(refund);
+      }
       for (const field of ['currency', 'occurred_at'] as const) if (String(form.get(field) ?? '').trim()) batch_values[field] = String(form.get(field)).trim();
       const date_format = String(form.get('date_format') ?? '');
       const layout: ImportLayout = { mapping: this.mapping(), batch_values,
