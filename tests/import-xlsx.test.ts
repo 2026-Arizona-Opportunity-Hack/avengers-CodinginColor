@@ -145,7 +145,7 @@ test('rejects a compressed bomb before a large inflated buffer is allocated', ()
   try {
     const file = join(directory, 'bomb.xlsx');
     writeFileSync(file, xlsx([header], { extra: { 'xl/sharedStrings.xml': `<sst>${'A'.repeat(80 * 1024 * 1024)}</sst>` } }));
-    const module = fileURLToPath(new URL('../tools/import-xlsx.ts', import.meta.url));
+    const module = new URL('../tools/import-xlsx.ts', import.meta.url).href;
     const script = `import { readFileSync } from 'node:fs';
       const { previewXlsx } = await import(process.argv[1]);
       try { await previewXlsx(readFileSync(process.argv[2]), 'spreadsheet', 'bomb.xlsx'); process.exitCode = 2; }
