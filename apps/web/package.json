@@ -45,5 +45,8 @@
     "@types/luxon": "3.7.6",
     "prettier": "^3.8.1",
     "typescript": "~6.0.2"
+  },
+  "engines": {
+    "node": ">=22 <25"
   }
 }
