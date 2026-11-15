@@ -9,6 +9,7 @@ import type { Identity } from './auth.ts';
 import { batchOf,countsOf,draftsOf,fail,ImportError,parse,staged,summary,type Batch } from './import-batches.ts';
 import {registerImportReview} from './import-plans.ts';
 import {registerImportCommit} from './import-commit.ts';
+import {registerImportSuggestions} from './import-suggestions.ts';
 const Source=z.enum(['spreadsheet','zeffy','benevity','az_gives','united_way']);
 const XLSX='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const Page=z.strictObject({kind:z.enum(['preview','donor','gift']).default('preview'),
@@ -88,6 +89,7 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
     return {batch_id:b.id,status:'abandoned'};
   })));
   registerImportReview(router,admin,env.CIC_ORG_ID);
+  registerImportSuggestions(router,admin,env.CIC_ORG_ID);
   registerImportCommit(router,admin,env.CIC_ORG_ID);
   const errors:ErrorRequestHandler=(e,_req,res,next)=>{
     if(e instanceof HttpError) {res.status(e.status).json({error:e instanceof ImportError?e.code:
