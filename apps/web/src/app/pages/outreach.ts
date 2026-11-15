@@ -100,15 +100,20 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
                 </div>
 
                 <footer class="bar">
+                  <button hlmBtn variant="outline" type="button" (click)="editing.set(d.id)" [disabled]="editing() === d.id">Edit</button>
+                  @if (editing() !== d.id) {
+                  @if (!store.live() && d.donor_id) {
+                    <button hlmBtn variant="ghost" type="button" (click)="regenerate(d)">Regenerate draft</button>
+                  }
                   @if (d.status === 'pending') {
                     @if (!d.to) { <p class="hint"><ng-icon name="lucideCircleAlert" size="14" color="var(--attention)" aria-hidden="true" /> Add a {{ d.channel === 'text' ? 'phone number' : 'email' }} to the donor before approving.</p> }
                     @if (!store.live()) { <button hlmBtn variant="ghost" type="button" (click)="discard(d)">Discard</button> }
-                    <button hlmBtn variant="outline" type="button" (click)="editing.set(d.id)" [disabled]="editing() === d.id">Edit</button>
                     <button hlmBtn type="button" (click)="approve(d)" [disabled]="!d.to"><ng-icon name="lucideCheck" size="16" /> Approve</button>
                   } @else {
                     <p class="hint">Open it, send it yourself, then record it. Recording adds it to the donor's timeline.</p>
                     <a hlmBtn variant="outline" [href]="store.live() ? '#' : sendLink(d)" (click)="compose($event, d)"><ng-icon [name]="d.channel === 'text' ? 'lucideMessageSquare' : 'lucideMail'" size="16" /> {{ d.channel === 'text' ? 'Open in Messages' : 'Open in email' }}</a>
                     <button hlmBtn type="button" (click)="markSent(d)"><ng-icon name="lucideSend" size="16" /> I sent it</button>
+                  }
                   }
                 </footer>
               } @else {
@@ -387,6 +392,10 @@ export class OutreachPage {
     return d.channel === 'text'
       ? `sms:${d.to}?&body=${encodeURIComponent(d.body)}`
       : `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+  }
+
+  protected async regenerate(d: Draft) {
+    if (await this.store.regenerateDraft(d.id)) toast.success('Draft regenerated. Review and approve again.');
   }
 
   protected async saveEdit(event: Event, d: Draft) {
