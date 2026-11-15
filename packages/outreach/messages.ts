@@ -24,6 +24,8 @@ const FIELDS = new Set(['first_name', 'amount', 'program', 'gift_date', 'org_nam
 const OPTIONAL = new Set(['impact']);
 
 export const TEMPLATES = {
+  lapsed_nudge: { channel: 'email', subject: 'A note from Coding in Color', body:
+    'Hi {{first_name}},\n\nWould you like an update on {{program}} at Coding in Color? If you have any questions, please reply.\n\nCoding in Color' },
   thank_you: { channel: 'email', subject: 'Thank you from Coding in Color', body:
     'Hi {{first_name}},\n\nThank you for your gift of {{amount}} to {{program}}. It helps Arizona high schoolers ' +
     'learn computer science and AI.\n\nWith gratitude,\nCoding in Color' },
