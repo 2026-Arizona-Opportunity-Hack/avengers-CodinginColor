@@ -56,6 +56,11 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 This is the planning source of truth; its proposed features are not implemented yet.
 
+The first data pipeline slice is a local CSV preflight tool. It parses the three
+sample exports, normalizes known columns, validates contact fields and exact
+integer cents, and reports review issues. It preserves raw cells and record
+numbers in memory; it never writes donors or gifts.
+
 ## Tech stack
 
 - Frontend:
@@ -77,6 +82,56 @@ cp .env.example .env   # fill in your own values — never commit .env
 - Live demo:
 - Demo video:
 - Design / docs:
+
+## CSV import preflight
+
+Requires Node.js 24.2 or newer. Install the shared contract's locked dependencies;
+no credentials are needed.
+
+```bash
+npm ci
+node tools/import-preview.ts spreadsheet data/cic_donor_spreadsheet.csv
+node tools/import-preview.ts zeffy data/zeffy_export.csv
+node tools/import-preview.ts benevity data/benevity_export.csv
+node --test tests/import-preview.test.ts tests/import-mapping.test.ts
+```
+
+The CLI prints row counts and issue categories without donor contact details.
+Exit code 0 means the preview ran, not that rows are approved; unreadable or
+malformed files exit 1. Input must be UTF-8 CSV, at most 5 MiB. Unknown headers,
+invalid amounts/contacts, formulas and uneven rows require human review.
+Blank data records are retained and flagged. Source labels identify provenance;
+these illustrative CSVs do not establish real Zeffy/Benevity export formats.
+
+All supplied samples lack required gift dates (`occurred_at`) and currency, so
+every preview remains `needs_review`. External transaction IDs are optional in
+the backend baseline; reimport safety still needs reconciliation logic.
+Phone formatting is normalized without guessing
+a country; contact-person names do not assign owners. XLSX, Jev suggestions,
+donor/gift deduplication, saved review decisions and transactional import remain
+follow-up work against the baseline published in [backend issue #7](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/7),
+with persistence integration after the shared foundation is reviewed and merged.
+
+For ambiguous headers, pass an optional JSON mapping file as the final argument:
+`node tools/import-preview.ts spreadsheet export.csv mapping.json`.
+Keys must exactly match source headers. Targets are `first_name`, `last_name`,
+`email`, `phone`, `company`, `contact_person`, `campaign`, `occurred_at`,
+`currency`, `external_id`, `amount_decimal`, or `amount_cents`; null explicitly
+ignores a column while retaining its raw cells. Unknown targets/headers and
+multiple columns targeting the same field are rejected.
+
+```json
+{"Contribution Value":"amount_decimal","When Received":"occurred_at","Money Code":"currency","Unused":null}
+```
+
+`amount_decimal` consumes major units (12.34 becomes 1234 cents); `amount_cents`
+consumes integers already in cents (1234 stays 1234). The known `donation amount`
+header uses decimal units; `amount_cents` uses integer cents. Gift timestamps
+require real calendar dates and explicit timezones. Currency codes are uppercased
+then validated, together with timestamps and optional external IDs, using the
+shared schemas from contract PR #8. Missing/invalid facts remain review issues.
+Mappings are explicit input choices, not final approval: previews still report
+`needs_review`, and donor IDs, refunds, gift status and persistence are not inferred.
 
 ## Agent message board
 
