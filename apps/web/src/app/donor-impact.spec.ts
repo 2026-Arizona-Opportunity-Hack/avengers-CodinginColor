@@ -53,3 +53,32 @@ it('discards an old donor response after a direct authenticated identity switch'
   expect(fixture.nativeElement.textContent).toContain('New donor gift');
   expect(fixture.nativeElement.textContent).not.toContain('Summer');
 });
+
+it('clears the previous feed immediately when an authenticated account is replaced',async()=>{
+  const {api,fixture}=setup();await fixture.whenStable();fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).toContain('Summer');
+  let finish!:(f:ImpactFeed)=>void;api.request.mockImplementationOnce(()=>new Promise(resolve=>{finish=resolve;}));
+  api.identityVersion.update(v=>v+1);fixture.detectChanges();
+  expect(api.authenticated()).toBe(true);
+  expect(fixture.nativeElement.textContent).not.toContain('Summer');
+  expect(fixture.nativeElement.textContent).not.toContain('Learners');
+  finish({...feed,gifts:[{...feed.gifts[0],campaign:'New account gift'}],outcomes:[]});
+  await fixture.whenStable();fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).toContain('New account gift');
+  expect(fixture.nativeElement.textContent).not.toContain('Summer');
+});
+
+it('ignores an old pagination response after a direct authenticated account replacement',async()=>{
+  const {api,fixture}=setup();await fixture.whenStable();fixture.detectChanges();
+  let oldPage!:(f:ImpactFeed)=>void,nextAccount!:(f:ImpactFeed)=>void;
+  api.request.mockImplementationOnce(()=>new Promise(resolve=>{oldPage=resolve;}))
+    .mockImplementationOnce(()=>new Promise(resolve=>{nextAccount=resolve;}));
+  const page=fixture.componentInstance as unknown as {load(offset:number):Promise<void>};
+  const pending=page.load(50);api.identityVersion.update(v=>v+1);fixture.detectChanges();
+  oldPage({...feed,gifts:[{...feed.gifts[0],campaign:'Old account page'}],offset:50});
+  await pending;fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).not.toContain('Old account page');
+  expect(fixture.nativeElement.textContent).not.toContain('Summer');
+  nextAccount({...feed,gifts:[],outcomes:[]});await fixture.whenStable();fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).not.toContain('Old account page');
+});
