@@ -1,3 +1,5 @@
+// Preview parses CSV into mapped row values and review issues; it performs no writes.
+// Missing or invalid gift facts (amount, date, currency) become review issues; nothing is guessed.
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
 import { GiftWriteSchema } from '../packages/contracts/index.ts';
@@ -28,6 +30,7 @@ const dateFormats = {
 type DateOptions = { format: string; offset: string };
 type Issue = { recordNumber: number | null; field: string; code: string };
 
+/** Parse bounded CSV while preserving records and rejecting malformed quoting. */
 export function parseCsv(text: string): string[][] {
   if (Buffer.byteLength(text, 'utf8') > MAX_BYTES) throw new Error('CSV exceeds 5 MiB');
   if (text.includes('\0')) throw new Error('CSV contains a NUL character');
@@ -61,6 +64,7 @@ export function parseCsv(text: string): string[][] {
   return records;
 }
 
+/** Convert decimal major units to safe integer cents without floating-point arithmetic. */
 export function parseAmountCents(value: string): number | null {
   const text = value.trim();
   if (!/^\$?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(text)) return null;
@@ -102,6 +106,7 @@ function confirmedDate(value: string, { format, offset }: DateOptions): string |
   return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${time}:00${offset}`;
 }
 
+/** Validate mapped CSV facts and return raw rows plus normalized values and review issues. */
 export function previewCsv(text: string, source: string, file: string, columnMapping: unknown = {},
   options?: unknown) {
   if (!sources.includes(source)) throw new Error(`Source must be one of ${sources.join(', ')}`);
@@ -143,6 +148,7 @@ export function previewCsv(text: string, source: string, file: string, columnMap
   }
   if (!records.length) issues.push({ recordNumber: null, field: 'rows', code: 'empty_file' });
   const rows = records.map((raw, index) => {
+    // Header is record 1, so source-row provenance uses the CSV record number starting at 2.
     const recordNumber = index + 2;
     const issue = (field: string, code: string) => issues.push({ recordNumber, field, code });
     if (raw.length !== headers.length) issue('row', 'column_count_mismatch');
@@ -154,6 +160,7 @@ export function previewCsv(text: string, source: string, file: string, columnMap
       if (field !== 'phone' && field !== 'amount_cents' && /^[=+@-]/.test(value)) {
         issue(field, 'spreadsheet_formula');
       }
+      // Explicit cents mappings are integers already; decimal mappings are major currency units.
       if (field === 'amount_cents' || field === 'refund_cents') {
         const alreadyCents = chosen.has(headers[i])
           ? chosen.get(headers[i]) === field : normalized[i] === field.replace('_', ' ');
