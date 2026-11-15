@@ -6,7 +6,7 @@ import type { Identity } from './auth.ts';
 import { donorImpactAdmin } from './donor-impact-admin.ts';
 import { donorImpact } from './donor-impact.ts';
 import { staffInvitations } from './staff-invitations.ts';
-import { claimInvitation } from './invitation-claim.ts';
+import { claimInvitation,clerkInvitationStatus,type InvitationStatusLookup } from './invitation-claim.ts';
 import { members } from './members.ts';
 import { donors } from './donors.ts';
 import { gifts } from './gifts.ts';
@@ -17,7 +17,7 @@ import { createApiKeyRouter } from './api-keys.ts';
 import { createOutreachRouter } from './outreach.ts';
 import { createMessageRouter } from './outreach-messages.ts';
 
-export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
+export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>, invitationStatus:InvitationStatusLookup=clerkInvitationStatus(env)) {
   const app = express();
   app.disable('x-powered-by');
   app.use((req, res, next) => {
@@ -41,7 +41,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
   app.get('/api/v1/me', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
-    await claimInvitation(db, env.CIC_ORG_ID, identity);
+    await claimInvitation(db, env.CIC_ORG_ID, identity, invitationStatus);
     const member = await withMember(db, env.CIC_ORG_ID, identity, async (_client, membership) => membership);
     res.json(member);
   });
