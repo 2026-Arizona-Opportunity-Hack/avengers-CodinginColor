@@ -8,6 +8,29 @@ const org = id(1), otherOrg = id(2), alice = id(3), bob = id(4), admin = id(5);
 const donorA = id(6), donorB = id(7), giftA = id(8), giftB = id(9);
 const sql = readFileSync(new URL('../db/migrations/001_core.sql', import.meta.url), 'utf8');
 
+test('migration rejects unsafe existing runtime roles instead of retaining privileges', async t => {
+  const restricted = 'NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION';
+  for (const attribute of ['BYPASSRLS', 'SUPERUSER', 'LOGIN', 'CREATEDB', 'CREATEROLE', 'INHERIT', 'REPLICATION', 'membership']) {
+    await t.test(attribute, async st => {
+      const db = new PGlite();
+      st.after(() => db.close());
+      await db.exec(`CREATE ROLE cic_runtime ${restricted};`);
+      if (attribute === 'membership') {
+        await db.exec('CREATE ROLE elevated_role NOLOGIN BYPASSRLS; GRANT elevated_role TO cic_runtime;');
+      } else await db.exec(`ALTER ROLE cic_runtime ${attribute};`);
+      await assert.rejects(db.exec(sql), /unsafe existing cic_runtime role/i);
+    });
+  }
+  await t.test('safe pre-existing restricted role remains usable', async st => {
+    const db = new PGlite();
+    st.after(() => db.close());
+    await db.exec(`CREATE ROLE cic_runtime ${restricted};`);
+    await db.exec(sql);
+    const result = await db.query("SELECT rolcanlogin, rolbypassrls, rolsuper FROM pg_roles WHERE rolname = 'cic_runtime'");
+    assert.deepEqual(result.rows, [{ rolcanlogin: false, rolbypassrls: false, rolsuper: false }]);
+  });
+});
+
 test('core migration enforces PostgreSQL financial and authorization boundaries', async t => {
   const db = new PGlite();
   t.after(() => db.close());
