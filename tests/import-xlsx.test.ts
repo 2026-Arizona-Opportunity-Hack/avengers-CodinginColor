@@ -146,21 +146,46 @@ test('bounds archive expansion, worksheet coordinates and malformed structures',
     sheet: '<!DOCTYPE x><worksheet><sheetData/></worksheet>' })), /unsupported XML/i);
 });
 
-test('rejects a compressed bomb before a large inflated buffer is allocated', () => {
+test('rejects a compressed bomb before a large inflated buffer is allocated', t => {
   const directory = mkdtempSync(join(tmpdir(), 'cic-xlsx-bomb-'));
   try {
     const file = join(directory, 'bomb.xlsx');
-    writeFileSync(file, xlsx([header], { extra: { 'xl/sharedStrings.xml': `<sst>${'A'.repeat(80 * 1024 * 1024)}</sst>` } }));
+    writeFileSync(file, xlsx([header]));
     const module = new URL('../tools/import-xlsx.ts', import.meta.url).href;
-    const script = `import { readFileSync } from 'node:fs';
+    const prepare = `import { readFileSync, writeFileSync } from 'node:fs';
+      const { zipSync, unzipSync } = await import(process.argv[1]);
+      const files = unzipSync(readFileSync(process.argv[2]));
+      files['xl/sharedStrings.xml'] = new TextEncoder().encode('<sst>' + 'A'.repeat(80 * 1024 * 1024) + '</sst>');
+      writeFileSync(process.argv[2], zipSync(files));`;
+    const probe = `import { readFileSync } from 'node:fs';
       const { previewXlsx } = await import(process.argv[1]);
-      try { await previewXlsx(readFileSync(process.argv[2]), 'spreadsheet', 'bomb.xlsx'); process.exitCode = 2; }
-      catch (error) { if (!/safety limits/.test(error.message)) process.exitCode = 3; }
+      if (process.argv[3] === 'allocate') {
+        const inflated = new Uint8Array(80 * 1024 * 1024).fill(65);
+        if (inflated[inflated.length - 1] !== 65) process.exitCode = 4;
+      } else {
+        try { await previewXlsx(readFileSync(process.argv[2]), 'spreadsheet', 'bomb.xlsx'); process.exitCode = 2; }
+        catch (error) { if (!/safety limits/.test(error.message)) process.exitCode = 3; }
+      }
       console.log(process.resourceUsage().maxRSS);`;
-    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script, module, file],
+    // A clean coordinator keeps both the fixture builder's allocation and Linux's inherited pre-exec RSS out of parser probes.
+    const script = `import { spawnSync } from 'node:child_process';
+      const run = (source, args) => {
+        const child = spawnSync(process.execPath, ['--input-type=module', '-e', source, ...args], { encoding: 'utf8', maxBuffer: 1024 * 1024 });
+        if (child.status !== 0) throw new Error(child.stderr || 'Child failed: ' + child.status);
+        return Number(child.stdout.trim());
+      };
+      run(${JSON.stringify(prepare)}, [process.argv[3], process.argv[2]]);
+      console.log(JSON.stringify({
+        bounded: run(${JSON.stringify(probe)}, [process.argv[1], process.argv[2]]),
+        allocated: run(${JSON.stringify(probe)}, [process.argv[1], process.argv[2], 'allocate'])
+      }));`;
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script, module, file, import.meta.resolve('fflate')],
       { encoding: 'utf8', maxBuffer: 1024 * 1024 });
     assert.equal(result.status, 0, result.stderr);
-    assert.ok(Number(result.stdout.trim()) < 120_000, `peak RSS exceeded 120 MiB: ${result.stdout.trim()} KiB`);
+    const rss = JSON.parse(result.stdout);
+    t.diagnostic(`bounded parser RSS: ${rss.bounded} KiB; allocated 80 MiB control RSS: ${rss.allocated} KiB`);
+    assert.ok(rss.bounded > 0 && rss.bounded < 120_000, `parser peak RSS exceeded 120000 KiB: ${rss.bounded} KiB`);
+    assert.ok(rss.allocated >= 120_000, `memory guard missed an allocated 80 MiB buffer: ${rss.allocated} KiB`);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
