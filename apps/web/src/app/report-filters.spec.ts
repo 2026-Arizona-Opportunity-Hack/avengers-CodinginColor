@@ -12,8 +12,8 @@ function setup() {
     currency: 'EUR', status: 'settled', source: 'manual', external_id: null,
   });
   const current = [gift('a', '2026-05-01T12:00:00Z'), gift('b', '2026-05-02T12:00:00Z', 'other')];
-  const store = { sessionEpoch: signal(1), gifts: signal(current), allGifts: signal([...current, { ...gift('a', '2025-01-01T07:00:00Z'), currency: 'USD' }]),
-    donors: signal(donors), donor: (id: string) => donors.find(d => d.id === id), campaign: (id: string) => ({ program_id: id === 'campaign' ? 'program' : 'other' }),
+  const store = { sessionEpoch: signal(1), gifts: signal(current), ledgerGifts: signal(current), allGifts: signal([...current, { ...gift('a', '2025-01-01T07:00:00Z'), currency: 'USD' }]),
+    donors: signal(donors), donor: (id: string) => donors.find(d => d.id === id), historicalDonor: (id: string) => donors.find(d => d.id === id), campaign: (id: string) => ({ program_id: id === 'campaign' ? 'program' : 'other' }),
     programs: signal([{ id: 'program', title: 'Academy' }]), campaigns: signal([{ id: 'campaign', title: 'Spring', program_id: 'program' }]),
     boardMembers: signal([{ id: 'owner-a', name: 'Owner A' }]), isAdmin: signal(true) };
   TestBed.configureTestingModule({ providers: [{ provide: Store, useValue: store }] });

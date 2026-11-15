@@ -2,14 +2,14 @@ import { createClerkClient, verifyToken } from '@clerk/backend';
 import { z } from 'zod';
 import { HttpError, type Env } from './env.ts';
 
-export type Identity = { subject: string; mfa: boolean };
+export type Identity = { subject: string; mfa: boolean; verifiedEmail?: string };
 export interface AuthProvider {
   verify(token: string): Promise<unknown>;
   session(id: string): Promise<{ status: string; userId: string; expireAt: number }>;
   user(id: string): Promise<{
     id: string; banned: boolean; locked: boolean; twoFactorEnabled: boolean;
     primaryEmailAddressId: string | null;
-    emailAddresses: { id: string; verification: { status: string } | null }[];
+    emailAddresses: { id: string; emailAddress?: string; verification: { status: string } | null }[];
   }>;
 }
 const Claims = z.object({
@@ -48,6 +48,9 @@ export function createVerifier(env: Env, provider: AuthProvider) {
       email.id === user.primaryEmailAddressId && email.verification?.status === 'verified');
     if (session.status !== 'active' || session.userId !== claims.sub || session.expireAt <= Date.now() ||
       user.id !== claims.sub || user.banned || user.locked || !verifiedEmail) throw new HttpError(401);
-    return { subject: claims.sub, mfa: user.twoFactorEnabled && (claims.fva?.[1] ?? -1) >= 0 };
+    const primary=user.emailAddresses.find(email=>email.id===user.primaryEmailAddressId);
+    return { subject: claims.sub, mfa: user.twoFactorEnabled && (claims.fva?.[1] ?? -1) >= 0,
+      ...(primary?.emailAddress ? {verifiedEmail:primary.emailAddress.toLowerCase().trim()} : {}) };
+
   };
 }

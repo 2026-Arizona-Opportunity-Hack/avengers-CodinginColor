@@ -60,23 +60,23 @@ Read API; raw keys are shown once and kept out of browser storage. Follow-ups
 supports server-backed task creation/completion, quarterly task planning (admin),
 draft editing and approval, consent-checked email/SMS compose, and confirmed manual
 send logging with scoped history. Quarterly touches require a logged contact.
-Import now uploads original CSV/XLSX bytes and walks through server mapping,
-explicit financial facts, invalid-record acknowledgments, donor/gift decisions,
-per-currency reconciliation and atomic commit. Re-uploading the same file returns
-the saved result. Review state stays in memory and clears on session changes;
-abandoning a staged batch purges it on the server. XLSX API support requires #105.
 The admin Funder reports screen now requests the server's funder/program/period
 packet and downloads its audited CSV. Print/PDF uses the same loaded report.
 Amounts remain per-currency with unattributed gifts separate; unavailable outcome
 data is never replaced with zero. Administrators can upload and review aggregate JSON outcomes, then explicitly approve them.
 The example uses the selected program and period; fill the actual source and results.
 Reports refresh after persistence. Same program/period/metric uploads correct prior approved values.
+
+Import now uploads original CSV/XLSX bytes and walks through server mapping,
+explicit financial facts, invalid-record acknowledgments, donor/gift decisions,
+per-currency reconciliation and atomic commit. Re-uploading the same file returns
+the saved result. Review state stays in memory and clears on session changes;
+abandoning a staged batch purges it on the server. XLSX API support is merged in #105.
 Donor records are kept in
-memory only, never in browser storage, and are cleared on sign-out. Screens whose
-server routes have not landed (donations, add donor,
-settings) are hidden. Any other write shows "not
-connected yet" instead of pretending to save. Other owners appear as a short member
-ID until the API has a member directory route.
+memory only, never in browser storage, and are cleared on sign-out. Live Donations and Team settings are enabled. Unsupported writes show "not
+connected yet" instead of pretending to save. The owner directory exposes IDs only, so other owners appear as short member IDs.
+Manual donor entry and the optional settled USD first gift now persist through
+the API, with server-selected ownership and stable identities for uncertain retries.
 
 Live donor summaries and timelines now load gifts, campaign/program labels and
 communications from the server. Contact logs save through scoped routes and reload
@@ -91,7 +91,7 @@ workflow; failed delivery is never counted as a successful contact.
 - Charts use brand-green fill, hatching and dots, so series never depend on color alone.
 - Every control is a native button, link or form element with a visible focus ring.
 
-Lighthouse accessibility is 100 on every route (checked against the production build).
+The earlier UI redesign reported Lighthouse accessibility100 on its then-existing routes. Rerun the audit on current routes before closing #73; this integration pass does not claim a new Lighthouse result.
 
 ## Human in the loop
 
@@ -114,3 +114,5 @@ intersect server authorization and clear private dimensions when the session cha
 Review lapsed donors from Follow-ups or Retention. The current scoped report opens
 a lapsed drill-down; eligible active contacts can receive an editable server nudge
 draft. Every nudge still requires the normal approval and manual-send steps.
+
+Reporting charts, owner giving totals and the funder selector retain authorized archived donor history. Archived donors remain excluded from active assignment counts and follow-up workload.

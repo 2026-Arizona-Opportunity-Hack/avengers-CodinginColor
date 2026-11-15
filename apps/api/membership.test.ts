@@ -64,7 +64,9 @@ test('HTTP membership and transaction cleanup enforce real PostgreSQL RLS under 
     assert.equal(response.status, expectedStatus, token);
     if (expectedStatus === 200) {
       assert.deepEqual(await response.json(), { id: id(token === 'admin-mfa' ? 4 : 3), org_id: id(1), role: token === 'admin-mfa' ? 'admin' : 'board' });
-    } else assert.deepEqual(await response.json(), { error: 'Request rejected' });
+    } else assert.deepEqual(await response.json(), token === 'admin'
+      ? { error: 'Request rejected', code: 'admin_mfa_required' }
+      : { error: 'Request rejected' });
     await contextCleared();
   }
   const board = { subject: 'board', mfa: false };

@@ -10,6 +10,10 @@ import { DonationsPage } from './pages/donations';
 import { DonorDetailPage } from './pages/donor-detail';
 import { routes } from './app.routes';
 import { NAV } from './shell/nav';
+import { OverviewPage } from './pages/overview';
+import { ReportFilters } from './core/report-filters';
+import type { ApiRetention } from './core/api';
+import { ytdWindows } from './core/retention';
 
 const download = vi.fn((blob: Blob) => 'blob:synthetic');
 beforeEach(() => {
@@ -25,7 +29,11 @@ const gift = { id: 'usd', donor_id: 'donor', campaign_id: null, amount_cents: 10
   currency: 'USD', status: 'settled', occurred_at: '2027-01-01T03:00:00Z', source: 'zeffy', external_id: null, source_row: null };
 async function setup(role: 'admin' | 'board' = 'admin', archived = false) {
   let out = () => {};
-  const api = { status: signal('ready'), start: async (_c: unknown, _in: unknown, signOut: () => void) => { out = signOut; },
+  const report: ApiRetention = { as_of: '2026-12-31', windows: ytdWindows('2026-12-31'), byCurrency: { USD: {
+    donors: [{ donor_id: 'donor', segment: 'new', prior_cents: 0, current_cents: 1000, name: 'Avery' }],
+    segments: { new: { donors: 1, prior_cents: 0, current_cents: 1000 } }, retention: { prior_donors: 0, retained_donors: 0 },
+    totals: { prior_cents: 0, current_cents: 1000 } } } };
+  const api = { retention: vi.fn(async () => report), status: signal('ready'), start: async (_c: unknown, _in: unknown, signOut: () => void) => { out = signOut; },
     me: async () => ({ id: role === 'admin' ? 'admin' : 'board', org_id: 'org', role }),
     allDonors: async () => [{ ...donor, archived_at: archived ? '2026-01-01T12:00:00Z' : null }, { ...donor, id: 'foreign', owner_id: 'other', name: 'Other donor' }],
     request: vi.fn(async (path: string) => {
@@ -39,6 +47,7 @@ async function setup(role: 'admin' | 'board' = 'admin', archived = false) {
       return { items: [] };
     }) };
   TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api }, provideRouter([]), provideIcons(APP_ICONS)] });
+  TestBed.overrideComponent(OverviewPage, { set: { template: '' } });
   TestBed.overrideComponent(DonationsPage, { remove: { imports: [NgxEchartsDirective] }, add: { schemas: [NO_ERRORS_SCHEMA] } });
   const store = TestBed.inject(Store); store.connect({ apiBase: '', clerkPublishableKey: 'synthetic' }); await store.refreshLive();
   return { store, signOut: () => out() };
@@ -100,4 +109,21 @@ it('loads active and archived donors through separate scoped API pages only when
     .mockResolvedValueOnce({ items: [{ ...donor, id: 'archived', archived_at: '2026-01-01T12:00:00Z' }] });
   expect((await api.allDonors(true)).map(d => d.id)).toEqual(['donor', 'archived']);
   expect(request.mock.calls.map(c => c[0])).toEqual(['/api/v1/donors?limit=100&offset=0', '/api/v1/donors?limit=100&offset=0&archived=true']);
+});
+
+it('matches archived financial charts to server KPIs while keeping assignment work active-only', async () => {
+  const { store } = await setup('board', true);
+  const fixture = TestBed.createComponent(OverviewPage);
+  const filters = TestBed.inject(ReportFilters); filters.through.set('2026-12-31');
+  fixture.detectChanges(); await Promise.resolve(); await Promise.resolve(); fixture.detectChanges();
+  const page = fixture.componentInstance as unknown as {
+    r(): { totals: { current: number } }; byProgram(): { cents: number }[]; recentGifts(): { id: string }[];
+    portfolios(): { donors: number; raised: number; overdue: number }[]; overdue(): number;
+  };
+  expect(page.r().totals.current).toBe(1000);
+  expect(page.byProgram().reduce((sum, row) => sum + row.cents, 0)).toBe(page.r().totals.current);
+  expect(page.recentGifts().map(g => g.id)).toEqual(['usd']);
+  expect(page.portfolios()[0]).toMatchObject({ donors: 0, raised: 1000, overdue: 0 });
+  expect(store.donors()).toEqual([]); expect(filters.donors()).toEqual([]); expect(page.overdue()).toBe(0);
+  filters.owner.set('board'); expect(filters.gifts().map(g => g.id)).toEqual(['usd']);
 });
