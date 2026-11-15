@@ -98,6 +98,8 @@ export class Api {
   mountSignIn(node: HTMLDivElement) { this.clerk?.mountSignIn(node, {
     appearance: { elements: { rootBox: { width: '100%' }, cardBox: { width: '100%' }, card: { width: '100%' } } },
   }); }
+  mountSignUp(node: HTMLDivElement) { this.clerk?.mountSignUp(node, { routing: 'hash', signInUrl: '/sign-in', forceRedirectUrl: '/' }); }
+  unmountSignUp(node: HTMLDivElement) { this.clerk?.unmountSignUp(node); }
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
   manageSecurity() { this.clerk?.openUserProfile({ __experimental_startPath: '/security' }); }

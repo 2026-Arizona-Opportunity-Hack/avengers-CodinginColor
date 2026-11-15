@@ -1,10 +1,12 @@
 import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { StaffInvitations } from './staff-invitations';
 import { Api, ApiError } from '../core/api';
 import { Store } from '../core/store';
 interface Staff { id:string; clerk_subject:string; role:'admin'|'board'; active:boolean; }
 
 @Component({
   selector:'app-member-settings',
+  imports:[StaffInvitations],
   template:`
     <div class="page stack">
       <header class="page-head"><div><h1>Team settings</h1><p class="lede">Manage who can access Coding in Color.</p></div></header>
@@ -28,6 +30,7 @@ interface Staff { id:string; clerk_subject:string; role:'admin'|'board'; active:
           }@empty{<p>No members loaded.</p>}
         </div>
       </section>
+      <app-staff-invitations />
       <form class="panel" (submit)="add($event)" novalidate>
         <h2 class="panel-head">Add an existing Clerk user</h2>
         <fieldset class="panel-body stack" [disabled]="busy()">

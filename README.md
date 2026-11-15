@@ -454,3 +454,7 @@ confirmed gifts update that currency in the timeline.
 Live admin Team settings list actual membership roles and activity, add existing
 verified Clerk users and save audited access changes. Reassign a board member's
 active donor portfolio before deactivation.
+
+Admin Team settings send and revoke seven-day staff invitation emails through
+Clerk on explicit submission. The invitation sign-up page links verified primary
+email to stored role intent; failed, expired and revoked invitations grant no access.
