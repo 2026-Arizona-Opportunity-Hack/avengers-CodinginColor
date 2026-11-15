@@ -8,6 +8,7 @@ import { HttpError,type Env } from './env.ts';
 import type { Identity } from './auth.ts';
 import { batchOf,countsOf,draftsOf,fail,ImportError,parse,staged,summary,type Batch } from './import-batches.ts';
 import {registerImportReview} from './import-plans.ts';
+import {registerImportCommit} from './import-commit.ts';
 const Source=z.enum(['spreadsheet','zeffy','benevity','az_gives','united_way']);
 const Page=z.strictObject({kind:z.enum(['preview','donor','gift']).default('preview'),
   offset:z.coerce.number().int().nonnegative().default(0),limit:z.coerce.number().int().min(1).max(200).default(100)});
@@ -57,7 +58,8 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
   router.get('/:id/rows',async(req,res)=>res.json(await admin(req.get('Authorization'),async c=>{
     const b=await batchOf(c,parse(IdSchema,req.params.id),env.CIC_ORG_ID),q=parse(Page,req.query);
     const {preview,drafts}=draftsOf(b);
-    const rows=q.kind==='preview'?preview.rows:q.kind==='donor'?drafts.donors:drafts.gifts;
+    const rows=q.kind==='preview'?preview.rows.map(r=>({...r,issues:preview.issues.filter(i=>i.recordNumber===r.recordNumber)}))
+      :q.kind==='donor'?drafts.donors:drafts.gifts;
     const items:unknown[]=[];
     for(const row of rows.slice(q.offset,q.offset+q.limit)) {
       if(Buffer.byteLength(JSON.stringify([...items,row]))>1000000) {if(!items.length) fail(413,'payload_too_large'); break;}
@@ -72,11 +74,13 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
     return {batch_id:b.id,status:'abandoned'};
   })));
   registerImportReview(router,admin,env.CIC_ORG_ID);
+  registerImportCommit(router,admin,env.CIC_ORG_ID);
   const errors:ErrorRequestHandler=(e,_req,res,next)=>{
-    if(e instanceof HttpError) {res.status(e.status).json({error:e instanceof ImportError?e.code:e.status===401?'unauthenticated':'forbidden_role',
+    if(e instanceof HttpError) {res.status(e.status).json({error:e instanceof ImportError?e.code:
+      ({401:'unauthenticated',403:'forbidden_role',404:'import_not_found',503:'dependency_failure'} as Record<number,string>)[e.status]??'invalid_decision',
       ...('current_plan_hash' in e?{current_plan_hash:e.current_plan_hash}:{})});return;}
     if(e?.type==='entity.too.large'||e?.type==='entity.parse.failed') {res.status(e.type==='entity.too.large'?413:400).json({error:e.type==='entity.too.large'?'payload_too_large':'invalid_decision'});return;}
-    next(e);
+    res.status(503).json({error:'dependency_failure'});
   };
   router.use(errors); return router;
 }

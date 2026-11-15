@@ -14,7 +14,7 @@ export async function importFixture(t: TestContext) {
     fileURLToPath(new URL('../../db/migrations/',import.meta.url)));
   await sql.exec(`INSERT INTO organizations(id,name) VALUES('${iid(1)}','CIC'),('${iid(2)}','Other');
     INSERT INTO memberships(id,org_id,clerk_subject,role) VALUES('${iid(10)}','${iid(1)}','admin','admin'),
-    ('${iid(11)}','${iid(1)}','board','board'),('${iid(12)}','${iid(2)}','foreign','admin');
+    ('${iid(11)}','${iid(1)}','board','board'),('${iid(12)}','${iid(2)}','foreign','admin'),('${iid(13)}','${iid(1)}','second-admin','admin');
     INSERT INTO import_batches(id,org_id,created_by,source,filename,file_sha256,raw_csv)
     VALUES('${iid(90)}','${iid(2)}','${iid(12)}','zeffy','foreign.csv','sha256:${'f'.repeat(64)}',decode('61','hex'));
     CREATE ROLE import_login NOLOGIN NOINHERIT; GRANT cic_runtime TO import_login;
@@ -24,7 +24,7 @@ export async function importFixture(t: TestContext) {
     CLERK_JWT_ISSUER:'https://example.clerk.accounts.dev',APP_ORIGIN:'http://localhost:4200'});
   const server=createApp(env,db,async h=>{
     const subject=h?.replace('Bearer ','');
-    if (!['admin','board','foreign','admin-no-mfa'].includes(subject??'')) throw new HttpError(401);
+    if (!['admin','board','foreign','admin-no-mfa','second-admin'].includes(subject??'')) throw new HttpError(401);
     return {subject:subject==='admin-no-mfa'?'admin':subject!,mfa:subject!=='admin-no-mfa'&&subject!=='board'};
   }).listen(0,'127.0.0.1');
   await once(server,'listening');
