@@ -54,7 +54,10 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 <!-- Two or three sentences: the problem, who it helps, what the nonprofit can do now that they couldn't before -->
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
-This is the planning source of truth; its proposed features are not implemented yet.
+This is the planning source of truth. What's on `main` today: the Cadence web app (`apps/web`), the API
+(`apps/api`), the database schema with row-level security (`db/`), CSV import preflight and drafts
+(`tools/`), and the reporting and outreach rules (`packages/`). Live CSV import into the database is
+still in progress (#19).
 
 The first data pipeline slice is a local CSV preflight tool. It parses the three
 sample exports, normalizes known columns, validates contact fields and exact
@@ -63,7 +66,7 @@ numbers in memory; it never writes donors or gifts.
 
 ## Tech stack
 
-- Frontend: not on `main` yet. Angular is the planned direction (see the implementation plan).
+- Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
 - Backend: Node.js 24.2+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
 - Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.
 - APIs / services: Clerk for invite-only sign-in. Tests run real migrations on in-memory PostgreSQL (PGlite); no live service or credentials are needed.
@@ -79,7 +82,7 @@ npm ci
 npm run typecheck
 npm run test:contracts
 npm run test:api
-node --test tests/*.test.ts tests/*.test.mjs packages/reporting/*.test.ts
+node --test tests/*.test.ts tests/*.test.mjs packages/reporting/*.test.ts packages/outreach/*.test.ts
 ```
 
 Running the API against a real database and Clerk instance:
@@ -95,9 +98,9 @@ are covered step by step in the deploy runbook, `docs/DEPLOY.md` (#42).
 
 ## Links
 
-- Live demo: not deployed yet (#30)
+- Live demo: [cadence-cic.vercel.app](https://cadence-cic.vercel.app). This is the web app on sample data only, with no backend. The full-stack deploy is tracked in #30.
 - Demo video:
-- Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md) (after #34)
+- Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md), [outreach](packages/outreach/README.md), [web app](apps/web/README.md), [deploy runbook](docs/DEPLOY.md)
 
 ## CSV import preflight
 
@@ -136,10 +139,24 @@ until a reviewer passes both date flags, so every preview remains `needs_review`
 External transaction IDs are optional in
 the backend baseline; reimport safety still needs reconciliation logic.
 Phone formatting is normalized without guessing
-a country; contact-person names do not assign owners. XLSX, Jev suggestions,
+a country; contact-person names do not assign owners. XLSX,
 donor/gift deduplication, saved review decisions and transactional import remain
 follow-up work against the baseline published in [backend issue #7](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/7),
 with persistence integration after the shared foundation is reviewed and merged.
+
+Jev column suggestions are proposals only. Even `accepted: true` means only
+high-confidence eligibility; a human must always accept the mapping. Suggestions
+use the fixed TypeSafe endpoint and `jev-latest`; `TYPESAFE_API_KEY` is canonical,
+with `JEV_API_KEY` accepted as a legacy fallback. Put a real key in local `.env`
+(see `.env.example`; never commit `.env`). With Node 24+, call the exported helper
+directly, for example:
+
+```sh
+node --env-file=.env --input-type=module -e "import { suggestColumn } from './tools/import-suggest.ts'; console.log(await suggestColumn({header:'Donation amount',samples:[]}))"
+```
+
+This sends only the selected header, not sample values. It proposes a mapping;
+it does not persist data or calculate money.
 
 For ambiguous headers, pass an optional JSON mapping file as the final argument:
 `node tools/import-preview.ts spreadsheet export.csv mapping.json`.

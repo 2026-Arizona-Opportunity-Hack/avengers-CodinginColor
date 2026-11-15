@@ -77,7 +77,14 @@ OHack recurring budget) or another approved plan. Neon and Clerk are $0 on the p
 ## 4. The web service
 
 **Vercel** (chosen on #30). Import the GitHub repo as a new Vercel project. `vercel.json`
-already sets the install and build steps:
+already sets the install and build steps.
+
+> **Root Directory must be the repository root (leave it blank).** If it's set to `apps/web`,
+> Vercel ignores `vercel.json` and `src/index.ts`, and deploys only the static web app on
+> demo data. `/healthz`, `/config.json` and `/api/*` then all return the web page with a 200.
+> That's what `cadence-cic.vercel.app` served on Nov 15, and the smoke check fails 5 of 7 checks.
+> To fix it, go to **Settings → Build and Deployment → Root Directory**, clear the field,
+> set Framework Preset to **Other** and Node.js to **24.x**, then redeploy.
 
 | Setting | Value |
 |---|---|

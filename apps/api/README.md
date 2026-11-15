@@ -65,3 +65,31 @@ separate records. `PATCH /api/v1/gifts/:id` accepts a nonempty subset of campaig
 amount, refund, currency, occurred_at and status, merges the stored record under a
 row lock, revalidates, and audits `gift.correct` atomically; identity and
 provenance cannot be rewritten. Gifts are never hard-deleted.
+
+Import staging requires an active admin with verified MFA. `POST /api/v1/imports`
+accepts raw UTF-8 `text/csv` up to 4 MiB, with `X-Import-Source` and basename-only
+`X-Import-Filename`. The server computes the file hash and batch UUID; exact replay
+resumes the existing batch and changing its source label gives409. Staging writes
+no donor or gift rows. `POST /:batchId/layout` accepts reviewed column mapping,
+explicit batch financial metadata and optional paired date-format/UTC-offset.
+`GET /:batchId` returns a summary; `GET /:batchId/rows?kind=preview|donor|gift`
+returns bounded pages. `POST /:batchId/abandon` irreversibly purges staged bytes
+and layout. All routes are under `/api/v1/imports`, enforced by membership and
+database RLS; foreign batches are404. Stage/layout/abandon are audited atomically.
+Review uses two phases: `POST /:id/donors/plan`, then `/donors/review` with
+`{plan_hash,decisions}`; after donors are ready, `/gifts/plan`, then `/gifts/review`
+with `{donor_plan_hash,plan_hash,decisions}`. Decisions contain kind, row, action
+and the applicable donor/gift ID only. The server binds reviewer identity and
+rebuilds from fresh scoped facts. Stale plans return409 with a fresh hash; layout
+changes invalidate both phases. `GET /:id/plan/rows?kind=donor|gift` returns bounded
+review rows and authorized candidates. Review never writes donors/gifts. Commit
+is explicit: `POST /:id/commit` accepts only `{donor_plan_hash,plan_hash}`. It
+serializes imports per org, locks current donor/gift facts, rebuilds both plans,
+applies assigned donors then gifts, audits and saves the result in one transaction.
+Stale facts return409; a dependency/audit failure returns503 and rolls everything
+back. Identical retries/re-uploads return the saved result with `replayed:true`.
+Raw bytes, layout and decisions are purged on success. Excluded CSV records require
+explicit `layout.skip_records:[recordNumber,...]` before review; otherwise commit
+fails400. Their validation issues are available on preview row pages. No financial
+defaults or client-supplied write operations are accepted. This is CSV-only until
+the Data-owned XLSX ingestion handoff; the UI must wire these server routes.
