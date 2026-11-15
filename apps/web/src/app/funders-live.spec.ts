@@ -29,7 +29,7 @@ function setup(admin = true) {
   const settle = async () => { fixture.detectChanges(); await Promise.resolve(); await Promise.resolve(); fixture.detectChanges(); };
   return { store, api, fixture, page, settle };
 }
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 it('uses an inclusive date control and an exclusive Phoenix API boundary', () => {
   const params = new URLSearchParams(packetQuery('funder', 'program', '2026-01-01', '2026-11-15')!);
@@ -75,13 +75,18 @@ it('refuses board loads and reports a denied admin load without pretending a rep
 
 it('downloads the server CSV and never starts a download after a rejected request', async () => {
   const f = setup(); await f.settle();
+  const originalURL = URL, originalCreate = URL.createObjectURL, originalRevoke = URL.revokeObjectURL;
   const create = vi.fn(() => 'blob:packet'), revoke = vi.fn(), click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
-  vi.stubGlobal('URL', Object.assign(URL, { createObjectURL: create, revokeObjectURL: revoke }));
+  vi.stubGlobal('URL', class extends URL {
+    static override createObjectURL = create;
+    static override revokeObjectURL = revoke;
+  });
   f.api.request.mockResolvedValueOnce(new Blob(['server packet'], { type: 'text/csv' })); await f.page.download();
   expect(f.api.request.mock.calls.at(-1)?.[0]).toContain('&format=csv'); expect(click).toHaveBeenCalledOnce();
   expect(revoke).toHaveBeenCalledWith('blob:packet');
   f.api.request.mockRejectedValueOnce(new ApiError(403)); await f.page.download();
-  expect(click).toHaveBeenCalledOnce(); expect(f.page.error()).toBeTruthy(); vi.unstubAllGlobals();
+  expect(click).toHaveBeenCalledOnce(); expect(f.page.error()).toBeTruthy();
+  expect(originalURL.createObjectURL).toBe(originalCreate); expect(originalURL.revokeObjectURL).toBe(originalRevoke);
 });
 
 it('drops a CSV that arrives after the session ends', async () => {
