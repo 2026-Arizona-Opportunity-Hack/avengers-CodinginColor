@@ -258,7 +258,7 @@ export class Store {
 
   private putDonor(saved: ApiDonor) {
     this.rawMetadata.set(saved.id, saved.metadata ?? {});
-    this.data.update((d) => ({ ...d, donors: d.donors.map((x) => (x.id === saved.id ? fromApiDonor(saved) : x)) }));
+    this.data.update((d) => ({ ...d, donors: [...d.donors.filter(x => x.id !== saved.id), fromApiDonor(saved)] }));
   }
 
   private mutate(fn: (d: Dataset) => void, action: string, target: string) {
@@ -283,7 +283,25 @@ export class Store {
     return pick.id;
   }
 
-  addDonor(input: NewDonorInput): Donor {
+  async addDonor(input: NewDonorInput, requestId: string): Promise<{ id: string; owner_id: string | null } | null> {
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      let result: { id: string; owner_id: string | null } | null = null;
+      const saved = await this.liveWrite(async () => {
+        result = await this.api.request('/api/v1/donors', { method: 'POST', body: JSON.stringify({
+          request_id: requestId, name: input.name, email: input.email, phone: input.phone, consent: input.consent,
+          metadata: { company: input.company, kind: input.kind, preferred_channel: input.preferred_channel,
+            custom: input.custom, sources: ['manual'] },
+        }) });
+        const assigned = result!;
+        if (epoch !== this.sessionEpoch()) return;
+        if (this.isAdmin() || assigned.owner_id === this.me().id) {
+          const donor = await this.api.request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(assigned.id)}`);
+          if (epoch === this.sessionEpoch()) this.putDonor(donor);
+        }
+      });
+      return saved ? result : null;
+    }
     let created!: Donor;
     this.mutate((d) => {
       created = {
@@ -303,10 +321,20 @@ export class Store {
     return this.member(this.nextOwner(copy));
   }
 
-  addGift(input: { donor_id: string; amount_cents: number; campaign_id: string | null; occurred_at: string; source: Source }) {
-    this.mutate((d) => d.gifts.push({
-      id: uid('g'), refund_cents: 0, currency: 'USD', status: 'settled', external_id: null, ...input,
-    }), 'gift.create', input.donor_id);
+  async addGift(input: { donor_id: string; amount_cents: number; campaign_id: string | null; occurred_at: string;
+    source: Source; refund_cents?: number; currency?: string; status?: Gift['status'] }, requestId: string): Promise<boolean> {
+    const gift = { refund_cents: 0, currency: 'USD', status: 'settled' as const, ...input, external_id: `manual:${requestId}` };
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      return this.liveWrite(async () => {
+        const { source, ...body } = gift;
+        const saved = await this.api.request<Gift>('/api/v1/gifts', { method: 'POST', body: JSON.stringify(body) });
+        if (epoch === this.sessionEpoch()) this.data.update(d => ({ ...d,
+          gifts: [...d.gifts.filter(g => g.id !== saved.id), saved] }));
+      });
+    }
+    this.mutate(d => d.gifts.push({ id: uid('g'), ...gift }), 'gift.create', input.donor_id);
+    return true;
   }
 
   /** Resolves true when saved. In live mode the API validates, scopes and audits the change. */

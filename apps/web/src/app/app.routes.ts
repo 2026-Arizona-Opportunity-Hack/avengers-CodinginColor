@@ -20,7 +20,7 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', title: 'Overview · Coding in Color', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
       { path: 'donors', title: 'Donors · Coding in Color', loadComponent: () => import('./pages/donors').then((m) => m.DonorsPage) },
-      { path: 'donors/new', canMatch: [demoOnly], title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
+      { path: 'donors/new', title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
       { path: 'donors/:id', title: 'Donor · Coding in Color', loadComponent: () => import('./pages/donor-detail').then((m) => m.DonorDetailPage) },
       { path: 'donations', canMatch: [demoOnly], title: 'Donations · Coding in Color', loadComponent: () => import('./pages/donations').then((m) => m.DonationsPage) },
       { path: 'outreach', title: 'Follow-ups · Coding in Color', loadComponent: () => import('./pages/outreach').then((m) => m.OutreachPage) },
