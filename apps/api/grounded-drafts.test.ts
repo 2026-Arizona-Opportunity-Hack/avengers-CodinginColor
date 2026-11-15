@@ -14,7 +14,7 @@ test('grounded drafts use authorized facts without external PII, reject stale co
   await migrate({query:async(q,v)=>v?sql.query(q,v):(await sql.exec(q)).at(-1)!},fileURLToPath(new URL('../../db/migrations/',import.meta.url)));
   await sql.exec(`INSERT INTO organizations(id,name) VALUES('${id(1)}','CIC');
     INSERT INTO memberships(id,org_id,clerk_subject,role) VALUES('${id(10)}','${id(1)}','admin','admin'),('${id(11)}','${id(1)}','board','board');
-    INSERT INTO programs(id,org_id,title) VALUES('${id(20)}','${id(1)}','Academy');
+    INSERT INTO programs(id,org_id,title) VALUES('${id(20)}','${id(1)}','Academy'),('${id(22)}','${id(1)}','Other program');
     INSERT INTO campaigns(id,org_id,program_id,title) VALUES('${id(21)}','${id(1)}','${id(20)}','Academy fund');
     INSERT INTO donors(id,org_id,owner_id,name,email,consent) VALUES('${id(30)}','${id(1)}','${id(11)}','Private Person','private@example.org','granted'),
       ('${id(31)}','${id(1)}',NULL,'Other','other@example.org','granted'),('${id(32)}','${id(1)}','${id(11)}','Denied','denied@example.org','denied');
@@ -22,9 +22,10 @@ test('grounded drafts use authorized facts without external PII, reject stale co
       VALUES('${id(1)}','${id(30)}','${id(21)}',12345,345,'USD','2026-06-01T12:00:00Z','settled','manual');
     INSERT INTO program_outcomes(org_id,program_id,period_from,period_to,metric,value,unit,denominator,source,approved_by)
       VALUES('${id(1)}','${id(20)}','2026-01-01','2027-01-01','Completed',0,'students',10,'Approved aggregate','${id(10)}'),
-        ('${id(1)}','${id(20)}','2026-01-01','2027-01-01','Unknown',NULL,'students',NULL,'Approved aggregate','${id(10)}');
+        ('${id(1)}','${id(20)}','2026-01-01','2027-01-01','Unknown',NULL,'students',NULL,'Approved aggregate','${id(10)}'),
+        ('${id(1)}','${id(22)}','2026-01-01','2027-01-01','Other private program',99,'students',100,'Other source','${id(10)}');
     CREATE ROLE grounded_test NOLOGIN NOINHERIT; GRANT cic_runtime TO grounded_test; SET SESSION AUTHORIZATION grounded_test;`);
-  let calls = 0;
+  let calls = 0, plan: unknown = {opening:'thanks',closing:'questions',fact_ids:['invented_fact']};
   const env = EnvSchema.parse({DATABASE_URL:'postgresql://localhost/test',CIC_ORG_ID:id(1),CLERK_SECRET_KEY:'sk_test_fixture',
     CLERK_JWT_ISSUER:'https://example.clerk.accounts.dev',APP_ORIGIN:'http://localhost:4200'});
   const app = express(); app.use(express.json(),groundedDrafts(env,{connect:async()=>({query:(q,v)=>sql.query(q,v),release(){}})},async h => {
@@ -32,7 +33,7 @@ test('grounded drafts use authorized facts without external PII, reject stale co
   },async request => {
     calls++; const payload = JSON.stringify(request.data);
     for (const secret of ['Private','private@','12345','120.00','Academy','Completed','Approved aggregate',id(30)]) assert.ok(!payload.includes(secret));
-    return {opening:'thanks',closing:'questions',fact_ids:['invented_fact']}; // Rejected plan uses grounded fallback.
+    return plan;
   }));
   const errors: ErrorRequestHandler = (e,_req,res,_next) => res.status(e instanceof HttpError?e.status:503).json({error:'rejected'}); app.use(errors);
   const server = app.listen(0,'127.0.0.1'); await once(server,'listening');
@@ -44,6 +45,13 @@ test('grounded drafts use authorized facts without external PII, reject stale co
   assert.equal((await call('/propose',{...input,donor_id:id(32)})).status,409); assert.equal(calls,0);
   const response = await call('/propose',input); assert.equal(response.status,200); const proposal=await response.json();
   assert.match(proposal.body,/USD 120.00/); assert.match(proposal.body,/Completed: 0 students/); assert.doesNotMatch(proposal.body,/Unknown|invented_fact|\u2014/);
+  const board = await (await call('/propose',input,'board')).json(); assert.match(board.body,/Completed: 0 students/);
+  const unfunded = await (await call('/propose',{...input,program_id:id(22)},'board')).json();
+  assert.doesNotMatch(unfunded.body,/Other private program|Other source/); assert.deepEqual(unfunded.facts,[]);
+  plan={opening:'thanks',closing:'questions',fact_ids:['outcome_0']};
+  const selected=await (await call('/propose',input)).json(); assert.match(selected.body,/Completed: 0 students/); assert.doesNotMatch(selected.body,/USD/);
+  plan={opening:'update',closing:'thanks',fact_ids:[]};
+  const emptyPlan=await (await call('/propose',input)).json(); assert.match(emptyPlan.body,/USD 120.00/); assert.doesNotMatch(emptyPlan.body,/No approved program results/);
   const save = {...input,context_hash:proposal.context_hash,subject:proposal.subject,body:proposal.body};
   assert.equal((await call('',{...save,context_hash:'0'.repeat(64)})).status,409);
   const saved=await call('',save); assert.equal(saved.status,201); const draft=await saved.json();
