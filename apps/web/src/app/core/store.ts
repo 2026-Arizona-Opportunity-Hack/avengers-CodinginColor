@@ -6,6 +6,7 @@ import {
 } from './models';
 import { Api, ApiDonor, ApiDonorPatch, ApiError, ApiMe, LiveConfig } from './api';
 import { money, quarterOf, today } from './format';
+import * as outreach from './outreach-live';
 
 const STORE_KEY = 'cadence.dataset';
 const SESSION_KEY = 'cadence.session';
@@ -200,7 +201,15 @@ export class Store {
     try {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
       if (generation !== this.liveLoadGeneration) return;
+      const request: outreach.Request = (path, init) => this.api.request(path, init);
+      const [followUps, drafts, apiKeys] = await Promise.all([
+        outreach.loadFollowUps(request, me.role === 'admin' ? 'all' : 'mine'),
+        outreach.loadDrafts(request),
+        me.role === 'admin' ? outreach.loadApiKeys(request) : Promise.resolve([]),
+      ]);
+      if (generation !== this.liveLoadGeneration) return;
       this.loadLive(me, donors);
+      this.data.update((d) => ({ ...d, followUps, drafts, apiKeys }));
       this.api.status.set('ready');
     } catch (e) {
       if (generation !== this.liveLoadGeneration) return;
@@ -318,11 +327,14 @@ export class Store {
   }
 
   private async liveWrite(run: () => Promise<void>): Promise<boolean> {
+    const epoch = this.sessionEpoch();
     try {
       await run();
+      if (epoch !== this.sessionEpoch()) return false;
       this.notice.set(null);
       return true;
     } catch (e) {
+      if (epoch !== this.sessionEpoch()) return false;
       this.notice.set(e instanceof ApiError ? e.message : 'The change could not be saved.');
       return false;
     }
@@ -502,7 +514,19 @@ export class Store {
     return result;
   }
 
-  createApiKey(label: string): string {
+  async createApiKey(label: string): Promise<string | null> {
+    if (!this.isAdmin()) return null;
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      let secret: string | null = null;
+      await this.liveWrite(async () => {
+        const result = await outreach.issueApiKey((path, init) => this.api.request(path, init), label, this.me().id);
+        if (epoch !== this.sessionEpoch()) return;
+        this.data.update((d) => ({ ...d, apiKeys: [...d.apiKeys, result.key] }));
+        secret = result.secret;
+      });
+      return secret;
+    }
     const bytes = crypto.getRandomValues(new Uint8Array(24));
     const secret = `cic_live_${Array.from(bytes, (b) => b.toString(36).padStart(2, '0')).join('').slice(0, 32)}`;
     const key: ApiKey = {
@@ -513,8 +537,18 @@ export class Store {
     return secret;
   }
 
-  revokeApiKey(id: string) {
+  async revokeApiKey(id: string): Promise<boolean> {
+    if (!this.isAdmin()) return false;
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      return this.liveWrite(async () => {
+        const result = await outreach.revokeApiKey((path, init) => this.api.request(path, init), id);
+        if (epoch !== this.sessionEpoch()) return;
+        this.data.update((d) => ({ ...d, apiKeys: d.apiKeys.map((k) => k.id === id ? { ...k, revoked_at: result.revoked_at } : k) }));
+      });
+    }
     this.mutate((d) => { d.apiKeys.find((k) => k.id === id)!.revoked_at = nowIso(); }, 'apikey.revoke', id);
+    return true;
   }
 
   saveCustomField(field: CustomField, originalKey: string | null) {
