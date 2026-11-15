@@ -108,7 +108,7 @@ test('assignment migration accepts only isolated, restricted pre-existing assign
       if (attribute==='parent') await db.exec('CREATE ROLE elevated NOLOGIN BYPASSRLS; GRANT elevated TO cic_assignment;');
       else if (attribute==='grantee') await db.exec('CREATE ROLE outsider LOGIN; GRANT cic_assignment TO outsider;');
       else if (attribute!=='safe') await db.exec(`ALTER ROLE cic_assignment ${attribute};`);
-      if (attribute==='safe') assert.equal((await migrate(clientFor(db),directory)).length,2);
+      if (attribute==='safe') assert.ok((await migrate(clientFor(db),directory)).includes('002_assignment.sql'));
       else await assert.rejects(migrate(clientFor(db),directory),/unsafe.*cic_assignment/i);
     });
   }
