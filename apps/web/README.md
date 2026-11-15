@@ -61,10 +61,16 @@ packet and downloads its audited CSV. Print/PDF uses the same loaded report.
 Amounts remain per-currency with unattributed gifts separate; unavailable outcome
 data is never replaced with zero. Approved outcome upload is a separate remaining
 integration requirement.
+
+Import now uploads original CSV/XLSX bytes and walks through server mapping,
+explicit financial facts, invalid-record acknowledgments, donor/gift decisions,
+per-currency reconciliation and atomic commit. Re-uploading the same file returns
+the saved result. Review state stays in memory and clears on session changes;
+abandoning a staged batch purges it on the server. XLSX API support requires #105.
 Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
-server routes have not landed (overview, donations, add donor, import,
-funder reports, settings) are hidden. Any other write shows "not
+server routes have not landed (overview, donations, add donor,
+settings) are hidden. Any other write shows "not
 connected yet" instead of pretending to save. Other owners appear as a short member
 ID until the API has a member directory route.
 
