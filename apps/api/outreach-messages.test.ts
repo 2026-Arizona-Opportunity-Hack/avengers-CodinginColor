@@ -108,7 +108,7 @@ test('members list their open drafts, scoped by owner and filterable by status',
   assert.deepEqual(mine.items.map((d: { id: string }) => d.id).sort(), [first.id, second.id].sort());
   const item = mine.items.find((d: { id: string }) => d.id === second.id);
   assert.deepEqual(Object.keys(item).sort(), ['approved_at', 'approved_by', 'author_id', 'body', 'channel', 'created_at',
-    'donor_id', 'id', 'owner_id', 'recipient', 'status', 'subject']);
+    'donor_id', 'id', 'owner_id', 'recipient', 'sent_at', 'sent_by', 'status', 'subject']);
   assert.deepEqual([item.donor_id, item.status, item.approved_by], [DONOR_A, 'approved', BOARD_A]);
   const approved = await (await call('GET', '/api/v1/drafts?status=approved', 'board-a')).json();
   assert.deepEqual(approved.items.map((d: { id: string }) => d.id), [second.id]);
@@ -164,6 +164,10 @@ test('a confirmed manual send is logged once, freezes the draft, and closes the 
   }
   const sent = await (await call('POST', `/api/v1/drafts/${draft.id}/manual-send`, 'board-a', { confirmed: true })).json();
   assert.deepEqual(sent, { status: 'logged', closed_follow_ups: 1, already_logged: false });
+  const history = await (await call('GET', '/api/v1/drafts?status=logged', 'board-a')).json();
+  assert.equal(history.items[0].sent_by, BOARD_A);
+  assert.equal(Date.parse(history.items[0].sent_at), Date.parse(NOW));
+  assert.deepEqual((await (await call('GET', '/api/v1/drafts?status=logged', 'board-b')).json()).items, []);
   const again = await (await call('POST', `/api/v1/drafts/${draft.id}/manual-send`, 'board-a', { confirmed: true })).json();
   assert.deepEqual(again, { status: 'logged', closed_follow_ups: 0, already_logged: true });
   assert.equal((await call('PATCH', `/api/v1/drafts/${draft.id}`, 'board-a', { body: 'x' })).status, 409);

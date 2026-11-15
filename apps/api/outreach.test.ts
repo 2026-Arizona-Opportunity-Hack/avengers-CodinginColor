@@ -127,6 +127,15 @@ test('completing a task records who did it, once; other owners cannot complete i
   assert.deepEqual(await audits(), ['follow_up.create', 'follow_up.complete']);
 });
 
+test('quarterly touches require logged contact, not a direct completion', async (t) => {
+  const { call } = await setup(t);
+  await call('POST', '/api/v1/follow-ups/quarterly', 'admin', { quarter: '2026-Q4' });
+  const queue = await (await call('GET', '/api/v1/follow-ups', 'board-a')).json();
+  const task = queue.upcoming.find((f: { kind: string }) => f.kind === 'quarterly');
+  assert.ok(task);
+  assert.equal((await call('POST', `/api/v1/follow-ups/${task.id}/complete`, 'board-a')).status, 409);
+});
+
 test('the follow-up routes are mounted in the real app behind its session and origin checks', async (t) => {
   const { createApp } = await import('./app.ts');
   const env = EnvSchema.parse({ DATABASE_URL: 'postgresql://localhost/test', CIC_ORG_ID: ORG,

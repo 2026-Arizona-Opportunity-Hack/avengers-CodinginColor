@@ -360,8 +360,8 @@ export class RetentionPage {
     return `${cents > 0 ? '+' : cents < 0 ? '−' : ''}${money(Math.abs(cents))}`;
   }
 
-  protected nudge(donorId: string) {
-    if (!this.store.createDraft(donorId, 't-nudge', 'Lapsed: gave last period, not this period')) return;
+  protected async nudge(donorId: string) {
+    if (!await this.store.createDraft(donorId, 't-nudge', 'Lapsed: gave last period, not this period')) return;
     this.nudged.update((s) => new Set(s).add(donorId));
     toast.success(`Nudge drafted for ${this.name(donorId)}`, { description: 'Approve it in Follow-ups before it is sent.' });
   }

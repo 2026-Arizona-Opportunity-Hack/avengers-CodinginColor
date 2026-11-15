@@ -65,6 +65,7 @@ export class Api {
   readonly error = signal<string | null>(null);
   private config: LiveConfig | null = null;
   private clerk: Clerk | null = null;
+  get baseUrl() { return this.config?.apiBase ?? ''; }
 
   /** Loads Clerk only in live mode, so demo builds never fetch it. */
   async start(config: LiveConfig, onSignedIn: () => void, onSignedOut: () => void) {

@@ -93,9 +93,9 @@ export function createOutreachRouter(env: Env, db: Database, verify: (header: st
     const identity = await verify(req.get('Authorization'));
     const id = parse(IdSchema, req.params.id);
     const done = await withMember(db, env.CIC_ORG_ID, identity, async (client, member) => {
-      const [task] = (await client.query('SELECT status FROM follow_ups WHERE id = $1', [id])).rows;
+      const [task] = (await client.query('SELECT status, kind FROM follow_ups WHERE id = $1', [id])).rows;
       if (!task) throw new HttpError(404);
-      if (task.status !== 'open') throw new HttpError(409);
+      if (task.status !== 'open' || task.kind === 'quarterly') throw new HttpError(409);
       const [row] = (await client.query(`UPDATE follow_ups SET status = 'done', completed_at = now(), completed_by = $2
         WHERE id = $1 AND status = 'open' RETURNING id, status, completed_by`, [id, member.id])).rows;
       if (!row) throw new HttpError(409);

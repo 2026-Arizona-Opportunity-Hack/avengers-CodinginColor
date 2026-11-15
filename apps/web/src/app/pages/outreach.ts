@@ -100,12 +100,12 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
                 <footer class="bar">
                   @if (d.status === 'pending') {
                     @if (!d.to) { <p class="hint"><ng-icon name="lucideCircleAlert" size="14" color="var(--attention)" aria-hidden="true" /> Add a {{ d.channel === 'text' ? 'phone number' : 'email' }} to the donor before approving.</p> }
-                    <button hlmBtn variant="ghost" type="button" (click)="discard(d)">Discard</button>
+                    @if (!store.live()) { <button hlmBtn variant="ghost" type="button" (click)="discard(d)">Discard</button> }
                     <button hlmBtn variant="outline" type="button" (click)="editing.set(d.id)" [disabled]="editing() === d.id">Edit</button>
                     <button hlmBtn type="button" (click)="approve(d)" [disabled]="!d.to"><ng-icon name="lucideCheck" size="16" /> Approve</button>
                   } @else {
                     <p class="hint">Open it, send it yourself, then record it. Recording adds it to the donor's timeline.</p>
-                    <a hlmBtn variant="outline" [href]="sendLink(d)"><ng-icon [name]="d.channel === 'text' ? 'lucideMessageSquare' : 'lucideMail'" size="16" /> {{ d.channel === 'text' ? 'Open in Messages' : 'Open in email' }}</a>
+                    <a hlmBtn variant="outline" [href]="store.live() ? '#' : sendLink(d)" (click)="compose($event, d)"><ng-icon [name]="d.channel === 'text' ? 'lucideMessageSquare' : 'lucideMail'" size="16" /> {{ d.channel === 'text' ? 'Open in Messages' : 'Open in email' }}</a>
                     <button hlmBtn type="button" (click)="markSent(d)"><ng-icon name="lucideSend" size="16" /> I sent it</button>
                   }
                 </footer>
@@ -156,7 +156,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
                   </div>
                   <footer class="bar">
                     <a hlmBtn variant="ghost" [routerLink]="['/donors', donor.id]">Open donor</a>
-                    <button hlmBtn variant="outline" type="button" (click)="done(f)"><ng-icon name="lucideCircleCheck" size="16" /> Mark done</button>
+                    @if (!store.live() || f.kind !== 'quarterly') { <button hlmBtn variant="outline" type="button" (click)="done(f)"><ng-icon name="lucideCircleCheck" size="16" /> Mark done</button> }
                     <button hlmBtn type="button" (click)="draftFor(f)"><ng-icon name="lucideMail" size="16" /> Draft a message</button>
                   </footer>
                 }
@@ -172,14 +172,19 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
             <section class="campaign glass" aria-labelledby="q-h">
               <span class="c-icon" aria-hidden="true"><ng-icon name="lucideCalendar" size="20" /></span>
               <h2 id="q-h" class="text-lg">{{ quarter }} donor update</h2>
+              @if (store.live()) {
+                <p class="text-sm">Generate one task per eligible donor this quarter. Draft a message from Next steps; a logged contact completes the quarterly touch.</p>
+                @if (store.isAdmin()) { <button hlmBtn type="button" (click)="generateQuarterly()">Generate quarterly tasks</button> }
+              } @else {
               <p class="text-muted-foreground text-sm">Every donor gets a touch each quarter: a short update and the quarterly report. One draft per donor with consent and an email, each approved by a person.</p>
               <div class="progress" role="img" [attr.aria-label]="quarterlyDrafted() + ' of ' + eligible() + ' drafted'">
                 <span [style.width.%]="eligible() ? (quarterlyDrafted() / eligible()) * 100 : 0"></span></div>
               <p class="text-sm"><strong>{{ quarterlyDrafted() }}</strong> of {{ eligible() }} eligible donors drafted</p>
               <button hlmBtn class="self-start" type="button" (click)="generateQuarterly()" [disabled]="eligible() - quarterlyDrafted() <= 0">
                 <ng-icon name="lucidePlus" size="16" /> Draft {{ eligible() - quarterlyDrafted() }} updates</button>
+              }
             </section>
-            @if (store.isAdmin()) {
+            @if (store.isAdmin() && !store.live()) {
               <section class="campaign glass" aria-labelledby="dg-h">
                 <span class="c-icon" aria-hidden="true"><ng-icon name="lucideUsers" size="20" /></span>
                 <h2 id="dg-h" class="text-lg">Board assignment digest</h2>
@@ -191,7 +196,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
           </div>
           <h2 class="mt-8 mb-3">Templates</h2>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            @for (t of store.templates(); track t.id) {
+            @for (t of visibleTemplates(); track t.id) {
               <article class="tpl glass">
                 <div class="flex items-center justify-between gap-2"><h3>{{ t.name }}</h3>
                   <span class="tag"><ng-icon [name]="t.channel === 'text' ? 'lucideMessageSquare' : 'lucideMail'" size="12" aria-hidden="true" />{{ t.channel === 'text' ? 'Text' : 'Email' }}</span></div>
@@ -210,7 +215,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
                   <button type="button" class="q-item" [attr.aria-current]="selectedSent()?.id === d.id" (click)="pickSent(d.id)">
                     <span class="q-avatar" aria-hidden="true">{{ store.initials(recipient(d)) }}</span>
                     <span class="min-w-0 flex-1">
-                      <span class="q-top"><span class="q-name">{{ recipient(d) }}</span><span class="q-when">{{ dateShort(d.sent_at!) }}</span></span>
+                  <span class="q-top"><span class="q-name">{{ recipient(d) }}</span><span class="q-when">{{ d.sent_at ? dateShort(d.sent_at!) : 'Date unavailable' }}</span></span>
                       <span class="q-sub">{{ d.channel === \'text\' ? \'Text: \' : \'\' }}{{ d.subject || d.body }}</span>
                     </span>
                   </button>
@@ -222,7 +227,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
                 <ol class="trail" aria-label="Audit trail">
                   <li class="done"><span class="dot" aria-hidden="true"></span>Drafted by Cadence<small>{{ date(d.created_at) }}</small></li>
                   <li class="done"><span class="dot" aria-hidden="true"></span>Approved by {{ store.member(d.approved_by)?.name }}<small>{{ d.approved_at ? date(d.approved_at) : '' }}</small></li>
-                  <li class="done"><span class="dot" aria-hidden="true"></span>Sent by {{ store.member(d.sent_by)?.name }}<small>{{ date(d.sent_at!) }}</small></li>
+                  <li class="done"><span class="dot" aria-hidden="true"></span>Send recorded by {{ store.member(d.sent_by)?.name ?? 'member' }}<small>{{ d.sent_at ? date(d.sent_at!) : 'Date unavailable' }}</small></li>
                 </ol>
                 <div class="msg" [attr.data-channel]="d.channel">
                   <div class="msg-meta"><span><span class="k">To</span> {{ recipient(d) }} <span class="addr">{{ d.to }}</span></span></div>
@@ -336,7 +341,8 @@ export class OutreachPage {
   protected readonly queue = computed(() => this.store.drafts()
     .filter((d) => d.status === 'pending' || d.status === 'approved')
     .sort((a, b) => (a.status === b.status ? b.created_at.localeCompare(a.created_at) : a.status === 'approved' ? -1 : 1)));
-  protected readonly sent = computed(() => this.store.drafts().filter((d) => d.status === 'sent').sort((a, b) => b.sent_at!.localeCompare(a.sent_at!)));
+  protected readonly sent = computed(() => this.store.drafts().filter((d) => d.status === 'sent').sort((a, b) => (b.sent_at ?? '').localeCompare(a.sent_at ?? '')));
+  protected readonly visibleTemplates = computed(() => this.store.live() ? [] : this.store.templates());
   private readonly open = computed(() => this.store.followUps().filter((f) => f.status === 'open').sort((a, b) => a.due_on.localeCompare(b.due_on)));
 
   /** The picked item if it is still in its list, otherwise the first one. */
@@ -380,16 +386,16 @@ export class OutreachPage {
       : `mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
   }
 
-  protected saveEdit(event: Event, d: Draft) {
+  protected async saveEdit(event: Event, d: Draft) {
     event.preventDefault();
     const form = new FormData(event.target as HTMLFormElement);
-    this.store.editDraft(d.id, { subject: String(form.get('subject') ?? d.subject), body: String(form.get('body') ?? d.body) });
+    if (!await this.store.editDraft(d.id, { subject: String(form.get('subject') ?? d.subject), body: String(form.get('body') ?? d.body) })) return;
     this.editing.set(null);
     toast('Draft updated', { description: 'It still needs approval.' });
   }
 
-  protected approve(d: Draft) {
-    this.store.approveDraft(d.id);
+  protected async approve(d: Draft) {
+    if (!await this.store.approveDraft(d.id)) return;
     toast.success('Approved', { description: `Now send it to ${this.recipient(d)} from your own ${d.channel === 'text' ? 'phone' : 'email'}.` });
   }
 
@@ -398,28 +404,38 @@ export class OutreachPage {
     toast('Draft discarded', { description: `Nothing was sent to ${this.recipient(d)}.` });
   }
 
-  protected markSent(d: Draft) {
-    this.store.markSent(d.id);
+  protected async compose(event: Event, d: Draft) {
+    if (!this.store.live()) return;
+    event.preventDefault();
+    const href = await this.store.composeDraft(d.id);
+    if (href) location.href = href;
+  }
+
+  protected async markSent(d: Draft) {
+    if (!await this.store.markSent(d.id)) return;
     toast.success('Recorded as sent', { description: 'Added to the donor’s timeline and the send history.' });
   }
 
-  protected done(f: FollowUp) {
-    this.store.setFollowUpStatus(f.id, 'done');
+  protected async done(f: FollowUp) {
+    if (!await this.store.setFollowUpStatus(f.id, 'done')) return;
     toast.success('Next step done', { description: f.action });
   }
 
-  protected draftFor(f: FollowUp) {
+  protected async draftFor(f: FollowUp) {
     const donor = this.store.donor(f.donor_id);
     if (!donor) return;
     const lapsed = f.action.startsWith('Re-engage');
-    const template = lapsed ? 't-nudge' : donor.preferred_channel === 'text' && donor.phone ? 't-thanks-text' : 't-thanks-email';
-    const draft = this.store.createDraft(donor.id, template, `Next step: ${f.action}`);
-    if (draft) { this.picked.set(draft.id); this.tab.set('approve'); }
+    const template = f.kind === 'quarterly' ? 't-quarterly' : lapsed ? 't-nudge' : donor.preferred_channel === 'text' && donor.phone ? 't-thanks-text' : 't-thanks-email';
+    const draft = await this.store.createDraft(donor.id, template, `Next step: ${f.action}`);
+    if (!draft) return;
+    this.picked.set(draft.id); this.tab.set('approve');
     toast.success(`Drafted a message to ${donor.name}`, { description: 'Review and approve it before anything is sent.' });
   }
 
-  protected generateQuarterly() {
-    const n = this.store.generateQuarterly('t-quarterly');
+  protected async generateQuarterly() {
+    const n = await this.store.generateQuarterly('t-quarterly');
+    if (n === null) return;
+    if (this.store.live()) { this.tab.set('followups'); toast.success(`${n} quarterly tasks created`); return; }
     toast.success(`${n} quarterly updates drafted`, { description: 'Each one needs a person to approve it.' });
   }
 

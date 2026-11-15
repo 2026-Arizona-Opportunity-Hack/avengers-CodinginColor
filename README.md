@@ -77,6 +77,9 @@ Live workspaces load the server-scoped follow-up queue and drafts. Administrator
 can issue and revoke real aggregate API keys from **Read API**; the secret is shown
 once and is never stored in the browser dataset. Other live workflows remain
 tracked separately; demo actions do not persist to the server.
+**Follow-ups** now saves tasks and drafts to the API, checks exact-message approval
+and consent before opening email/SMS, and records a manual send only after the
+person selects **I sent it**. A logged contact closes the matching quarterly touch.
 
 Tests and checks need no accounts or keys:
 
