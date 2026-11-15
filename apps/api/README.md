@@ -78,6 +78,9 @@ explicit batch financial metadata and optional paired date-format/UTC-offset.
 returns bounded pages. `POST /:batchId/abandon` irreversibly purges staged bytes
 and layout. All routes are under `/api/v1/imports`, enforced by membership and
 database RLS; foreign batches are404. Stage/layout/abandon are audited atomically.
+Malformed batch path UUIDs also return404 `import_not_found` after authorization.
+Blank or duplicate CSV headers return400 `invalid_csv`; invalid column mappings
+and decision body IDs remain400 `invalid_mapping` and `invalid_decision` respectively.
 Review uses two phases: `POST /:id/donors/plan`, then `/donors/review` with
 `{plan_hash,decisions}`; after donors are ready, `/gifts/plan`, then `/gifts/review`
 with `{donor_plan_hash,plan_hash,decisions}`. Decisions contain kind, row, action
