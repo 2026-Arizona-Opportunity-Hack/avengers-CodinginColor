@@ -41,3 +41,26 @@ Admin reassignment and automatic assignment need separately reviewed scoped
 functions. Application services must pair mutations with audit inserts in the
 same transaction; database grants alone do not supply that service workflow.
 Communications/follow-ups and import staging remain their owners' later slices.
+
+## Provisioning the organization and first members (`db/provision.ts`, #31)
+
+Because RLS is forced on every table, the first organization and memberships are
+created by a trusted operator, never by an API endpoint:
+
+1. Invite each person in Clerk and copy their **Clerk user ID** (`user_…`, from the
+   Clerk dashboard's Users page). Emails and names are rejected.
+2. Copy `db/provision.example.json` to a file **outside the repo** and fill in the IDs
+   and roles (`admin` or `board`; `"active": false` to deactivate). At least one
+   active admin is required.
+3. Run it with the privileged migration connection and the deployment's org ID:
+
+```powershell
+node --env-file-if-exists=.env db/provision.ts C:\path\to\roster.json
+```
+
+It needs `MIGRATION_DATABASE_URL` and `CIC_ORG_ID` (the same UUID the API uses). The run
+is one transaction and safe to repeat: it creates or updates the organization name
+and each listed membership's role and active flag, and prints counts only. People not
+in the file are **left unchanged**, never deactivated implicitly. It refuses the runtime
+login, and it refuses any role that can't write under row-level security. Never grant
+BYPASSRLS to the runtime login to make provisioning work. Tests: `node --test tests/provision.test.ts`.
