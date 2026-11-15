@@ -106,3 +106,26 @@ any non-demo donor, and it refuses the runtime login. Tests: `node --test tests/
   key` otherwise.
 - The API turns those rows into suppressed aggregates with `packages/reporting/summary.ts`;
   per-gift rows never leave the server. Tests: `node --test tests/reporting-api.test.ts`.
+
+## Outreach tables (`005_outreach.sql`, #47)
+
+`follow_ups`, `drafts` and `communications` follow **donor visibility**: board
+members see and act only on their own donors' rows; admins see the organization's.
+Runtime has column-level grants and **no DELETE** on any of them.
+
+- **`follow_ups`:**
+  - New tasks belong to the donor's current owner.
+  - Quarterly touches are unique per donor and quarter. Generate them with
+    `ON CONFLICT (org_id, donor_id, quarter) WHERE kind = 'quarterly' DO NOTHING`.
+  - `completed_by` must be the acting member.
+  - Runtime cannot change `owner_id`; moving open tasks on reassignment is a core
+    follow-up to `reassign_donor`.
+- **`drafts`:** a non-draft status always carries an `approval_hash`. A trigger drops
+  the approval whenever `subject` or `body` changes, and refuses any change once a
+  draft is `sent` or `logged`. Runtime cannot change `recipient` or `channel`.
+- **`communications`:** insert-only, written by the acting member.
+  - A unique index allows only one delivered or manually logged record per approval
+    hash, so a double send fails.
+  - A failed delivery can never be `qualifying`.
+
+Rules for queues and messages live in `packages/outreach`. Tests: `node --test tests/outreach-db.test.ts`.
