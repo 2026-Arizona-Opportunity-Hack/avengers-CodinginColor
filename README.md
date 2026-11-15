@@ -223,6 +223,26 @@ The server must rebuild both phases with fresh authorized data in one transactio
 apply phase-one donor operations first, map each created donor row to its stored ID,
 then substitute those IDs into phase-two gift operations. Neither phase writes data.
 
+### Drafts from a preview
+
+`tools/import-drafts.ts` turns a `needs_review` preview into donor and gift drafts
+for schema validation by the review planners. Rows with any row-level preview issue are listed in `excluded` by
+record number and code, never dropped or echoed. Rows whose donor drafts are
+exactly identical and share an email become one donor; contact person and
+campaign columns are never used to infer owners or campaigns. Gift facts come
+from the row first and then from reviewer `values` (`currency`, `occurred_at`,
+`status`, `refund_cents`), which are validated and rejected for any field the
+column mapping already supplies. Missing facts are omitted and reported in
+`unresolved`, never defaulted.
+
+```bash
+node tools/import-drafts.ts zeffy data/zeffy_export.csv \
+  --currency USD --status settled --refund-cents 0 --occurred-at 2026-11-14T00:00:00-07:00
+```
+
+The CLI is a dry run: it prints plan counts only (no names, emails, phones or
+paths), runs phase one and, when that is `ready`, phase two.
+
 Run `node --test tests/*.test.ts packages/contracts/*.test.ts` for Data and
 shared-contract tests. The live API/database integration is still pending.
 
