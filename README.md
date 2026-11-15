@@ -63,6 +63,9 @@ What's built on `main` (API, database and rules):
   same reviewed API flow, with bounded workbook parsing and original-file fingerprints (#105).
 - **Donors and gifts:** one record per donor with an owner, a gift ledger with audited corrections,
   and admin reassignment that moves open follow-ups along with the donor.
+  The live Donations screen keeps currencies separate and limits CSV download to admins.
+  Archived donors retain their gift/contact history; donor records show separate donation history,
+  communications and future-task sections.
 - **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
   donor. Messages are drafted from templates and need human approval, then go out from the
   person's own email or phone and are logged once. Nothing is sent automatically.
@@ -105,14 +108,21 @@ uses synthetic review state; deployed signed-in acceptance remains pending.
 
 ## Run it locally
 
-Live administrators can reassign a donor to any active same-organization board
-member, including members without donors. Assignment and open-task transfer remain
-server-controlled and audited; board members cannot list other eligible owners.
 Administrators can use the live Funder reports screen to select a donor, program
 and inclusive calendar range, inspect the server packet, then download its audited
 CSV or print it. Gift totals stay separated by currency and attribution. Until
 approved outcomes are uploaded, reports explicitly show that outcome data is
 unavailable.
+
+Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
+`cohort` (acquisition year) filters alongside inclusive `asOf`. Dates compare
+matched Phoenix calendar windows within one year. Cohort is the donor's first
+positive settled gift year across their visible history, before campaign/program
+narrowing. Every filter intersects the caller's existing organization/owner scope.
+
+Live administrators can reassign a donor to any active same-organization board
+member, including members without donors. Assignment and open-task transfer remain
+server-controlled and audited; board members cannot list other eligible owners.
 
 Live donor views load their scoped gift and contact history from the API. Logging
 a call, text, email or meeting persists a real communication and refreshes the queue;

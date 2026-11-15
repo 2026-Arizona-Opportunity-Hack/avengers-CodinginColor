@@ -77,8 +77,13 @@ export class GiftEntry {
     try {
       const saved = await this.store.addGift(this.pending, this.requestId);
       if (epoch !== this.store.sessionEpoch() || generation !== this.generation) return;
-      if (!saved) {
-        this.failed.set(true); this.message.set('Gift save could not be confirmed. Retry with these same details to avoid duplicates.'); return;
+      if (saved.kind !== 'saved') {
+        this.failed.set(true);
+        if (saved.kind === 'invalid') {
+          this.pending = null; this.requestId = crypto.randomUUID();
+          this.message.set('The gift was rejected. Correct the details and submit again.');
+        } else this.message.set('Gift save could not be confirmed. Retry with these same details to avoid duplicates.');
+        return;
       }
       this.store.selectedCurrency.set(this.pending.currency ?? 'USD');
       this.pending = null; this.requestId = crypto.randomUUID();
