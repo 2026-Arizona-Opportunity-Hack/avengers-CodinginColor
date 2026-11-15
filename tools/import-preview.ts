@@ -5,8 +5,8 @@ import { GiftWriteSchema } from '../packages/contracts/index.ts';
 const aliases = new Map([
   ['first name', 'first_name'], ['last name', 'last_name'],
   ['email', 'email'], ['email address', 'email'],
-  ['phone', 'phone'], ['phone number', 'phone'], ['company', 'company'],
-  ['donation amount', 'amount_cents'], ['contact person', 'contact_person'],
+  ['phone', 'phone'], ['phone number', 'phone'], ['company', 'company'], ['company name', 'company'],
+  ['donation amount', 'amount_cents'], ['amount', 'amount_cents'], ['contact person', 'contact_person'],
   ['campaign', 'campaign'], ['amount cents', 'amount_cents'],
   ['occurred at', 'occurred_at'], ['currency', 'currency'], ['external id', 'external_id'],
   ['donor first', 'first_name'], ['donor last', 'last_name'],
@@ -21,6 +21,7 @@ const sources = ['spreadsheet', 'zeffy', 'benevity', 'az_gives', 'united_way'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const dateFormats = {
   'MM/DD/YYYY': /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+  'MM/DD/YYYY, h:mm A': /^(\d{1,2})\/(\d{1,2})\/(\d{4}), (\d{1,2}):(\d{2}) (AM|PM)$/,
   'DD/MM/YYYY': /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
   'YYYY-MM-DD': /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
 };
@@ -87,12 +88,18 @@ function confirmedDate(value: string, { format, offset }: DateOptions): string |
   const match = dateFormats[format as keyof typeof dateFormats].exec(value);
   if (!match) return null;
   const [year, month, day] = format === 'YYYY-MM-DD' ? [match[1], match[2], match[3]]
-    : format === 'MM/DD/YYYY' ? [match[3], match[1], match[2]] : [match[3], match[2], match[1]];
+    : format.startsWith('MM/DD/YYYY') ? [match[3], match[1], match[2]] : [match[3], match[2], match[1]];
   const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   // Date rolls impossible days over, so a changed day means it was never a calendar date.
   if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() !== Number(month) - 1 ||
       date.getUTCDate() !== Number(day)) return null;
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00${offset}`;
+  let time = '00:00';
+  if (format === 'MM/DD/YYYY, h:mm A') {
+    const hour = Number(match[4]), minute = Number(match[5]);
+    if (hour < 1 || hour > 12 || minute > 59) return null;
+    time = `${String(hour % 12 + (match[6] === 'PM' ? 12 : 0)).padStart(2, '0')}:${match[5]}`;
+  }
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T${time}:00${offset}`;
 }
 
 export function previewCsv(text: string, source: string, file: string, columnMapping: unknown = {},

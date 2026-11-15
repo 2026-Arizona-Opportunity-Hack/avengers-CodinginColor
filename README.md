@@ -108,6 +108,14 @@ Unmapped headers can request optional Jev suggestions. Only the selected header 
 the reviewer must explicitly accept a suggestion and apply the mapping. Without a configured key
 or when the provider is unavailable, deterministic aliases and manual mapping continue to work.
 
+Zeffy XLSX exports with repeated labels now reach review with distinct names, such as
+`Notes` and `Notes (2)`, retaining both source columns. `Amount` is read in major currency
+units and `Company name` maps to company. For Phoenix text timestamps, explicitly choose
+the appropriate payment-date column, `MM/DD/YYYY, h:mm A`, and UTC offset `-07:00`.
+Review or ignore unsupported columns individually. Currency, status and refunds still
+require confirmation. A donor-summary Amount is not proof of an individual transaction;
+confirm its meaning before committing gifts. Parsing and Jev suggestions never save gifts.
+
 The live admin Import screen uses the API for upload, mapping, donor/gift review
 and atomic commit. It requires explicit status/refund and missing date/currency
 facts, acknowledges invalid records, and separates source totals from canonical

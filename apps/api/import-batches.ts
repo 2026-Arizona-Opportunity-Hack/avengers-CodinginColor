@@ -18,7 +18,7 @@ export const Layout=z.strictObject({mapping:z.record(z.string(),z.string().nulla
   skip_records:z.array(z.int().min(2)).max(20000).default([]),
   batch_values:z.strictObject({currency:GiftWriteSchema.shape.currency.optional(),occurred_at:GiftWriteSchema.shape.occurred_at.optional(),
     status:GiftWriteSchema.shape.status.optional(),refund_cents:GiftWriteSchema.shape.refund_cents.optional()}).default({}),
-  date_format:z.enum(['MM/DD/YYYY','DD/MM/YYYY','YYYY-MM-DD']).optional(),utc_offset:z.string().optional()});
+  date_format:z.enum(['MM/DD/YYYY','DD/MM/YYYY','YYYY-MM-DD','MM/DD/YYYY, h:mm A']).optional(),utc_offset:z.string().optional()});
 export type Batch={id:string;org_id:string;source:string;filename:string;file_sha256:string;raw_csv:Uint8Array|null;
   status:'reviewing'|'committed'|'abandoned';layout:z.infer<typeof Layout>|null;donor_decisions:unknown[]|null;gift_decisions:unknown[]|null;
   donor_plan_hash:string|null;gift_plan_hash:string|null;reviewer_id:string|null;result:Record<string,unknown>|null};
