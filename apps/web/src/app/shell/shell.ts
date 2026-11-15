@@ -118,13 +118,14 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
             </hlm-dropdown-menu>
           </ng-template>
 
-          <button type="button" class="account-btn" [hlmDropdownMenuTrigger]="account" align="end" [attr.aria-label]="meName() + ', ' + (store.isAdmin() ? 'Admin' : 'Board member') + ', account menu'">
-            <hlm-avatar size="sm"><span hlmAvatarFallback class="avatar-fallback">{{ store.initials(meName()) }}</span></hlm-avatar>
+          <button type="button" class="account-btn" [hlmDropdownMenuTrigger]="account" align="end">
+            <hlm-avatar size="sm" aria-hidden="true"><span hlmAvatarFallback class="avatar-fallback">{{ store.initials(meName()) }}</span></hlm-avatar>
             <span class="hidden min-w-0 flex-col text-start leading-tight md:flex">
               <span class="truncate text-[13px] font-medium">{{ meName() }}</span>
               <span class="text-muted-foreground truncate text-xs">{{ store.isAdmin() ? 'Admin' : 'Board member' }}</span>
             </span>
             <ng-icon name="lucideChevronDown" size="15" class="text-muted-foreground hidden md:block" aria-hidden="true" />
+            <span class="sr-only">Account menu</span>
           </button>
           <ng-template #account>
             <hlm-dropdown-menu class="w-72">

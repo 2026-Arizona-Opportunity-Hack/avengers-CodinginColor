@@ -1,4 +1,7 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { compactMoney } from '../shared/chart-theme';
 import { RouterLink } from '@angular/router';
 import { Store } from '../core/store';
 import { date, money, today } from '../core/format';
@@ -7,109 +10,159 @@ import { Donor } from '../core/models';
 
 @Component({
   selector: 'app-funders',
-  imports: [RouterLink],
+  imports: [RouterLink, NgIcon, HlmButtonImports],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <header class="page-head no-print">
         <div>
-          <p class="label eyebrow">Funder reports</p>
-          <h1>Funder packets</h1>
-          <p class="lede">Gift history plus the program outcomes it funded, for one funder, in one file. Built for grant reports and renewals.</p>
+          <h1>Funder reports</h1>
+          <p class="lede">Gift history plus the program outcomes it funded, for one funder, in one file. Pick a funder; the packet updates as you go.</p>
         </div>
       </header>
 
-      <section class="no-print" aria-labelledby="list-h">
-        <div class="section-head"><h2 id="list-h">Institutional funders</h2><p>Foundations and companies. Export uses all-time history.</p></div>
-        <div class="table-wrap">
-          <table class="table">
-            <thead><tr><th scope="col">Funder</th><th scope="col">Type</th><th scope="col">Programs funded</th><th scope="col">Last gift</th><th scope="col" class="num">Lifetime, net</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
-            <tbody>
+      <div class="builder">
+        <aside class="side no-print" aria-label="Packet settings">
+          <section class="glass card">
+            <h2 class="side-h">Funder</h2>
+            <ul class="funders">
               @for (f of funders(); track f.donor.id) {
-                <tr [class.picked]="funderId() === f.donor.id">
-                  <th scope="row"><a [routerLink]="['/donors', f.donor.id]">{{ f.donor.name }}</a></th>
-                  <td><span class="tag">{{ f.donor.kind }}</span></td>
-                  <td>{{ f.programs || 'Unrestricted only' }}</td>
-                  <td>{{ f.last ? date(f.last) : 'None' }}</td>
-                  <td class="num mono">{{ money(f.lifetime) }}</td>
-                  <td class="actions-cell">
-                    <button class="btn small" type="button" (click)="preview(f.donor.id)">Preview</button>
-                    <button class="btn small primary" type="button" (click)="exportFor(f.donor.id)">Export CSV</button>
-                  </td>
-                </tr>
+                <li>
+                  <button type="button" class="funder" [attr.aria-pressed]="selected()?.id === f.donor.id" (click)="funderId.set(f.donor.id)">
+                    <span class="f-icon" aria-hidden="true"><ng-icon [name]="f.donor.kind === 'foundation' ? 'lucideHeartHandshake' : 'lucideBuilding2'" size="16" /></span>
+                    <span class="min-w-0 flex-1 text-start">
+                      <span class="block truncate text-[13.5px] font-semibold">{{ f.donor.name }}</span>
+                      <span class="block truncate text-xs text-[var(--ink-600)]">{{ f.programs || 'Unrestricted only' }}</span>
+                    </span>
+                    <span class="text-[13px] font-semibold tabular-nums">{{ compact(f.lifetime) }}</span>
+                  </button>
+                </li>
               }
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      @if (packet(); as p) {
-        <section class="section packet" aria-labelledby="pk-h">
-          <div class="no-print controls">
-            <label class="field"><span>From</span><input class="input" type="date" [value]="from()" (input)="from.set($any($event.target).value)" /></label>
-            <label class="field"><span>To</span><input class="input" type="date" [value]="to()" [max]="now" (input)="to.set($any($event.target).value)" /></label>
-            <label class="field"><span>Program</span>
+            </ul>
+          </section>
+          <section class="glass card">
+            <h2 class="side-h">Period and program</h2>
+            <div class="grid grid-cols-2 gap-3">
+              <label class="field"><span>From</span><input class="input" type="date" [value]="from()" (input)="from.set($any($event.target).value)" /></label>
+              <label class="field"><span>To</span><input class="input" type="date" [value]="to()" [max]="now" (input)="to.set($any($event.target).value)" /></label>
+            </div>
+            <label class="field mt-3"><span>Program</span>
               <select class="select" (change)="programId.set($any($event.target).value)">
                 <option value="">All programs</option>
                 @for (pr of store.programs(); track pr.id) { <option [value]="pr.id">{{ pr.title }}</option> }
               </select></label>
-            <span class="spacer"></span>
-            <button class="btn" type="button" (click)="print()">Print or save PDF</button>
-            <button class="btn primary" type="button" (click)="exportFor(p.funder.id)">Export CSV</button>
-          </div>
+          </section>
+        </aside>
 
-          <header class="packet-head">
-            <p class="label">Funder packet · Coding in Color</p>
-            <h2 id="pk-h">{{ p.funder.name }}</h2>
-            <p>{{ date(from()) }} to {{ date(to()) }} · {{ programId() ? store.program(programId())?.title : 'All programs' }} · prepared {{ date(now) }}</p>
-          </header>
+        @if (packet(); as p) {
+          <section class="doc-wrap" aria-labelledby="pk-h">
+            <div class="doc-bar no-print">
+              <span class="text-muted-foreground text-sm"><ng-icon name="lucideFileText" size="15" aria-hidden="true" /> Live preview</span>
+              <span class="flex-1"></span>
+              <button hlmBtn variant="outline" size="sm" type="button" (click)="print()"><ng-icon name="lucideFileDown" size="15" /> Print or save PDF</button>
+              <button hlmBtn size="sm" type="button" (click)="exportFor(p.funder.id)"><ng-icon name="lucideFileDown" size="15" /> Export CSV</button>
+            </div>
+            <article class="doc">
+              <header class="doc-head">
+                <div class="flex items-center gap-2">
+                  <svg class="size-7" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#007a3d"/><rect x="8" y="8.5" width="16" height="3.5" rx="1.75" fill="#fff"/><rect x="8" y="14.25" width="10" height="3.5" rx="1.75" fill="#8fd3ad"/><rect x="8" y="20" width="16" height="3.5" rx="1.75" fill="#fff"/></svg>
+                  <span class="text-sm font-semibold">Coding in Color</span>
+                  <span class="text-muted-foreground ms-auto text-xs">Prepared {{ date(now) }}</span>
+                </div>
+                <p class="doc-kicker">Funder packet</p>
+                <h2 id="pk-h" class="doc-title">{{ p.funder.name }}</h2>
+                <p class="text-muted-foreground text-sm">{{ date(from()) }} to {{ date(to()) }} · {{ programId() ? store.program(programId())?.title : 'All programs' }}</p>
+              </header>
 
-          <div class="stats">
-            <div class="stat"><p class="label">Gifts</p><p class="value">{{ p.rows.length }}</p></div>
-            <div class="stat"><p class="label">Gross</p><p class="value">{{ money(p.gross) }}</p></div>
-            <div class="stat"><p class="label">Refunded</p><p class="value">{{ money(p.refunds) }}</p></div>
-            <div class="stat"><p class="label">Net</p><p class="value">{{ money(p.gross - p.refunds) }}</p></div>
-          </div>
+              <dl class="doc-stats">
+                <div><dt>Gifts</dt><dd>{{ p.rows.length }}</dd></div>
+                <div><dt>Gross</dt><dd>{{ money(p.gross) }}</dd></div>
+                <div><dt>Refunded</dt><dd>{{ money(p.refunds) }}</dd></div>
+                <div class="hl"><dt>Net support</dt><dd>{{ money(p.gross - p.refunds) }}</dd></div>
+              </dl>
 
-          <h3 class="sub-h">Gift history</h3>
-          <table class="table">
-            <thead><tr><th scope="col">Date</th><th scope="col">Campaign</th><th scope="col">Program</th><th scope="col">Status</th><th scope="col" class="num">Amount</th><th scope="col" class="num">Refund</th></tr></thead>
-            <tbody>
-              @for (r of p.rows; track r.id) {
-                <tr><td class="mono">{{ date(r.at) }}</td><th scope="row">{{ r.campaign }}</th><td>{{ r.program }}</td><td>{{ r.status }}</td>
-                  <td class="num mono">{{ money(r.amount) }}</td><td class="num mono">{{ r.refund ? money(r.refund) : '' }}</td></tr>
-              } @empty { <tr><td colspan="6">No gifts from this funder in this period.</td></tr> }
-            </tbody>
-          </table>
+              <h3 class="doc-h">Funded outcomes</h3>
+              <p class="note">Approved outcomes for the programs this funder supported. “Not reported” means the figure has not been submitted; it is not zero.</p>
+              @if (p.outcomes.length) {
+                <div class="outcomes">
+                  @for (o of p.outcomes; track o.program + o.metric) {
+                    <div class="outcome">
+                      <p class="text-xs font-semibold text-[var(--green-700)]">{{ o.program }}</p>
+                      <p class="text-[13.5px] font-medium">{{ o.metric }}</p>
+                      <div class="o-years">
+                        @for (v of o.values; track $index) {
+                          <span><small>{{ p.years[$index] }}</small><b>{{ v === null ? 'Not reported' : v === undefined ? '—' : v }}</b></span>
+                        }
+                      </div>
+                    </div>
+                  }
+                </div>
+              } @else { <p class="empty">Gifts were unrestricted; no program outcomes are attributed.</p> }
 
-          <h3 class="sub-h">Funded outcomes</h3>
-          <p class="note">Approved program outcomes for the programs this funder supported. “Not reported” means the program has not submitted the figure; it is not zero.</p>
-          <table class="table">
-            <thead><tr><th scope="col">Program</th><th scope="col">Outcome</th>@for (y of p.years; track y) {<th scope="col" class="num">{{ y }}</th>}</tr></thead>
-            <tbody>
-              @for (o of p.outcomes; track o.program + o.metric) {
-                <tr><th scope="row">{{ o.program }}</th><td>{{ o.metric }}</td>
-                  @for (v of o.values; track $index) { <td class="num mono">{{ v === null ? 'Not reported' : v === undefined ? '—' : v }}</td> }</tr>
-              } @empty { <tr><td [attr.colspan]="2 + p.years.length">Gifts were unrestricted; no program outcomes are attributed.</td></tr> }
-            </tbody>
-          </table>
-        </section>
-      }
+              <h3 class="doc-h">Gift history</h3>
+              <table class="table">
+                <caption class="sr-only">Gift history for {{ p.funder.name }}</caption>
+                <thead><tr><th scope="col">Date</th><th scope="col">Campaign</th><th scope="col">Program</th><th scope="col">Status</th><th scope="col" class="num">Amount</th></tr></thead>
+                <tbody>
+                  @for (r of p.rows; track r.id) {
+                    <tr><td class="nowrap">{{ date(r.at) }}</td><th scope="row">{{ r.campaign }}</th><td>{{ r.program }}</td>
+                      <td><span class="tag" [class.solid]="r.status === 'settled'" [class.warn]="r.status === 'pending'">{{ r.status }}</span></td>
+                      <td class="num font-semibold">{{ money(r.amount) }}@if (r.refund) { <span class="block text-xs font-normal text-[var(--ink-600)]">−{{ money(r.refund) }} refunded</span> }</td></tr>
+                  } @empty { <tr><td colspan="5">No gifts from this funder in this period.</td></tr> }
+                </tbody>
+              </table>
+              <p class="doc-foot">Generated by Cadence from Coding in Color's donor records. <a [routerLink]="['/donors', p.funder.id]" class="no-print">Open {{ p.funder.name }}</a></p>
+            </article>
+          </section>
+        } @else {
+          <div class="empty">No institutional funders yet.</div>
+        }
+      </div>
     </div>
   `,
   styles: `
-    .actions-cell { display: flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
-    tr.picked { background: var(--wash); }
-    .controls { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px; }
-    .packet { border-top: 1px solid var(--rule); padding-top: 28px; }
-    .packet-head { margin-bottom: 20px; }
-    .packet-head h2 { font-size: 24px; margin: 4px 0; }
-    .sub-h { margin: 28px 0 10px; }
-    .note { font-size: 13px; margin-bottom: 10px; max-width: 72ch; }
+    .builder { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: calc(var(--topbar-h) + 24px); }
+    .card { border-radius: 20px; padding: 16px; }
+    .side-h { font-size: 13px; font-weight: 600; color: var(--muted-foreground); margin-bottom: 10px; }
+    .funders { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 360px; overflow-y: auto; }
+    .funder { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 14px; border: 1px solid transparent; background: transparent; cursor: pointer;
+      transition: background-color 120ms var(--ease), border-color 120ms var(--ease); }
+    .funder:hover { background: rgb(255 255 255 / 0.7); }
+    .funder[aria-pressed='true'] { background: #fff; border-color: rgb(0 122 61 / 0.35); box-shadow: 0 1px 3px rgb(15 50 30 / 0.1); }
+    .f-icon { width: 32px; height: 32px; flex: none; border-radius: 10px; display: grid; place-items: center; background: #eaf2fb; color: #1c5cab; }
+    .doc-wrap { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+    .doc-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .doc-bar > span:first-child { display: inline-flex; align-items: center; gap: 6px; }
+    .doc { background: #fff; border-radius: 20px; padding: 36px 40px; box-shadow: 0 30px 60px -30px rgb(15 50 30 / 0.35), 0 0 0 1px rgb(15 26 21 / 0.05); }
+    .doc-head { padding-bottom: 20px; border-bottom: 1px solid var(--hair); }
+    .doc-kicker { margin-top: 24px; font-size: 13px; font-weight: 600; color: var(--green-700); }
+    .doc-title { font-size: 30px; letter-spacing: -0.025em; margin: 2px 0 4px; }
+    .doc-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 24px 0 0; }
+    .doc-stats div { padding: 14px 16px; border-radius: 14px; background: #f6f9f7; }
+    .doc-stats dt { font-size: 12px; color: var(--muted-foreground); }
+    .doc-stats dd { margin: 4px 0 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .doc-stats .hl { background: var(--green-50); }
+    .doc-stats .hl dd { color: var(--green-700); }
+    .doc-h { font-size: 15px; margin: 32px 0 6px; }
+    .note { font-size: 12.5px; color: var(--muted-foreground); margin-bottom: 12px; max-width: 72ch; }
+    .outcomes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+    .outcome { padding: 14px; border-radius: 14px; border: 1px solid var(--hair); }
+    .o-years { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+    .o-years span { display: flex; flex-direction: column; }
+    .o-years small { font-size: 11px; color: var(--muted-foreground); }
+    .o-years b { font-size: 15px; font-variant-numeric: tabular-nums; }
+    .doc-foot { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--hair); font-size: 12px; color: var(--muted-foreground); display: flex; justify-content: space-between; gap: 12px; }
+    .nowrap { white-space: nowrap; }
+    @media (max-width: 1100px) { .builder { grid-template-columns: 1fr; } .side { position: static; } }
+    @media (max-width: 640px) { .doc { padding: 22px 18px; } .doc-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media print { .builder { display: block; } .doc { box-shadow: none; padding: 0; } }
   `,
 })
 export class FundersPage {
   protected readonly store = inject(Store);
   protected readonly money = money;
+  protected readonly compact = compactMoney;
   protected readonly date = date;
   protected readonly now = today();
   protected readonly funderId = signal<string | null>(null);
@@ -126,9 +179,11 @@ export class FundersPage {
     })
     .sort((a, b) => b.lifetime - a.lifetime));
 
+  /** The picked funder, or the largest one so the preview is never empty. */
+  protected readonly selected = computed(() => (this.funderId() ? this.store.donor(this.funderId()!) : null) ?? this.funders()[0]?.donor ?? null);
+
   protected readonly packet = computed(() => {
-    const id = this.funderId();
-    const funder = id ? this.store.donor(id) : null;
+    const funder = this.selected();
     return funder ? this.build(funder, this.from(), this.to(), this.programId()) : null;
   });
 
@@ -159,15 +214,10 @@ export class FundersPage {
     };
   }
 
-  protected preview(id: string) {
-    this.funderId.set(id);
-    queueMicrotask(() => document.getElementById('pk-h')?.scrollIntoView({ block: 'start' }));
-  }
-
   protected exportFor(id: string) {
     const funder = this.store.donor(id);
     if (!funder) return;
-    const p = this.funderId() === id ? this.packet()! : this.build(funder, '2000-01-01', this.now, '');
+    const p = this.selected()?.id === id ? this.packet()! : this.build(funder, '2000-01-01', this.now, '');
     const slug = funder.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     downloadCsv(`funder-packet-${slug}-${this.now}.csv`, [
       ['Funder packet', funder.name], ['Prepared', this.now], [],

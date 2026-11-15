@@ -1,4 +1,6 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { Store } from '../core/store';
 import { date, today } from '../core/format';
 
@@ -12,103 +14,136 @@ const MIN_DONORS = 3;
  */
 @Component({
   selector: 'app-api-access',
+  imports: [NgIcon, HlmButtonImports],
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
       <header class="page-head">
         <div>
-          <p class="label eyebrow">Read API</p>
-          <h1>Totals for CIC's dashboard</h1>
-          <p class="lede">A key-authenticated, read-only API that returns giving already aggregated by month, program or board member. It never returns donor names or contact details.</p>
+          <h1>Read API</h1>
+          <p class="lede">Key-authenticated, read-only totals for CIC's own dashboard: giving already aggregated by month, program or board member.</p>
         </div>
+        <ul class="promises" aria-label="What the API guarantees">
+          <li><ng-icon name="lucideLock" size="14" aria-hidden="true" />Read-only</li>
+          <li><ng-icon name="lucideShieldCheck" size="14" aria-hidden="true" />No names or contact details</li>
+        </ul>
       </header>
 
       <section aria-labelledby="keys-h">
-        <div class="section-head"><h2 id="keys-h">API keys</h2><p>Keys are shown once, stored only as a hash, and can be revoked at any time.</p></div>
+        <div class="section-head"><h2 id="keys-h">API keys</h2><p>Shown once, stored only as a hash, revocable at any time.</p></div>
         @if (newKey()) {
-          <div class="notice key-notice" role="status">
-            <div class="stack">
-              <strong>Copy this key now. It will not be shown again.</strong>
+          <div class="reveal glass" role="status">
+            <ng-icon name="lucideKeyRound" size="18" class="text-[var(--green-700)]" aria-hidden="true" />
+            <div class="min-w-0 flex-1">
+              <p class="font-semibold">Copy this key now. It will not be shown again.</p>
               <code class="secret">{{ newKey() }}</code>
-              <div class="row"><button class="btn small" type="button" (click)="copy(newKey()!)">{{ copied() ? 'Copied' : 'Copy key' }}</button>
-                <button class="btn small link" type="button" (click)="newKey.set(null)">I stored it</button></div>
             </div>
+            <button hlmBtn size="sm" type="button" (click)="copy(newKey()!)">{{ copied() ? 'Copied' : 'Copy key' }}</button>
+            <button hlmBtn variant="ghost" size="sm" type="button" (click)="newKey.set(null)">I stored it</button>
           </div>
         }
-        <div class="table-wrap">
-          <table class="table">
-            <thead><tr><th scope="col">Label</th><th scope="col">Key</th><th scope="col">Created</th><th scope="col">Last used</th><th scope="col">Status</th><th scope="col"><span class="sr-only">Action</span></th></tr></thead>
-            <tbody>
-              @for (k of store.apiKeys(); track k.id) {
-                <tr>
-                  <th scope="row">{{ k.label }}</th>
-                  <td class="mono">{{ k.prefix }}…</td>
-                  <td>{{ date(k.created_at) }} by {{ store.member(k.created_by)?.name }}</td>
-                  <td>{{ k.last_used_at ? date(k.last_used_at) : 'Never' }}</td>
-                  <td><span class="tag" [class.solid]="!k.revoked_at" [class.dashed]="!!k.revoked_at">{{ k.revoked_at ? 'Revoked' : 'Active' }}</span></td>
-                  <td class="num">@if (!k.revoked_at) { <button class="btn small" type="button" (click)="store.revokeApiKey(k.id)">Revoke</button> }</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-        <form class="row create" (submit)="create($event)">
-          <label class="field grow"><span>New key label</span><input class="input" name="label" required maxlength="60" placeholder="Board dashboard" [value]="label()" (input)="label.set($any($event.target).value)" /></label>
-          <button class="btn primary" type="submit" [disabled]="!label().trim()">Create key</button>
-        </form>
-      </section>
-
-      <section class="section" aria-labelledby="docs-h">
-        <div class="section-head"><h2 id="docs-h">Endpoints</h2></div>
-        <div class="grid-2">
-          <article class="panel">
-            <div class="panel-head"><h3><code>GET /api/v1/summary</code></h3></div>
-            <dl class="kv panel-body">
-              <dt>from</dt><dd>First day, <code>YYYY-MM-DD</code>, Phoenix time.</dd>
-              <dt>to</dt><dd>Day after the last day (exclusive). Range at most 5 years.</dd>
-              <dt>groupBy</dt><dd><code>month</code> (default), <code>program</code> or <code>owner</code>.</dd>
-              <dt>Privacy</dt><dd>Groups with fewer than {{ minDonors }} donors return <code>suppressed: true</code> and no numbers.</dd>
-            </dl>
-          </article>
-          <article class="panel">
-            <div class="panel-head"><h3><code>GET /api/v1/activity</code></h3></div>
-            <dl class="kv panel-body">
-              <dt>limit</dt><dd>1 to 100 recent gifts, newest first.</dd>
-              <dt>Returns</dt><dd>Date, program, source, status, currency and net cents. No donor or owner identifiers.</dd>
-              <dt>Auth</dt><dd><code>Authorization: Bearer &lt;key&gt;</code> or <code>X-API-Key: &lt;key&gt;</code>, not both.</dd>
-              <dt>Errors</dt><dd><code>401</code> bad or missing key · <code>400</code> unknown or invalid parameter.</dd>
-            </dl>
-          </article>
+        <div class="keys">
+          @for (k of store.apiKeys(); track k.id) {
+            <article class="key glass" [class.revoked]="!!k.revoked_at">
+              <div class="flex items-center gap-2">
+                <span class="k-dot" [class.on]="!k.revoked_at" aria-hidden="true"></span>
+                <h3 class="flex-1 truncate">{{ k.label }}</h3>
+                <span class="tag" [class.solid]="!k.revoked_at" [class.dashed]="!!k.revoked_at">{{ k.revoked_at ? 'Revoked' : 'Active' }}</span>
+              </div>
+              <code class="prefix">{{ k.prefix }}••••••••</code>
+              <p class="meta">Created {{ date(k.created_at) }} by {{ store.member(k.created_by)?.name }}</p>
+              <p class="meta">Last used {{ k.last_used_at ? date(k.last_used_at) : 'never' }}</p>
+              @if (!k.revoked_at) { <button hlmBtn variant="outline" size="sm" class="mt-3 self-start" type="button" (click)="store.revokeApiKey(k.id)">Revoke</button> }
+            </article>
+          }
+          <form class="key new glass" (submit)="create($event)">
+            <h3>New key</h3>
+            <label class="field"><span>Label</span><input class="input" name="label" required maxlength="60" placeholder="Board dashboard" [value]="label()" (input)="label.set($any($event.target).value)" /></label>
+            <button hlmBtn class="mt-auto self-start" type="submit" [disabled]="!label().trim()"><ng-icon name="lucidePlus" size="16" /> Create key</button>
+          </form>
         </div>
       </section>
 
-      <section class="section" aria-labelledby="try-h">
-        <div class="section-head"><h2 id="try-h">Try a request</h2><p>Preview of the response for the current demo data.</p></div>
-        <form class="row try" (submit)="$event.preventDefault()">
-          <label class="field"><span>from</span><input class="input" type="date" [value]="from()" (input)="from.set($any($event.target).value)" /></label>
-          <label class="field"><span>to</span><input class="input" type="date" [value]="to()" (input)="to.set($any($event.target).value)" /></label>
-          <div class="field"><span id="gb-l">groupBy</span>
-            <div class="segmented" role="group" aria-labelledby="gb-l">
-              @for (g of groupings; track g) { <button type="button" [attr.aria-pressed]="groupBy() === g" (click)="groupBy.set(g)">{{ g }}</button> }
-            </div></div>
-        </form>
-        <p class="label req-label">Request</p>
-        <pre class="code" tabindex="0" aria-label="Example request">{{ curl() }}</pre>
-        <p class="label req-label">Response · 200</p>
-        <pre class="code" tabindex="0" aria-label="Example response">{{ response() }}</pre>
+      <section class="console glass mt-6" aria-labelledby="try-h">
+        <div class="c-left">
+          <h2 id="try-h">Try a request</h2>
+          <div class="ep-tabs" role="tablist" aria-label="Endpoint">
+            <button type="button" role="tab" [attr.aria-selected]="endpoint() === 'summary'" (click)="endpoint.set('summary')">/summary</button>
+            <button type="button" role="tab" [attr.aria-selected]="endpoint() === 'activity'" (click)="endpoint.set('activity')">/activity</button>
+          </div>
+          @if (endpoint() === 'summary') {
+            <form class="stack" (submit)="$event.preventDefault()">
+              <div class="grid grid-cols-2 gap-3">
+                <label class="field"><span>from</span><input class="input" type="date" [value]="from()" (input)="from.set($any($event.target).value)" /></label>
+                <label class="field"><span>to</span><input class="input" type="date" [value]="to()" (input)="to.set($any($event.target).value)" /></label>
+              </div>
+              <div class="field"><span id="gb-l">groupBy</span>
+                <div class="segmented" role="group" aria-labelledby="gb-l">
+                  @for (g of groupings; track g) { <button type="button" [attr.aria-pressed]="groupBy() === g" (click)="groupBy.set(g)">{{ g }}</button> }
+                </div></div>
+            </form>
+            <dl class="params">
+              <div><dt>from</dt><dd>First day, YYYY-MM-DD, Phoenix time.</dd></div>
+              <div><dt>to</dt><dd>Day after the last day (exclusive). At most 5 years.</dd></div>
+              <div><dt>groupBy</dt><dd>month (default), program or owner.</dd></div>
+              <div><dt>privacy</dt><dd>Groups under {{ minDonors }} donors return suppressed: true and no numbers.</dd></div>
+            </dl>
+          } @else {
+            <dl class="params">
+              <div><dt>limit</dt><dd>1 to 100 recent gifts, newest first.</dd></div>
+              <div><dt>returns</dt><dd>Date, program, source, status, currency and net cents. No donor or owner identifiers.</dd></div>
+            </dl>
+          }
+          <dl class="params">
+            <div><dt>auth</dt><dd>Authorization: Bearer &lt;key&gt; or X-API-Key: &lt;key&gt;, not both.</dd></div>
+            <div><dt>errors</dt><dd>401 bad or missing key · 400 invalid parameter · 429 rate limited.</dd></div>
+          </dl>
+        </div>
+        <div class="c-right">
+          <div class="term">
+            <div class="term-bar"><span class="method">GET</span><code class="url">{{ endpoint() === 'summary' ? '/api/v1/summary' : '/api/v1/activity' }}</code></div>
+            <pre class="code" tabindex="0" aria-label="Example request">{{ endpoint() === 'summary' ? curl() : activityCurl }}</pre>
+          </div>
+          <div class="term grow">
+            <div class="term-bar"><span class="status">200 OK</span><span class="text-xs text-[#9fb8aa]">application/json · preview from demo data</span></div>
+            <pre class="code resp" tabindex="0" aria-label="Example response">{{ endpoint() === 'summary' ? response() : activityResponse() }}</pre>
+          </div>
+        </div>
       </section>
     </div>
   `,
   styles: `
-    .key-notice { margin-bottom: 16px; }
-    .secret { font-size: 13px; padding: 8px 10px; border: 1px solid var(--brand); border-radius: 3px; word-break: break-all; background: #fff; }
-    .create { margin-top: 16px; align-items: flex-end; }
-    .create .grow { flex: 1; max-width: 360px; }
-    .try { align-items: flex-end; gap: 12px; margin-bottom: 16px; }
-    .req-label { margin: 16px 0 6px; }
-    .kv { grid-template-columns: 76px minmax(0, 1fr); }
-    .kv dt { text-transform: none; letter-spacing: 0; font-size: 12px; }
-    pre.code { max-height: 440px; overflow: auto; }
-    h3 code { font-size: 13.5px; }
+    .promises { list-style: none; margin: 0; padding: 0; display: flex; gap: 8px; flex-wrap: wrap; }
+    .promises li { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 999px; background: var(--green-50); color: var(--green-700); font-size: 12.5px; font-weight: 600; }
+    .reveal { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 18px; margin-bottom: 14px; flex-wrap: wrap; }
+    .secret { display: block; margin-top: 6px; font-size: 13px; padding: 8px 10px; border-radius: 10px; word-break: break-all; background: #fff; border: 1px solid var(--green-200); }
+    .keys { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .key { border-radius: 20px; padding: 18px; display: flex; flex-direction: column; gap: 4px; min-height: 180px; }
+    .key.revoked { opacity: 0.7; }
+    .key.new { gap: 10px; border-style: dashed; }
+    .k-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-400); }
+    .k-dot.on { background: var(--green-500); box-shadow: 0 0 0 3px rgb(0 168 80 / 0.18); }
+    .prefix { margin: 8px 0 4px; font-size: 13px; padding: 6px 10px; border-radius: 10px; background: rgb(15 26 21 / 0.05); width: fit-content; }
+    .meta { font-size: 12.5px; color: var(--muted-foreground); }
+    .console { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0; border-radius: 22px; overflow: hidden; }
+    .c-left { padding: 22px; display: flex; flex-direction: column; gap: 16px; }
+    .c-right { padding: 14px; display: flex; flex-direction: column; gap: 12px; background: #0f1f17; }
+    .ep-tabs { display: inline-flex; gap: 4px; padding: 4px; border-radius: 14px; background: rgb(15 26 21 / 0.05); width: fit-content; }
+    .ep-tabs button { height: 32px; padding: 0 12px; border: 0; border-radius: 10px; background: transparent; font-family: var(--font-mono); font-size: 12.5px; cursor: pointer; color: var(--ink-600); }
+    .ep-tabs button[aria-selected='true'] { background: #fff; color: var(--foreground); box-shadow: 0 1px 3px rgb(15 50 30 / 0.12); }
+    .params { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+    .params div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; font-size: 13px; }
+    .params dt { font-family: var(--font-mono); font-size: 12px; color: var(--green-700); padding-top: 1px; }
+    .params dd { margin: 0; color: var(--ink-600); }
+    .term { border-radius: 14px; background: #0b1912; border: 1px solid rgb(255 255 255 / 0.06); overflow: hidden; display: flex; flex-direction: column; }
+    .term.grow { flex: 1; min-height: 0; }
+    .term-bar { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid rgb(255 255 255 / 0.06); }
+    .method { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: #00a850; color: #04120b; }
+    .status { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px; background: rgb(0 168 80 / 0.18); color: #7be3a8; }
+    .url { color: #e8f3ec; font-size: 13px; }
+    pre.code { background: transparent; border-radius: 0; max-height: 420px; overflow: auto; }
+    pre.code.resp { max-height: 460px; }
+    @media (max-width: 1000px) { .console { grid-template-columns: 1fr; } }
   `,
 })
 export class ApiAccessPage {
@@ -122,6 +157,19 @@ export class ApiAccessPage {
   protected readonly from = signal(`${today().slice(0, 4)}-01-01`);
   protected readonly to = signal(today());
   protected readonly groupBy = signal<GroupBy>('program');
+  protected readonly endpoint = signal<'summary' | 'activity'>('summary');
+  protected readonly activityCurl = `curl -H "Authorization: Bearer $CIC_API_KEY" \\\n  "${location.origin}/api/v1/activity?limit=5"`;
+
+  /** Same shape as GET /api/v1/activity: aggregates only, never donor or owner identifiers. */
+  protected readonly activityResponse = computed(() => JSON.stringify({
+    items: [...this.store.allGifts()].filter((g) => g.status !== 'void').sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, 5)
+      .map((g) => ({
+        occurred_on: g.occurred_at.slice(0, 10),
+        program: this.store.program(this.store.campaign(g.campaign_id)?.program_id ?? null)?.title ?? null,
+        source: g.source, status: g.status, currency: g.currency,
+        net_cents: g.status === 'settled' ? g.amount_cents - g.refund_cents : 0,
+      })),
+  }, null, 2));
 
   protected create(event: Event) {
     event.preventDefault();

@@ -313,7 +313,8 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
 
     @media (max-width: 1100px) { .msg-wrap { grid-template-columns: 1fr; } }
     @media (max-width: 900px) {
-      .inbox { grid-template-columns: 1fr; }
+      .inbox { grid-template-columns: 1fr; min-height: 0; }
+      .pane:has(.pane-empty) { display: none; }
       .queue { border-inline-end: 0; border-bottom: 1px solid var(--hair); max-height: 320px; }
       .pane { padding: 18px; }
       .page-head .guard { white-space: normal; }
@@ -341,9 +342,9 @@ export class OutreachPage {
   private readonly open = computed(() => this.store.followUps().filter((f) => f.status === 'open').sort((a, b) => a.due_on.localeCompare(b.due_on)));
 
   /** The picked item if it is still in its list, otherwise the first one. */
-  protected readonly selectedDraft = computed(() => this.queue().find((d) => d.id === this.picked()) ?? this.queue()[0] ?? null);
-  protected readonly selectedStep = computed(() => this.open().find((f) => f.id === this.pickedStep()) ?? this.open()[0] ?? null);
-  protected readonly selectedSent = computed(() => this.sent().find((d) => d.id === this.pickedSent()) ?? this.sent()[0] ?? null);
+  protected readonly selectedDraft = computed<Draft | null>(() => this.queue().find((d) => d.id === this.picked()) ?? this.queue()[0] ?? null);
+  protected readonly selectedStep = computed<FollowUp | null>(() => this.open().find((f) => f.id === this.pickedStep()) ?? this.open()[0] ?? null);
+  protected readonly selectedSent = computed<Draft | null>(() => this.sent().find((d) => d.id === this.pickedSent()) ?? this.sent()[0] ?? null);
 
   protected readonly groups = computed(() => {
     const week = new Date(Date.parse(`${this.now}T12:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10);
