@@ -52,6 +52,21 @@ export function parseRoster(text: string): unknown {
   try { return JSON.parse(text); } catch { throw new ProvisionError('Roster file is not valid JSON'); }
 }
 
+export function checkOrgId(orgId: string): void {
+  if (!z.uuid().safeParse(orgId).success) throw new ProvisionError('CIC_ORG_ID must be a UUID');
+}
+
+/**
+ * Validate a roster with printable errors. Paths come from the schema, never from the input,
+ * and unknown keys are reported without their names (they may hold IDs, emails or other text).
+ */
+export function validateRoster(raw: unknown): z.output<typeof ProvisionSchema> {
+  const parsed = ProvisionSchema.safeParse(raw);
+  if (parsed.success) return parsed.data;
+  throw new ProvisionError(parsed.error.issues.map((i) => `${i.path.join('.') || 'roster'}: ${
+    i.code === 'unrecognized_keys' ? 'Unrecognized field (name not shown)' : i.message}`).join('; '));
+}
+
 const outcome = (rows: Record<string, unknown>[]) =>
   rows.length === 0 ? 'unchanged' : rows[0].inserted ? 'created' : 'updated';
 
@@ -60,12 +75,8 @@ const outcome = (rows: Record<string, unknown>[]) =>
  * Run only on the privileged migration connection; the runtime login is refused.
  */
 export async function provision(client: ProvisionClient, orgId: string, raw: ProvisionInput | unknown): Promise<ProvisionResult> {
-  if (!z.uuid().safeParse(orgId).success) throw new ProvisionError('CIC_ORG_ID must be a UUID');
-  const parsed = ProvisionSchema.safeParse(raw);
-  if (!parsed.success) {
-    throw new ProvisionError(parsed.error.issues.map((i) => `${i.path.join('.') || 'roster'}: ${i.message}`).join('; '));
-  }
-  const input = parsed.data;
+  checkOrgId(orgId);
+  const input = validateRoster(raw);
 
   if (await isRuntimeLogin(client)) {
     throw new ProvisionError('Refusing to provision with the runtime login; use MIGRATION_DATABASE_URL');
@@ -107,6 +118,9 @@ if (import.meta.main) {
     const path = process.argv[2];
     if (!path) throw new ProvisionError('Usage: node --env-file-if-exists=.env db/provision.ts <roster.json>');
     const roster = parseRoster(await readFile(path, 'utf8'));
+    // Fail on a bad roster or org ID before touching the database.
+    validateRoster(roster);
+    checkOrgId(process.env.CIC_ORG_ID ?? '');
     const url = new URL(process.env.MIGRATION_DATABASE_URL ?? '');
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new ProvisionError('Invalid MIGRATION_DATABASE_URL');
     client = new Client({ connectionString: url.href, connectionTimeoutMillis: 10000 });
