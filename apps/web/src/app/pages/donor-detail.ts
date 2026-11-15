@@ -75,8 +75,8 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
                       <p class="meta"><span class="tag" [class.danger]="f.due_on < now" [class.warn]="f.due_on >= now"><ng-icon [name]="f.due_on < now ? 'lucideCircleAlert' : 'lucideClock'" size="12" aria-hidden="true" />{{ relativeDue(f.due_on) }}</span> {{ date(f.due_on) }} · {{ f.kind === 'quarterly' ? 'Quarterly touch' : 'Next step' }}</p>
                     </div>
                     <div class="row">
-                      <button class="btn small" type="button" (click)="store.setFollowUpStatus(f.id, 'done')">Mark done</button>
-                      <button class="btn small link" type="button" (click)="store.setFollowUpStatus(f.id, 'dismissed')">Dismiss</button>
+                      @if (!store.live() || f.kind !== 'quarterly') { <button class="btn small" type="button" (click)="store.setFollowUpStatus(f.id, 'done')">Mark done</button> }
+                      @if (!store.live()) { <button class="btn small link" type="button" (click)="store.setFollowUpStatus(f.id, 'dismissed')">Dismiss</button> }
                     </div>
                   </li>
                 } @empty {
@@ -343,19 +343,19 @@ export class DonorDetailPage {
     this.flash.set(`${KIND_LABEL[this.logKind()]} logged on the timeline.`);
   }
 
-  protected addStep(event: Event) {
+  protected async addStep(event: Event) {
     event.preventDefault();
     if (!this.stepAction().trim() || !this.stepDue()) return;
-    this.store.addFollowUp({ donor_id: this.id(), action: this.stepAction().trim(), due_on: this.stepDue() });
+    if (!await this.store.addFollowUp({ donor_id: this.id(), action: this.stepAction().trim(), due_on: this.stepDue() })) return;
     this.stepAction.set('');
   }
 
-  protected draftThanks() {
+  protected async draftThanks() {
     const d = this.donor();
     if (!d) return;
     const template = d.preferred_channel === 'text' && d.phone ? 't-thanks-text' : 't-thanks-email';
     const last = this.store.lastGift(d.id);
-    this.store.createDraft(d.id, template, last ? `${money(last.amount_cents)} gift on ${last.occurred_at.slice(0, 10)}` : 'Manual thank-you');
+    if (!await this.store.createDraft(d.id, template, last ? `${money(last.amount_cents)} gift on ${last.occurred_at.slice(0, 10)}` : 'Manual thank-you')) return;
     this.flash.set('Thank-you drafted. It waits for approval before anyone sends it.');
   }
 

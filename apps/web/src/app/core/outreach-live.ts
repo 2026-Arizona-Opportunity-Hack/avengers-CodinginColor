@@ -16,6 +16,7 @@ export interface ApiDraft {
   id: string; donor_id: string; owner_id: string | null; author_id: string; channel: 'email' | 'sms'; recipient: string; subject: string | null;
   body: string; status: 'draft' | 'approved' | 'sent' | 'failed' | 'logged'; approved_by: string | null;
   approved_at: string | null; created_at: string;
+  sent_at?: string | null; sent_by?: string | null;
 }
 export interface ApiKeyRow { id: string; name: string; hint: string; created_by: string; created_at: string; revoked_at: string | null }
 
@@ -56,7 +57,8 @@ export function toDraft(d: ApiDraft): Draft {
     // An unassigned donor's drafts belong to no board member, so only admins see them.
     id: d.id, donor_id: d.donor_id, recipient_member_id: null, owner_id: d.owner_id ?? '', template_id: '', channel,
     to: d.recipient, subject: d.subject ?? '', body: d.body, reason: '', status: DRAFT_STATUS[d.status],
-    created_at: d.created_at, approved_by: d.approved_by, approved_at: d.approved_at, sent_by: null, sent_at: null,
+    created_at: d.created_at, approved_by: d.approved_by, approved_at: d.approved_at,
+    sent_by: d.sent_by ?? null, sent_at: d.sent_at ?? null,
   };
 }
 
@@ -80,7 +82,9 @@ export const planQuarter = (request: Request, quarter: string) =>
   request<{ created: number; skipped: Record<string, number> }>('/api/v1/follow-ups/quarterly', post({ quarter }));
 
 export async function loadDrafts(request: Request): Promise<Draft[]> {
-  return (await request<{ items: ApiDraft[] }>('/api/v1/drafts')).items.map(toDraft);
+  const pages = await Promise.all(['/api/v1/drafts', '/api/v1/drafts?status=logged', '/api/v1/drafts?status=sent']
+    .map((path) => request<{ items: ApiDraft[] }>(path)));
+  return pages.flatMap((page) => page.items.map(toDraft));
 }
 /** Null when the template has no server version; the caller should say so instead of drafting locally. */
 export async function createLiveDraft(request: Request, donorId: string, templateId: string,

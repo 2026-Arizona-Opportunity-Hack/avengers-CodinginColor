@@ -7,6 +7,7 @@ function fake(responses: Record<string, unknown>) {
   const calls: Array<{ path: string; method: string; body: unknown }> = [];
   const request = (async (path: string, init: RequestInit = {}) => {
     calls.push({ path, method: init.method ?? 'GET', body: init.body ? JSON.parse(String(init.body)) : undefined });
+    if (!(path in responses) && ['/api/v1/drafts?status=logged', '/api/v1/drafts?status=sent'].includes(path)) return { items: [] };
     if (!(path in responses)) throw new Error(`unexpected ${path}`);
     return responses[path];
   }) as live.Request;

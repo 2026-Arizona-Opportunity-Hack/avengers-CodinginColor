@@ -52,10 +52,13 @@ In live mode, Donors, Donor detail (edit and archive) and Retention read and wri
 through `GET/PATCH /api/v1/donors`, `POST /api/v1/donors/:id/archive`,
 `GET /api/v1/me` and `GET /api/v1/reports/retention`. Queues and drafts load from
 the scoped outreach routes. Administrators can issue and revoke real keys on
-Read API; raw keys are shown once and kept out of browser storage.
+Read API; raw keys are shown once and kept out of browser storage. Follow-ups
+supports server-backed task creation/completion, quarterly task planning (admin),
+draft editing and approval, consent-checked email/SMS compose, and confirmed manual
+send logging with scoped history. Quarterly touches require a logged contact.
 Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
-server routes have not landed (overview, donations, add donor, outreach, import,
+server routes have not landed (overview, donations, add donor, import,
 funder reports, settings) are hidden. Any other write shows "not
 connected yet" instead of pretending to save. Other owners appear as a short member
 ID until the API has a member directory route.

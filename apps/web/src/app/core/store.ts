@@ -78,6 +78,7 @@ export class Store {
   /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
   readonly notice = signal<string | null>(null);
   private liveLoadGeneration = 0;
+  private outreachLoadGeneration = 0;
   private readonly rawMetadata = new Map<string, Record<string, unknown>>();
   private readonly data = signal<Dataset>(this.initial());
   readonly sessionId = signal<string>(load<string>(SESSION_KEY) ?? 'm-ceo');
@@ -197,6 +198,7 @@ export class Store {
 
   async refreshLive() {
     const generation = ++this.liveLoadGeneration;
+    const outreachGeneration = ++this.outreachLoadGeneration;
     this.api.status.set('loading');
     try {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
@@ -208,8 +210,11 @@ export class Store {
         me.role === 'admin' ? outreach.loadApiKeys(request) : Promise.resolve([]),
       ]);
       if (generation !== this.liveLoadGeneration) return;
+      const current = this.data();
+      const queues = outreachGeneration === this.outreachLoadGeneration ? { followUps, drafts }
+        : { followUps: current.followUps, drafts: current.drafts };
       this.loadLive(me, donors);
-      this.data.update((d) => ({ ...d, followUps, drafts, apiKeys }));
+      this.data.update((d) => ({ ...d, ...queues, apiKeys }));
       this.api.status.set('ready');
     } catch (e) {
       if (generation !== this.liveLoadGeneration) return;
@@ -231,6 +236,7 @@ export class Store {
    * Visibility comes from the server: board members only ever receive their own donors.
    */
   private loadLive(me: ApiMe, donors: ApiDonor[]) {
+    const newSession = !this.members().length || this.sessionId() !== me.id;
     this.rawMetadata.clear();
     for (const d of donors) this.rawMetadata.set(d.id, d.metadata ?? {});
     const others = [...new Set(donors.map((d) => d.owner_id).filter((id): id is string => !!id && id !== me.id))];
@@ -240,7 +246,7 @@ export class Store {
     ];
     this.data.set(this.emptyDataset(members, donors.map(fromApiDonor)));
     this.sessionId.set(me.id);
-    this.sessionEpoch.update((n) => n + 1);
+    if (newSession) this.sessionEpoch.update((n) => n + 1);
   }
 
   private putDonor(saved: ApiDonor) {
@@ -346,7 +352,9 @@ export class Store {
     }), `communication.${input.kind}`, input.donor_id);
   }
 
-  addFollowUp(input: { donor_id: string; action: string; due_on: string; kind?: FollowUp['kind'] }) {
+  async addFollowUp(input: { donor_id: string; action: string; due_on: string; kind?: FollowUp['kind'] }): Promise<boolean> {
+    if (this.live()) return this.outreachWrite((request) => outreach.addNextStep(request, input.donor_id,
+      input.action, `${input.due_on}T09:00:00-07:00`));
     this.mutate((d) => {
       const donor = d.donors.find((x) => x.id === input.donor_id)!;
       d.followUps.push({
@@ -354,13 +362,19 @@ export class Store {
         action: input.action, due_on: input.due_on, status: 'open', created_at: nowIso(), completed_at: null,
       });
     }, 'followup.create', input.donor_id);
+    return true;
   }
 
-  setFollowUpStatus(id: string, status: FollowUp['status']) {
+  async setFollowUpStatus(id: string, status: FollowUp['status']): Promise<boolean> {
+    if (this.live()) {
+      if (status !== 'done') { this.notice.set(NOT_CONNECTED); return false; }
+      return this.outreachWrite((request) => outreach.completeFollowUp(request, id));
+    }
     this.mutate((d) => {
       const f = d.followUps.find((x) => x.id === id)!;
       f.status = status; f.completed_at = status === 'open' ? null : nowIso();
     }, `followup.${status}`, id);
+    return true;
   }
 
   fillTemplate(templateId: string, donor: Donor | null, extra: Record<string, string> = {}): { subject: string; body: string } {
@@ -379,10 +393,23 @@ export class Store {
     return { subject: fill(t.subject), body: fill(t.body) };
   }
 
-  createDraft(donorId: string, templateId: string, reason: string): Draft | null {
+  async createDraft(donorId: string, templateId: string, reason: string): Promise<Draft | null> {
     const donor = this.donor(donorId);
     const t = this.template(templateId);
     if (!donor || !t) return null;
+    if (this.live()) {
+      if (!outreach.LIVE_TEMPLATES[templateId]) { this.notice.set(NOT_CONNECTED); return null; }
+      let created: Draft | null = null;
+      const saved = await this.outreachWrite(async (request) => {
+        const last = this.lastGift(donorId);
+        created = await outreach.createLiveDraft(request, donorId, templateId, {
+          first_name: donor.name.split(' ')[0], amount: last ? new Intl.NumberFormat('en-US',
+            { style: 'currency', currency: last.currency }).format(this.netCents(last) / 100) : 'your support',
+          program: this.campaign(last?.campaign_id ?? null)?.title ?? 'Coding in Color',
+        });
+      });
+      return saved ? created : null;
+    }
     const { subject, body } = this.fillTemplate(templateId, donor);
     const draft: Draft = {
       id: uid('dr'), donor_id: donor.id, recipient_member_id: null, owner_id: donor.owner_id ?? this.me().id,
@@ -395,8 +422,15 @@ export class Store {
   }
 
   /** Quarterly touch: one draft per visible donor with consent and a reachable channel. */
-  generateQuarterly(templateId: string): number {
+  async generateQuarterly(templateId: string): Promise<number | null> {
     const quarter = quarterOf(today());
+    if (this.live()) {
+      if (!this.isAdmin()) return null;
+      let created = 0;
+      const [q, year] = quarter.split(' ');
+      const saved = await this.outreachWrite(async (request) => { created = (await outreach.planQuarter(request, `${year}-${q}`)).created; });
+      return saved ? created : null;
+    }
     const existing = new Set(this.drafts().filter((d) => d.template_id === templateId && d.reason.startsWith(quarter)).map((d) => d.donor_id));
     const targets = this.donors().filter((d) => d.consent !== 'denied' && d.email && !existing.has(d.id));
     const t = this.template(templateId)!;
@@ -439,15 +473,20 @@ export class Store {
     return board.length;
   }
 
-  editDraft(id: string, patch: Pick<Draft, 'subject' | 'body'>) {
-    this.mutate((d) => Object.assign(d.drafts.find((x) => x.id === id)!, patch), 'draft.edit', id);
+  async editDraft(id: string, patch: Pick<Draft, 'subject' | 'body'>): Promise<boolean> {
+    if (this.live()) return this.outreachWrite((request) => outreach.editLiveDraft(request, id, patch));
+    this.mutate((d) => Object.assign(d.drafts.find((x) => x.id === id)!, patch,
+      { status: 'pending', approved_by: null, approved_at: null }), 'draft.edit', id);
+    return true;
   }
 
-  approveDraft(id: string) {
+  async approveDraft(id: string): Promise<boolean> {
+    if (this.live()) return this.outreachWrite((request) => outreach.approveLiveDraft(request, id));
     this.mutate((d) => {
       const dr = d.drafts.find((x) => x.id === id)!;
       dr.status = 'approved'; dr.approved_by = this.me().id; dr.approved_at = nowIso();
     }, 'draft.approve', id);
+    return true;
   }
 
   discardDraft(id: string) {
@@ -455,7 +494,8 @@ export class Store {
   }
 
   /** Recorded after the person sends it from their own mail or phone. The system never sends. */
-  markSent(id: string) {
+  async markSent(id: string): Promise<boolean> {
+    if (this.live()) return this.outreachWrite((request) => outreach.logManualSend(request, id));
     this.mutate((d) => {
       const dr = d.drafts.find((x) => x.id === id)!;
       if (dr.status !== 'approved') return;
@@ -467,6 +507,31 @@ export class Store {
         });
       }
     }, 'draft.sent', id);
+    return true;
+  }
+
+  async composeDraft(id: string): Promise<string | null> {
+    const epoch = this.sessionEpoch();
+    let href: string | null = null;
+    const saved = await this.liveWrite(async () => {
+      const result = await outreach.composeHref((path, init) => this.api.request(path, init), id);
+      if (epoch === this.sessionEpoch()) href = result;
+    });
+    return saved ? href : null;
+  }
+
+  private async outreachWrite(run: (request: outreach.Request) => Promise<unknown>): Promise<boolean> {
+    const epoch = this.sessionEpoch();
+    return this.liveWrite(async () => {
+      const request: outreach.Request = (path, init) => this.api.request(path, init);
+      await run(request);
+      const generation = ++this.outreachLoadGeneration;
+      const [followUps, drafts] = await Promise.all([
+        outreach.loadFollowUps(request, this.isAdmin() ? 'all' : 'mine'), outreach.loadDrafts(request),
+      ]);
+      if (epoch !== this.sessionEpoch() || generation !== this.outreachLoadGeneration) return;
+      this.data.update((d) => ({ ...d, followUps, drafts }));
+    });
   }
 
   importRows(rows: ImportRow[], source: Source, fileName: string): { created: number; merged: number; gifts: number; skipped: number } {

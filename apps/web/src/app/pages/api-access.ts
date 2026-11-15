@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } 
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { Store } from '../core/store';
+import { Api } from '../core/api';
 import { date, today } from '../core/format';
 
 type GroupBy = 'month' | 'program' | 'owner';
@@ -144,6 +145,7 @@ const MIN_DONORS = 3;
 })
 export class ApiAccessPage {
   protected readonly store = inject(Store);
+  private readonly apiBase = inject(Api).baseUrl || location.origin;
   protected readonly date = date;
   protected readonly minDonors = MIN_DONORS;
   protected readonly groupings: GroupBy[] = ['month', 'program', 'owner'];
@@ -154,7 +156,7 @@ export class ApiAccessPage {
   protected readonly to = signal(today());
   protected readonly groupBy = signal<GroupBy>('program');
   protected readonly endpoint = signal<'summary' | 'activity'>('summary');
-  protected readonly activityCurl = `curl -H "Authorization: Bearer $CIC_API_KEY" \\\n  "${location.origin}/api/v1/activity?limit=5"`;
+  protected readonly activityCurl = `curl -H "Authorization: Bearer $CIC_API_KEY" \\\n  "${this.apiBase}/api/v1/activity?limit=5"`;
 
   /** Same shape as GET /api/v1/activity: aggregates only, never donor or owner identifiers. */
   protected readonly activityResponse = computed(() => JSON.stringify({
@@ -187,7 +189,7 @@ export class ApiAccessPage {
   }
 
   protected readonly curl = computed(() =>
-    `curl -H "Authorization: Bearer $CIC_API_KEY" \\\n  "${location.origin}/api/v1/summary?from=${this.from()}&to=${this.to()}&groupBy=${this.groupBy()}"`);
+    `curl -H "Authorization: Bearer $CIC_API_KEY" \\\n  "${this.apiBase}/api/v1/summary?from=${this.from()}&to=${this.to()}&groupBy=${this.groupBy()}"`);
 
   protected readonly response = computed(() => {
     const start = Date.parse(`${this.from()}T00:00:00-07:00`), end = Date.parse(`${this.to()}T00:00:00-07:00`);

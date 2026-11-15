@@ -85,4 +85,109 @@ describe('live workspace data and keys', () => {
     expect(store.members()).toEqual([]);
     expect(api.status()).toBe('signed-out');
   });
+
+  it('persists drafts and never substitutes a local draft after server rejection', async () => {
+    const { store, api } = session('board');
+    await store.refreshLive();
+    api.request.mockImplementationOnce(async (_path, init) => {
+      expect(JSON.parse(String(init?.body))).toMatchObject({ donor_id: 'donor', template: 'thank_you' });
+      return { id: 'draft', donor_id: 'donor', owner_id: 'board', author_id: 'board', channel: 'email',
+        recipient: donor.email, subject: 'Thank you', body: 'Reviewed template', status: 'draft', created_at: '2026-11-15T12:00:00Z' };
+    });
+    expect((await store.createDraft('donor', 't-thanks-email', 'Manual'))?.id).toBe('draft');
+    api.request.mockRejectedValueOnce(new ApiError(409));
+    expect(await store.createDraft('donor', 't-thanks-email', 'Manual')).toBeNull();
+    expect(store.notice()).toBeTruthy();
+  });
+
+  it('waits for real draft, compose, task and send results', async () => {
+    const { store, api } = session('board');
+    await store.refreshLive();
+    expect(await store.editDraft('draft', { subject: 'Edited', body: 'Exact new text' })).toBe(true);
+    expect(api.request).toHaveBeenCalledWith('/api/v1/drafts/draft', expect.objectContaining({ method: 'PATCH' }));
+    expect(await store.approveDraft('draft')).toBe(true);
+    expect(api.request).toHaveBeenCalledWith('/api/v1/drafts/draft/approve', expect.objectContaining({ method: 'POST' }));
+    api.request.mockResolvedValueOnce({ href: 'mailto:synthetic@example.org?body=Approved' });
+    expect(await store.composeDraft('draft')).toContain('mailto:');
+    expect(await store.markSent('draft')).toBe(true);
+    expect(api.request).toHaveBeenCalledWith('/api/v1/drafts/draft/manual-send',
+      expect.objectContaining({ body: '{"confirmed":true}' }));
+    expect(await store.setFollowUpStatus('task', 'done')).toBe(true);
+    api.request.mockRejectedValueOnce(new ApiError(403));
+    expect(await store.approveDraft('draft')).toBe(false);
+    expect(store.notice()).toBe('You do not have access to that.');
+  });
+
+  it('does not restore outreach after a write completes following sign-out', async () => {
+    const { store, api, signOut } = session('board');
+    await store.refreshLive();
+    let resolve!: (value: unknown) => void;
+    api.request.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
+    const pending = store.approveDraft('draft');
+    signOut(); resolve({ status: 'approved' });
+    expect(await pending).toBe(false);
+    expect(store.followUps()).toEqual([]);
+    expect(store.drafts()).toEqual([]);
+    expect(store.notice()).toBeNull();
+  });
+
+  it('uses the server quarter format and creates next steps at Phoenix time', async () => {
+    const { store, api } = session();
+    await store.refreshLive();
+    api.request.mockImplementationOnce(async (_path, init) => {
+      expect(JSON.parse(String(init?.body)).quarter).toMatch(/^\d{4}-Q[1-4]$/);
+      return { created: 2, skipped: {} };
+    });
+    expect(await store.generateQuarterly('t-quarterly')).toBe(2);
+    await store.addFollowUp({ donor_id: 'donor', action: 'Call', due_on: '2026-11-15' });
+    expect(api.request).toHaveBeenCalledWith('/api/v1/follow-ups',
+      expect.objectContaining({ body: '{"donor_id":"donor","title":"Call","due_at":"2026-11-15T09:00:00-07:00"}' }));
+  });
+
+  it('does not let an older outreach reload restore a task completed by a newer write', async () => {
+    const { store, api } = session('board');
+    await store.refreshLive();
+    let resolveOld!: (value: unknown) => void;
+    let started!: () => void;
+    const oldStarted = new Promise<void>((resolve) => { started = resolve; });
+    let reads = 0;
+    api.request.mockImplementation(async (path) => {
+      if (path.includes('/follow-ups?')) {
+        if (++reads === 1) { started(); return new Promise((resolve) => { resolveOld = resolve; }); }
+        return { overdue: [], due_this_week: [], upcoming: [] };
+      }
+      return { items: [] };
+    });
+    const older = store.setFollowUpStatus('first', 'done');
+    await oldStarted;
+    expect(await store.setFollowUpStatus('second', 'done')).toBe(true);
+    expect(store.followUps()).toEqual([]);
+    resolveOld({ overdue: [task], due_this_week: [], upcoming: [] });
+    expect(await older).toBe(true);
+    expect(store.followUps()).toEqual([]);
+  });
+
+  it('keeps a newer outreach snapshot when an older full refresh finishes', async () => {
+    const { store, api } = session('board');
+    await store.refreshLive();
+    const epoch = store.sessionEpoch();
+    let resolveOld!: (value: unknown) => void;
+    let started!: () => void;
+    const oldStarted = new Promise<void>((resolve) => { started = resolve; });
+    let reads = 0;
+    api.request.mockImplementation(async (path) => {
+      if (path.includes('/follow-ups?')) {
+        if (++reads === 1) { started(); return new Promise((resolve) => { resolveOld = resolve; }); }
+        return { overdue: [], due_this_week: [], upcoming: [] };
+      }
+      return { items: [] };
+    });
+    const older = store.refreshLive();
+    await oldStarted;
+    expect(await store.setFollowUpStatus('task', 'done')).toBe(true);
+    resolveOld({ overdue: [task], due_this_week: [], upcoming: [] });
+    await older;
+    expect(store.followUps()).toEqual([]);
+    expect(store.sessionEpoch()).toBe(epoch);
+  });
 });
