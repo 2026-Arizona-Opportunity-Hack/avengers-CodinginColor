@@ -67,6 +67,10 @@ The earlier UI redesign reported Lighthouse accessibility100 on its then-existin
 
 The overview uses scoped browser-local gifts and outreach, the selected currency, net settled amounts, and Phoenix calendar boundaries.
 
+### Retained live-client reporting code
+
+The following describes retained server integration source, not the current public Try Now experience. Public startup does not connect these requests.
+
 Overview and Retention read server retention KPIs for the selected currency.
 Currency changes select the matching server bucket; sign-out clears loaded reports.
 
