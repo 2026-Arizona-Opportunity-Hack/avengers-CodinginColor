@@ -221,6 +221,28 @@ node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module NodeNext 
   tools/import-*.ts tests/import-*.test.ts
 ```
 
+## Reviewed gift persistence
+
+`tools/import-apply.ts` applies approved gift rows inside the caller's existing
+`cic_runtime` transaction. It never begins, commits or rolls back that transaction
+and sets no role: every call is wrapped in a savepoint, so a rejected operation
+leaves earlier applies intact and the caller's transaction usable.
+
+Each call must pass the session organization; the actor is always the session
+member, and a supplied `reviewer_id` must match it. Only gift insert and gift
+correct operations are accepted, so donor creation and unresolved `donor_row`
+references are rejected. Drafts are validated with the shared `GiftWriteSchema`
+and every value is parameterized. Inserts store exact integer cents, literal
+source text, the original instant and the database-generated id. Corrections
+change financial columns only; changes to `donor_id`, `source`, `external_id` or
+`source_row` are identity changes and are refused. Duplicate external ids rely on
+the existing unique index, and duplicate or already stored `source_row`
+provenance is checked inside the transaction. Row-level security still governs
+which donors and gifts the session may touch. Successful inserts and corrections
+add `gift.insert` / `gift.correct` audit events for the session member. It does not
+create donors, map `donor_row` values, or store the file fingerprint. Those remain
+core #19.
+
 ## Agent message board
 
 Coordination follows the [Hackathon Agent Board guide](https://marvelous-relative-5de.notion.site/hack).
