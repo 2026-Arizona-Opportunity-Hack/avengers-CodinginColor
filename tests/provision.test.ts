@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { PGlite } from '@electric-sql/pglite';
@@ -82,6 +87,41 @@ test('invalid rosters are rejected before any write', async (t) => {
   }
   await assert.rejects(provision(client, 'not-a-uuid', roster), /CIC_ORG_ID/);
   assert.deepEqual((await db.query('SELECT count(*)::int AS n FROM organizations')).rows, [{ n: 0 }]);
+});
+
+test('a non-superuser CREATEROLE migration owner can provision (creator membership is not runtime access)', async (t) => {
+  // Review on #35: PostgreSQL 16+ makes the creator of cic_runtime a member WITH ADMIN, which the
+  // MEMBER check mistook for the runtime login.
+  const db = new PGlite();
+  t.after(() => db.close());
+  await db.exec(`CREATE ROLE migration_owner NOLOGIN CREATEROLE BYPASSRLS;
+    ALTER DATABASE postgres OWNER TO migration_owner; GRANT CREATE ON SCHEMA public TO migration_owner;
+    SET SESSION AUTHORIZATION migration_owner;`);
+  const client = { query: async (sql: string, values?: unknown[]) => values
+    ? db.query<Record<string, unknown>>(sql, values)
+    : (await db.exec(sql)).at(-1)! };
+  await migrate(client, migrations);
+  assert.deepEqual((await db.query<{ member: boolean }>(
+    "SELECT pg_has_role(current_user, 'cic_runtime', 'MEMBER') AS member")).rows, [{ member: true }]);
+  assert.deepEqual(await provision(client, ORG, roster),
+    { organization: 'created', members: { created: 3, updated: 0, unchanged: 0 }, untouched: 0 });
+});
+
+test('CLI reports invalid roster JSON without echoing any of the file', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'cic-provision-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'roster.json');
+  await writeFile(file, '{"organization": SENSITIVE_SAMPLE_ROSTER user_2Secret jordan@example.org');
+  const script = fileURLToPath(new URL('../db/provision.ts', import.meta.url));
+  const child = spawn(process.execPath, [script, file], {
+    env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  child.stdout.on('data', (c) => { output += c; });
+  child.stderr.on('data', (c) => { output += c; });
+  const [code] = await once(child, 'exit');
+  assert.equal(code, 1);
+  assert.match(output, /not valid JSON/);
+  for (const secret of ['SENSITIVE', 'user_2Secret', 'jordan@']) assert.ok(!output.includes(secret), output);
 });
 
 test('refuses the runtime login and roles that cannot bypass row-level security', async (t) => {

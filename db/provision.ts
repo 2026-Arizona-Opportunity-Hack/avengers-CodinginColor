@@ -35,6 +35,23 @@ export type ProvisionResult = {
   untouched: number;
 };
 
+/**
+ * True when this connection can actually become cic_runtime (SET option), i.e. it is the runtime login.
+ * Plain MEMBER is not enough: PostgreSQL 16+ makes a CREATEROLE migration owner that created
+ * cic_runtime a member WITH ADMIN but without SET, and that owner must be allowed to provision.
+ */
+export async function isRuntimeLogin(client: ProvisionClient): Promise<boolean> {
+  const [who] = (await client.query(`SELECT r.rolsuper AS superuser,
+      pg_has_role(current_user, 'cic_runtime', 'SET') AS can_set
+    FROM pg_roles r WHERE r.rolname = current_user`)).rows;
+  return !who?.superuser && who?.can_set === true;
+}
+
+/** Parse roster file text; never echo it, since JSON errors quote the input. */
+export function parseRoster(text: string): unknown {
+  try { return JSON.parse(text); } catch { throw new ProvisionError('Roster file is not valid JSON'); }
+}
+
 const outcome = (rows: Record<string, unknown>[]) =>
   rows.length === 0 ? 'unchanged' : rows[0].inserted ? 'created' : 'updated';
 
@@ -42,7 +59,7 @@ const outcome = (rows: Record<string, unknown>[]) =>
  * Trusted bootstrap: create or update CIC's organization and memberships keyed by Clerk user ID.
  * Run only on the privileged migration connection; the runtime login is refused.
  */
-export async function provision(client: ProvisionClient, orgId: string, raw: ProvisionInput): Promise<ProvisionResult> {
+export async function provision(client: ProvisionClient, orgId: string, raw: ProvisionInput | unknown): Promise<ProvisionResult> {
   if (!z.uuid().safeParse(orgId).success) throw new ProvisionError('CIC_ORG_ID must be a UUID');
   const parsed = ProvisionSchema.safeParse(raw);
   if (!parsed.success) {
@@ -50,10 +67,7 @@ export async function provision(client: ProvisionClient, orgId: string, raw: Pro
   }
   const input = parsed.data;
 
-  const [who] = (await client.query(`SELECT r.rolsuper AS superuser,
-      pg_has_role(current_user, 'cic_runtime', 'MEMBER') AS runtime
-    FROM pg_roles r WHERE r.rolname = current_user`)).rows;
-  if (!who?.superuser && who?.runtime) {
+  if (await isRuntimeLogin(client)) {
     throw new ProvisionError('Refusing to provision with the runtime login; use MIGRATION_DATABASE_URL');
   }
 
@@ -92,7 +106,7 @@ if (import.meta.main) {
   try {
     const path = process.argv[2];
     if (!path) throw new ProvisionError('Usage: node --env-file-if-exists=.env db/provision.ts <roster.json>');
-    const roster = JSON.parse(await readFile(path, 'utf8'));
+    const roster = parseRoster(await readFile(path, 'utf8'));
     const url = new URL(process.env.MIGRATION_DATABASE_URL ?? '');
     if (!['postgres:', 'postgresql:'].includes(url.protocol)) throw new ProvisionError('Invalid MIGRATION_DATABASE_URL');
     client = new Client({ connectionString: url.href, connectionTimeoutMillis: 10000 });
@@ -102,7 +116,7 @@ if (import.meta.main) {
       `updated ${result.members.updated}, unchanged ${result.members.unchanged}; ${result.untouched} not in roster left as-is`);
   } catch (error) {
     // Driver errors can contain connection details; only our own messages are printed.
-    console.error(error instanceof ProvisionError || error instanceof SyntaxError
+    console.error(error instanceof ProvisionError
       ? `Provisioning failed: ${error.message}` : 'Provisioning failed; check the migration connection. No credentials are logged.');
     process.exitCode = 1;
   } finally { await client?.end(); }
