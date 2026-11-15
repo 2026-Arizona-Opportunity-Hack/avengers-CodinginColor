@@ -60,7 +60,7 @@ test('draft writes call the reviewed routes; unsupported templates never draft',
   const draft = await live.createLiveDraft(request, D, 't-thanks-email', fields);
   assert.deepEqual([draft?.id, draft?.status, draft?.template_id, draft?.donor_id, draft?.owner_id, draft?.created_at],
     ['d1', 'pending', 't-thanks-email', D, B, '2026-11-15T16:00:00.000000Z']);
-  assert.equal(await live.createLiveDraft(request, D, 't-nudge', {}), null);
+  assert.equal(await live.createLiveDraft(request, D, 't-not-supported', {}), null);
   await live.editLiveDraft(request, 'd1', { body: 'Hi again' });
   await live.approveLiveDraft(request, 'd1');
   assert.equal(await live.composeHref(request, 'd1'), 'mailto:a%40example.org?subject=Thanks&body=Hi');
@@ -114,4 +114,13 @@ test('a new board draft shows in the queue of the board member who owns the dono
     recipient: '+16025550100', subject: null, body: 'Hi', status: 'draft', created_at: '2026-11-15T16:00:00.000000Z' } });
   const draft = await live.createLiveDraft(request, D, 't-thanks-text', { first_name: 'Avery', program: 'AI Academy' });
   assert.ok(draft && shownTo(draft, B, false));
+});
+
+
+test('lapsed radar persists its nudge through the normal draft route without approval', async () => {
+  const { request, calls } = fake({ '/api/v1/drafts': { id: 'nudge', donor_id: D, owner_id: B, author_id: B,
+    channel: 'email', recipient: 'a@example.org', subject: 'A note', body: 'Would you like an update?', status: 'draft', created_at: '2026-11-15T16:00:00Z' } });
+  const draft = await live.createLiveDraft(request, D, 't-nudge', { first_name: 'Avery', program: 'Academy' });
+  assert.equal(draft?.status, 'pending');
+  assert.deepEqual(calls, [{ path: '/api/v1/drafts', method: 'POST', body: { donor_id: D, template: 'lapsed_nudge', fields: { first_name: 'Avery', program: 'Academy' } } }]);
 });

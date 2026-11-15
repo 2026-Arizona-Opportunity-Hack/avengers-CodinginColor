@@ -24,6 +24,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
         <div>
           <h1>Follow-ups and messages</h1>
           <p class="lede">Next steps, quarterly touches and thank-yous. Coding in Color drafts; a person approves and sends every message.</p>
+          <a routerLink="/retention" [queryParams]="{ segment: 'lapsed' }">Review lapsed donors</a>
         </div>
       </header>
 
