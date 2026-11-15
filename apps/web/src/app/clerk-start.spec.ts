@@ -1,12 +1,14 @@
 import { Api } from './core/api';
 
-const mock = vi.hoisted(() => ({ load: vi.fn(async (_options: unknown) => {}), ui: { ClerkUI: {} }, listener: null as null | ((event:{session:{id:string}|null})=>void) }));
+type Session = {id:string;status:'active'|'pending'};
+const mock = vi.hoisted(() => ({ load: vi.fn(async (_options: unknown) => {}), ui: { ClerkUI: {} }, session:null as Session|null, listener: null as null | ((event:{session:Session|null})=>void) }));
 vi.mock('@clerk/ui', () => ({ ui: mock.ui }));
 vi.mock('@clerk/clerk-js', () => ({ Clerk: class {
-  session = null;
+  session = mock.session;
   load = mock.load;
-  addListener(listener:(event:{session:{id:string}|null})=>void) { mock.listener=listener; }
+  addListener(listener:(event:{session:Session|null})=>void) { mock.listener=listener; }
 } }));
+afterEach(()=>{mock.session=null;mock.listener=null;});
 
 it('loads the actual Clerk component configuration before exposing sign-in', async () => {
   const api = new Api();
@@ -28,9 +30,22 @@ it('shows a recoverable error when the auth components cannot load', async () =>
 it('versions active identities and clears the old session before loading a switched account',async()=>{
   const api=new Api(),inside=vi.fn(),outside=vi.fn();
   await api.start({apiBase:'',clerkPublishableKey:'pk_test_synthetic'},inside,outside);
-  const first=api.identityVersion();mock.listener!({session:{id:'one'}});
+  const first=api.identityVersion();mock.listener!({session:{id:'one',status:'active'}});
   expect(api.authenticated()).toBe(true);expect(inside).toHaveBeenCalledTimes(1);
-  mock.listener!({session:{id:'two'}});expect(outside).toHaveBeenCalledTimes(1);expect(inside).toHaveBeenCalledTimes(2);
+  mock.listener!({session:{id:'two',status:'active'}});expect(outside).toHaveBeenCalledTimes(1);expect(inside).toHaveBeenCalledTimes(2);
   expect(api.identityVersion()).toBe(first+2);
   mock.listener!({session:null});expect(api.authenticated()).toBe(false);expect(outside).toHaveBeenCalledTimes(2);
+});
+
+it('keeps pending session tasks in sign-in until the same session becomes active',async()=>{
+  mock.session={id:'setup',status:'pending'};
+  const api=new Api(),inside=vi.fn(),outside=vi.fn();
+  await api.start({apiBase:'',clerkPublishableKey:'pk_test_synthetic'},inside,outside);
+  expect(api.authenticated()).toBe(false);expect(api.status()).toBe('signed-out');expect(inside).not.toHaveBeenCalled();
+  mock.listener!({session:{id:'setup',status:'pending'}});
+  expect(inside).not.toHaveBeenCalled();
+  mock.listener!({session:{id:'setup',status:'active'}});
+  expect(api.authenticated()).toBe(true);expect(inside).toHaveBeenCalledTimes(1);
+  mock.listener!({session:{id:'setup',status:'pending'}});
+  expect(api.authenticated()).toBe(false);expect(outside).toHaveBeenCalledTimes(1);
 });

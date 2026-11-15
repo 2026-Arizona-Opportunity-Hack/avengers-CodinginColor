@@ -85,11 +85,11 @@ export class Api {
       const [{ Clerk }, { ui }] = await Promise.all([import('@clerk/clerk-js'), import('@clerk/ui')]);
       this.clerk = new Clerk(config.clerkPublishableKey);
       await this.clerk.load({ ui, localization: { signIn: { start: { title: 'Sign in to Coding in Color' } } } });
-      let sessionId = this.clerk.session?.id ?? null;
+      let sessionId = this.clerk.session?.status === 'active' ? this.clerk.session.id : null;
       this.authenticated.set(!!sessionId);this.identityVersion.update(v=>v+1);
       if (sessionId) onSignedIn(); else this.status.set('signed-out');
       this.clerk.addListener(({ session }) => {
-        const next = session?.id ?? null;
+        const next = session?.status === 'active' ? session.id : null;
         if (next === sessionId) return;
         const previous=sessionId;sessionId=next;
         this.identityVersion.update(v=>v+1);this.authenticated.set(!!next);
