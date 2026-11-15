@@ -2,12 +2,15 @@ import { Component, ElementRef, effect, inject, signal, viewChild } from '@angul
 import { RouterLink } from '@angular/router';
 import { Api, ApiError } from '../core/api';
 import { Store } from '../core/store';
+import { today } from '../core/format';
+import { interpretQuestion, searchDonors, clarify } from '../../../../../packages/reporting/donor-search';
 
 interface Answer { needs_clarification: boolean; explanation: string; total?: number; donors: { id: string; name: string }[] }
 @Component({
   selector: 'app-ask-data', imports: [RouterLink],
   template: `<div class="page stack">
     <header class="page-head"><div><h1>Ask your data</h1><p class="lede">Find donors you can access. Ask about retention, gift status, currency or giving amounts.</p></div></header>
+    @if (!store.live()) { <p class="text-sm">Demo searches use the same filters and giving rules as the live app, on this browser's synthetic records. No AI or server request is needed.</p> }
     <div class="row examples">@for (example of examples; track example) {
       <button class="btn" type="button" (click)="question.set(example)" [disabled]="busy()">{{ example }}</button>
     }</div>
@@ -31,7 +34,7 @@ interface Answer { needs_clarification: boolean; explanation: string; total?: nu
 })
 export class AskDataPage {
   private readonly api = inject(Api);
-  private readonly store = inject(Store);
+  protected readonly store = inject(Store);
   protected readonly question = signal('');
   protected readonly answer = signal<Answer | null>(null);
   protected readonly error = signal<string | null>(null);
@@ -50,7 +53,11 @@ export class AskDataPage {
     const generation = ++this.generation, epoch = this.store.sessionEpoch();
     this.busy.set(true); this.error.set(null); this.answer.set(null);
     try {
-      const answer = await this.api.request<Answer>('/api/v1/ask-data', { method: 'POST', body: JSON.stringify({ question: this.question().trim() }) });
+      const question = this.question().trim(), live = this.store.live();
+      const filters = live ? null : interpretQuestion(question);
+      const answer = live
+        ? await this.api.request<Answer>('/api/v1/ask-data', { method: 'POST', body: JSON.stringify({ question }) })
+        : filters ? searchDonors(filters, this.store.donors(), this.store.allGifts(), this.store.me().id, today()) : clarify;
       if (generation === this.generation && epoch === this.store.sessionEpoch() && this.store.signedIn()) this.answer.set(answer);
     } catch (error) {
       if (generation === this.generation && epoch === this.store.sessionEpoch()) this.error.set(error instanceof ApiError ? error.message : 'The search could not load. Try again.');

@@ -10,6 +10,7 @@ donor records are unaffected. Settings includes **Reset demo data**.
 The live **Ask your data** screen finds authorized active donors by retention, gift status,
 currency and net giving threshold. It explains its filters, asks for clarification on unsupported
 wording, and works without model keys. Questions and donor records never go to the optional model.
+In the demo workspace, the same search rules run locally on synthetic records without API or model requests.
 The [synthetic provider benchmark](docs/audits/search-provider-benchmark-2026-11-15.md)
 records measured accuracy, latency and the optional-advice ordering correction.
 

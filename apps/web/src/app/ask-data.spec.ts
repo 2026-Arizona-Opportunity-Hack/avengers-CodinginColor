@@ -6,7 +6,10 @@ import { Api, ApiError } from './core/api';
 import { Store } from './core/store';
 
 function setup() {
-  const store = { sessionEpoch: signal(1), signedIn: signal(true) };
+  const store = { sessionEpoch: signal(1), signedIn: signal(true), live: signal(true),
+    donors: vi.fn(() => [] as { id: string; name: string; owner_id: string }[]),
+    allGifts: vi.fn(() => [] as { donor_id: string; amount_cents: number; refund_cents: number; currency: string; occurred_at: string; status: 'settled' | 'pending' | 'void' }[]),
+    me: () => ({ id: 'member' }) };
   const api = { request: vi.fn(async () => ({ needs_clarification: false, explanation: 'Active donors assigned to you.', total: 1,
     donors: [{ id: 'donor', name: 'Avery' }] })) };
   TestBed.configureTestingModule({ providers: [provideRouter([]), { provide: Store, useValue: store }, { provide: Api, useValue: api }] });
@@ -21,6 +24,32 @@ it('submits an explicit question and links only the returned authorized donors',
   expect(f.api.request).toHaveBeenCalledWith('/api/v1/ask-data', expect.objectContaining({ body: '{"question":"Show my lapsed donors"}' }));
   expect(f.fixture.nativeElement.textContent).toContain('1 matching donors');
   expect(f.fixture.nativeElement.querySelector('a').getAttribute('href')).toBe('/donors/donor');
+});
+
+it('searches demo donors by owner, exact net threshold, currency and lapsed giving without API requests', async () => {
+  const f = setup(); f.store.live.set(false);
+  const year = new Date(Date.now() - 7 * 3600_000).getUTCFullYear();
+  f.store.donors.mockReturnValue([
+    { id: 'own', name: 'Own donor', owner_id: 'member' }, { id: 'other', name: 'Other donor', owner_id: 'other' },
+    { id: 'lapsed', name: 'Lapsed donor', owner_id: 'member' }, { id: 'empty', name: 'No history', owner_id: 'member' },
+  ]);
+  const gift = { donor_id: 'own', amount_cents: 10029, refund_cents: 29, currency: 'USD', status: 'settled' as const,
+    occurred_at: `${year}-01-01T07:00:00Z` };
+  f.store.allGifts.mockReturnValue([gift, { ...gift, currency: 'EUR', amount_cents: 20000, refund_cents: 0 },
+    { ...gift, donor_id: 'other', amount_cents: 30000, refund_cents: 0 },
+    { ...gift, donor_id: 'lapsed', occurred_at: `${year - 1}-01-01T07:00:00Z` }]);
+  const ask = async (question: string) => {
+    f.input.value = question; f.input.dispatchEvent(new Event('input')); await f.submit();
+    return [...f.fixture.nativeElement.querySelectorAll('li a')].map((a: any) => a.textContent.trim());
+  };
+  expect(await ask('show my donors')).toEqual(['Lapsed donor', 'No history', 'Own donor']);
+  expect(await ask('show my donors over $100 in USD')).toEqual([]);
+  expect(await ask('show my donors over $99.99 in USD')).toEqual(['Own donor']);
+  expect(await ask('show my donors over $100 in EUR')).toEqual(['Own donor']);
+  expect(await ask('show my lapsed donors')).toEqual(['Lapsed donor']);
+  expect(await ask('donors in EUR')).toEqual([]);
+  expect(f.fixture.nativeElement.textContent).toContain('A little more detail');
+  expect(f.api.request).not.toHaveBeenCalled();
 });
 it('clears private questions and discards late results after session loss', async () => {
   const f = setup(); let resolve!: (value: Awaited<ReturnType<typeof f.api.request>>) => void;
