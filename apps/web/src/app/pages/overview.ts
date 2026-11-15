@@ -33,34 +33,33 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
         </div>
       </header>
 
-      <section class="kpis" aria-label="Key numbers">
-        <article class="kpi glass">
-          <div class="kpi-top"><p class="kpi-label">Raised, net</p>
-            <span [class]="trendClass(r().totals.current, r().totals.prior)"><ng-icon [name]="trendIcon(r().totals.current, r().totals.prior)" size="14" aria-hidden="true" />{{ delta(r().totals.current, r().totals.prior) }}</span></div>
-          <p class="kpi-value"><app-count-up [value]="r().totals.current / 100" [format]="dollars" /></p>
-          <p class="kpi-sub">vs {{ money(r().totals.prior) }} by this date last year</p>
-          <app-sparkline [values]="monthlyNet()" />
-        </article>
-        <article class="kpi glass">
-          <div class="kpi-top"><p class="kpi-label">Donors giving</p>
-            <span [class]="trendClass(givingDonors(), r().priorDonors)"><ng-icon [name]="trendIcon(givingDonors(), r().priorDonors)" size="14" aria-hidden="true" />{{ delta(givingDonors(), r().priorDonors) }}</span></div>
-          <p class="kpi-value"><app-count-up [value]="givingDonors()" /></p>
-          <p class="kpi-sub">{{ r().counts.new }} new · {{ r().counts.reactivated }} came back</p>
-          <app-sparkline [values]="monthlyDonors()" />
-        </article>
-        <article class="kpi glass">
-          <div class="kpi-top"><p class="kpi-label">Retention</p></div>
-          <p class="kpi-value"><app-count-up [value]="retentionPct()" [format]="percent" /></p>
-          <p class="kpi-sub">{{ r().retained }} of {{ r().priorDonors }} last-year donors gave again</p>
-          <div class="meter" role="img" [attr.aria-label]="'Retention ' + pct(r().retained, r().priorDonors)"><span [style.width.%]="retentionPct()"></span></div>
-        </article>
-        <article class="kpi glass">
-          <div class="kpi-top"><p class="kpi-label">Next steps due</p>
-            @if (overdue() > 0) { <span class="trend down"><ng-icon name="lucideCircleAlert" size="14" aria-hidden="true" />{{ overdue() }} overdue</span> }</div>
-          <p class="kpi-value"><app-count-up [value]="due().length" /></p>
-          <p class="kpi-sub">open in the next 7 days</p>
-          <a class="kpi-link" routerLink="/outreach">Open the queue <ng-icon name="lucideArrowRight" size="14" aria-hidden="true" /></a>
-        </article>
+      <section class="hero glass" aria-label="Key numbers">
+        <div class="hero-main">
+          <p class="k-label">Raised, net</p>
+          <p class="hero-value"><app-count-up [value]="r().totals.current / 100" [format]="dollars" /></p>
+          <p class="hero-sub">
+            <span [class]="trendClass(r().totals.current, r().totals.prior)"><ng-icon [name]="trendIcon(r().totals.current, r().totals.prior)" size="14" aria-hidden="true" />{{ delta(r().totals.current, r().totals.prior) }}</span>
+            vs {{ money(r().totals.prior) }} by this date last year
+          </p>
+          <app-sparkline class="hero-spark" [values]="monthlyNet()" />
+        </div>
+        <dl class="hero-side">
+          <div>
+            <dt>Donors giving</dt>
+            <dd><app-count-up [value]="givingDonors()" /><span [class]="trendClass(givingDonors(), r().priorDonors)"><ng-icon [name]="trendIcon(givingDonors(), r().priorDonors)" size="13" aria-hidden="true" />{{ delta(givingDonors(), r().priorDonors) }}</span></dd>
+            <dd class="note">{{ r().counts.new }} new · {{ r().counts.reactivated }} came back</dd>
+          </div>
+          <div>
+            <dt>Retention</dt>
+            <dd><app-count-up [value]="retentionPct()" [format]="percent" /></dd>
+            <dd class="note">{{ r().retained }} of {{ r().priorDonors }} last-year donors gave again</dd>
+          </div>
+          <div>
+            <dt>Next steps this week</dt>
+            <dd><app-count-up [value]="due().length" />@if (overdue() > 0) { <span class="trend down"><ng-icon name="lucideCircleAlert" size="13" aria-hidden="true" />{{ overdue() }} overdue</span> }</dd>
+            <dd class="note"><a routerLink="/outreach">Open the queue</a></dd>
+          </div>
+        </dl>
       </section>
 
       <div class="grid-main">
@@ -182,20 +181,24 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
     </div>
   `,
   styles: `
-    .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
-    .kpi { border-radius: 20px; padding: 18px 20px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-    .kpi-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-    .kpi-label { font-size: 13px; font-weight: 500; color: var(--muted-foreground); }
-    .kpi-value { font-size: 32px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 4px; }
-    .kpi-sub { font-size: 12.5px; color: var(--muted-foreground); margin-bottom: 6px; }
-    .kpi-link { margin-top: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none; }
-    .kpi-link:hover { text-decoration: underline; }
-    .trend { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.5fr); border-radius: var(--r-surface); overflow: hidden; }
+    .hero-main { padding: 22px 24px 16px; display: flex; flex-direction: column; gap: 2px; }
+    .k-label { font-size: 13px; font-weight: 500; color: var(--ink-600); }
+    .hero-value { font-size: 44px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.1; font-variant-numeric: tabular-nums; margin-top: 6px; }
+    .hero-sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--ink-600); margin-top: 6px; }
+    .hero-spark { display: block; margin-top: 14px; }
+    .hero-side { margin: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-inline-start: 1px solid rgb(15 26 21 / 0.06); }
+    .hero-side > div { padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 4px; }
+    .hero-side > div + div { border-inline-start: 1px solid rgb(15 26 21 / 0.06); }
+    .hero-side dt { font-size: 13px; font-weight: 500; color: var(--ink-600); }
+    .hero-side dd { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .hero-side dd.note { display: block; font-size: 12.5px; font-weight: 400; letter-spacing: 0; color: var(--ink-600); margin-top: auto; }
+    .hero-side a { font-weight: 600; color: var(--green-700); text-decoration: none; }
+    .hero-side a:hover { text-decoration: underline; }
+    .trend { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; font-weight: 600; letter-spacing: 0; padding: 2px 7px; border-radius: 6px; }
     .trend.up { color: var(--green-700); background: var(--green-50); }
-    .trend.down { color: var(--red-600); background: #fef3f2; }
+    .trend.down { color: var(--red-600); background: #fef0ee; }
     .trend.flat { color: var(--ink-600); background: rgb(15 26 21 / 0.05); }
-    .meter { height: 8px; border-radius: 999px; background: rgb(15 26 21 / 0.07); overflow: hidden; margin-top: auto; margin-bottom: 8px; }
-    .meter span { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #00a850, #007a3d); }
     .grid-main { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; margin-top: 20px; }
     .sub { font-size: 12.5px; color: var(--muted-foreground); margin-top: 2px; }
     .chart { padding: 8px 12px 12px; }
@@ -211,8 +214,8 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
     .ins-action:hover { text-decoration: underline; }
     .gift-dot { width: 32px; height: 32px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--green-50); color: var(--green-700); }
     @media (max-width: 1180px) { .grid-main { grid-template-columns: 1fr; } }
-    @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .grid-3 { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 640px) { .kpis, .grid-3 { grid-template-columns: 1fr; } .kpi-value { font-size: 28px; } }
+    @media (max-width: 1100px) { .hero { grid-template-columns: 1fr; } .hero-side { border-inline-start: 0; border-top: 1px solid rgb(15 26 21 / 0.06); } .grid-3 { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 640px) { .grid-3 { grid-template-columns: 1fr; } .hero-side { grid-template-columns: 1fr; } .hero-side > div + div { border-inline-start: 0; border-top: 1px solid rgb(15 26 21 / 0.06); } .hero-value { font-size: 36px; } }
   `,
 })
 export class OverviewPage {

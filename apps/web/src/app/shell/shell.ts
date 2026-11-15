@@ -171,7 +171,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     .rail {
       position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 30; width: var(--rail-w);
       display: none; flex-direction: column; padding: 18px 12px 14px;
-      background: rgb(255 255 255 / 0.62); border-inline-end: 1px solid rgb(15 26 21 / 0.07);
+      background: transparent; border-inline-end: 1px solid rgb(15 26 21 / 0.07);
     }
     @media (min-width: 1024px) { .rail { display: flex; } .main-col { padding-inline-start: var(--rail-w); } }
     .brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px; text-decoration: none; font-size: 14.5px; }
@@ -198,10 +198,10 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     }
     .search {
       display: flex; align-items: center; gap: 10px; height: 36px; width: min(420px, 100%); padding: 0 8px 0 12px;
-      border-radius: 10px; border: 1px solid rgb(15 26 21 / 0.1); background: #fff;
-      color: var(--ink-600); font-size: 13.5px; cursor: pointer; transition: border-color 120ms ease;
+      border-radius: var(--r-control); border: 1px solid rgb(15 26 21 / 0.08); background: var(--control-bg);
+      color: var(--ink-600); font-size: 13.5px; cursor: pointer; transition: background-color 120ms var(--ease-out);
     }
-    .search:hover { border-color: rgb(15 26 21 / 0.2); }
+    .search:hover { background: #fff; }
     .bell-dot { position: absolute; top: 8px; inset-inline-end: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px #fff; }
     .account-btn {
       display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px 0 4px; border-radius: 10px; border: 0; background: transparent;
