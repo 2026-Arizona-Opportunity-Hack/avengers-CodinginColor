@@ -1,16 +1,20 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { NgxEchartsDirective } from 'ngx-echarts';
 import type { EChartsCoreOption } from 'echarts/core';
 import { Store } from '../core/store';
+import { ReportFilters } from '../core/report-filters';
+import { ReportFiltersControl } from '../shared/report-filters';
+import { Api, ApiError, type ApiRetention } from '../core/api';
+import { retentionFromServer } from '../core/report-models';
 import { date, dateShort, money, pct, relativeDue, today } from '../core/format';
 import { SEGMENTS, SEGMENT_COPY, retention, yearWindows, ytdWindows } from '../core/retention';
 import { SOURCE_LABEL } from '../core/models';
 import { CountUp } from '../shared/count-up';
 import { Sparkline } from '../shared/sparkline';
-import { BASE, BLUE, GREEN, INK, INK_MUTED, axisLine, axisTick, compactMoney, splitLine } from '../shared/chart-theme';
+import { BASE, BLUE, GREEN, INK, INK_MUTED, axisLine, axisTick, splitLine } from '../shared/chart-theme';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -18,18 +22,20 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
 
 @Component({
   selector: 'app-overview',
-  imports: [RouterLink, NgIcon, HlmButtonImports, NgxEchartsDirective, CountUp, Sparkline],
+  imports: [ReportFiltersControl, RouterLink, NgIcon, HlmButtonImports, NgxEchartsDirective, CountUp, Sparkline],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (store.live()) { <app-report-filters /> }
+    @if (store.live() && !server()) { <p role="status">{{ serverError() ?? 'Loading overview...' }}</p> } @else {
     <div class="page">
       <header class="page-head">
         <div>
           <h1>{{ store.isAdmin() ? 'Organization health' : 'Your portfolio' }}</h1>
-          <p class="lede">{{ year }} to date, compared with the same point last year.</p>
+          <p class="lede">{{ scope.from() }} to {{ scope.through() }} in {{ store.currency() }}, compared with the same calendar period last year.</p>
         </div>
         <div class="actions">
           <a hlmBtn variant="outline" routerLink="/outreach">Follow-ups</a>
-          <a hlmBtn routerLink="/donors/new"><ng-icon name="lucidePlus" size="16" /> Add donor</a>
+          @if (!store.live()) { <a hlmBtn routerLink="/donors/new"><ng-icon name="lucidePlus" size="16" /> Add donor</a> }
         </div>
       </header>
 
@@ -128,7 +134,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
 
       <div class="grid-2 mt-5">
         <section class="panel" aria-labelledby="gifts-h">
-          <div class="panel-head"><h2 id="gifts-h">Latest gifts</h2><a routerLink="/donations" class="head-link">All donations</a></div>
+          <div class="panel-head"><h2 id="gifts-h">Latest gifts</h2><a [routerLink]="store.live() ? '/donors' : '/donations'" class="head-link">All donors and gifts</a></div>
           <ul class="list">
             @for (g of recentGifts(); track g.id) {
               <li class="flex items-center gap-3">
@@ -136,7 +142,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
                   <a class="font-semibold no-underline hover:underline" [routerLink]="['/donors', g.donor_id]">{{ store.donor(g.donor_id)?.name }}</a>
                   <p class="text-muted-foreground truncate text-[13px]">{{ store.campaign(g.campaign_id)?.title ?? 'General support' }} · {{ dateShort(g.occurred_at) }}</p>
                 </div>
-                <span class="num font-semibold">{{ money(g.amount_cents) }}</span>
+                <span class="num font-semibold">{{ money(store.netCents(g)) }}</span>
               </li>
             }
           </ul>
@@ -176,6 +182,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
         }
       </div>
     </div>
+    }
   `,
   styles: `
     .hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.5fr); border-radius: var(--r-surface); overflow: hidden; }
@@ -217,7 +224,12 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
 })
 export class OverviewPage {
   protected readonly store = inject(Store);
-  protected readonly money = money;
+  protected readonly scope = inject(ReportFilters);
+  private readonly api = inject(Api);
+  protected readonly server = signal<ApiRetention | null>(null);
+  protected readonly serverError = signal<string | null>(null);
+  protected readonly money = (cents: number) => money(cents, this.store.currency());
+  private readonly compactMoney = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: this.store.currency(), notation: 'compact', maximumFractionDigits: 1 }).format(cents / 100);
   protected readonly date = date;
   protected readonly dateShort = dateShort;
   protected readonly pct = pct;
@@ -226,31 +238,58 @@ export class OverviewPage {
   protected readonly segments = SEGMENTS;
   protected readonly copy = SEGMENT_COPY;
   protected readonly now = today();
-  protected readonly year = Number(this.now.slice(0, 4));
-  private readonly monthIndex = Number(this.now.slice(5, 7)) - 1;
-  protected readonly dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+  protected get year() { return Number(this.scope.through().slice(0, 4)); }
+  private get monthIndex() { return Number(this.scope.through().slice(5, 7)) - 1; }
+  protected readonly dollars = (n: number) => this.money(n * 100);
   protected readonly percent = (n: number) => `${Math.round(n)}%`;
 
-  protected readonly r = computed(() => retention(this.store.gifts(), ytdWindows(this.now)));
+  protected readonly r = computed(() => this.store.live()
+    ? this.server() ? retentionFromServer(this.server()!, this.store.currency()) : retention([], ytdWindows(this.now))
+    : retention(this.scope.gifts(), ytdWindows(this.now)));
+
+  private reportGeneration = 0;
+  constructor() {
+    effect(() => {
+      const generation = ++this.reportGeneration;
+      const filters = this.scope.query(), asOf = this.scope.through(), valid = this.scope.valid();
+      const epoch = this.store.sessionEpoch(), signedIn = this.store.signedIn();
+      this.server.set(null); this.serverError.set(null);
+      if (!this.store.live() || !signedIn) return;
+      if (!valid) { this.serverError.set('Choose a valid reporting period and acquisition year.'); return; }
+      void this.api.retention(asOf, filters).then(report => {
+        if (generation === this.reportGeneration && epoch === this.store.sessionEpoch() && this.store.signedIn()) this.server.set(report);
+      }).catch(error => {
+        if (generation === this.reportGeneration && epoch === this.store.sessionEpoch() && this.store.signedIn())
+          this.serverError.set(error instanceof ApiError ? error.message : 'The overview could not load.');
+      });
+    });
+  }
   protected readonly givingDonors = computed(() => {
     const c = this.r().counts;
     return c.new + c.reactivated + c.increased + c.flat + c.decreased;
   });
   protected readonly retentionPct = computed(() => (this.r().priorDonors ? (this.r().retained / this.r().priorDonors) * 100 : 0));
 
-  private readonly openSteps = computed(() => this.store.followUps().filter((f) => f.status === 'open'));
+  private readonly openSteps = computed(() => this.store.followUps().filter((f) => this.scope.visible(f.donor_id) && f.status === 'open'));
   protected readonly due = computed(() => {
     const horizon = new Date(Date.parse(`${this.now}T12:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10);
     return this.openSteps().filter((f) => f.due_on <= horizon).sort((a, b) => a.due_on.localeCompare(b.due_on));
   });
   protected readonly overdue = computed(() => this.due().filter((f) => f.due_on < this.now).length);
 
-  /** Net settled giving per month for a calendar year. */
+  private phoenixDay(at: string) { return this.scope.day(at); }
+  private inPeriod(at: string, year = this.year) {
+    const w = year === this.year ? this.r().windows.current : this.r().windows.prior, time = Date.parse(at);
+    return time >= Date.parse(w.from) && time < Date.parse(w.to);
+  }
+
+  /** Net settled giving per month for a Phoenix calendar year, excluding future gifts. */
   private monthly(year: number): number[] {
     const out = new Array(12).fill(0);
-    for (const g of this.store.gifts()) {
-      if (!g.occurred_at.startsWith(String(year))) continue;
-      out[Number(g.occurred_at.slice(5, 7)) - 1] += this.store.netCents(g);
+    for (const g of this.scope.gifts()) {
+      const day = this.phoenixDay(g.occurred_at);
+      if (!this.inPeriod(g.occurred_at, year)) continue;
+      out[Number(day.slice(5, 7)) - 1] += this.store.netCents(g);
     }
     return out;
   }
@@ -266,23 +305,24 @@ export class OverviewPage {
   protected readonly monthlyNet = computed(() => this.monthly(this.year).slice(0, this.monthIndex + 1));
   protected readonly monthlyDonors = computed(() => {
     const sets = Array.from({ length: this.monthIndex + 1 }, () => new Set<string>());
-    for (const g of this.store.gifts()) {
-      if (!g.occurred_at.startsWith(String(this.year)) || this.store.netCents(g) <= 0) continue;
-      const m = Number(g.occurred_at.slice(5, 7)) - 1;
+    for (const g of this.scope.gifts()) {
+      const day = this.phoenixDay(g.occurred_at);
+      if (!this.inPeriod(g.occurred_at) || this.store.netCents(g) <= 0) continue;
+      const m = Number(day.slice(5, 7)) - 1;
       if (m <= this.monthIndex) sets[m].add(g.donor_id);
     }
     return sets.map((s) => s.size);
   });
 
   protected readonly pulseOptions = computed<EChartsCoreOption>(() => {
-    const label = (color: string, dy: number) => ({ show: true, color, fontWeight: 600, fontSize: 12, offset: [4, dy], formatter: (p: { seriesName: string; value: number }) => `${p.seriesName}  ${compactMoney(p.value)}` });
+    const label = (color: string, dy: number) => ({ show: true, color, fontWeight: 600, fontSize: 12, offset: [4, dy], formatter: (p: { seriesName: string; value: number }) => `${p.seriesName}  ${this.compactMoney(p.value)}` });
     return {
       ...BASE,
       grid: { left: 8, right: 96, top: 36, bottom: 4, containLabel: true },
       legend: { top: 0, left: 4, icon: 'roundRect', itemWidth: 16, itemHeight: 4, itemGap: 18, textStyle: { color: INK_MUTED, fontSize: 12.5 } },
-      tooltip: { ...BASE.tooltip, trigger: 'axis', valueFormatter: (v: unknown) => (typeof v === 'number' ? money(v) : '—') },
+      tooltip: { ...BASE.tooltip, trigger: 'axis', valueFormatter: (v: unknown) => (typeof v === 'number' ? this.money(v) : '—') },
       xAxis: { type: 'category', data: MONTHS, boundaryGap: false, axisLine, axisTick, axisLabel: { color: INK_MUTED } },
-      yAxis: { type: 'value', axisLabel: { color: INK_MUTED, formatter: compactMoney }, splitLine },
+      yAxis: { type: 'value', axisLabel: { color: INK_MUTED, formatter: this.compactMoney }, splitLine },
       series: [
         {
           name: String(this.year), type: 'line', data: this.cum(this.year), smooth: 0.3, showSymbol: false, symbolSize: 8,
@@ -312,9 +352,10 @@ export class OverviewPage {
 
   protected readonly byProgram = computed(() => {
     const totals = new Map<string, number>();
-    for (const g of this.store.gifts()) {
-      if (!g.occurred_at.startsWith(String(this.year)) || g.status !== 'settled') continue;
-      const program = this.store.program(this.store.campaign(g.campaign_id)?.program_id ?? null)?.title ?? 'Unrestricted';
+    for (const g of this.scope.gifts()) {
+      const day = this.phoenixDay(g.occurred_at);
+      if (!this.inPeriod(g.occurred_at) || g.status !== 'settled') continue;
+      const program = this.store.program(this.store.campaign(g.campaign_id)?.program_id ?? null)?.title ?? 'Unattributed';
       totals.set(program, (totals.get(program) ?? 0) + this.store.netCents(g));
     }
     return [...totals.entries()].map(([label, cents]) => ({ label, cents })).sort((a, b) => a.cents - b.cents);
@@ -323,32 +364,32 @@ export class OverviewPage {
   protected readonly programOptions = computed<EChartsCoreOption>(() => ({
     ...BASE,
     grid: { left: 4, right: 56, top: 8, bottom: 4, containLabel: true },
-    tooltip: { ...BASE.tooltip, trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,122,61,0.06)' } }, valueFormatter: (v: unknown) => money(Number(v)) },
+    tooltip: { ...BASE.tooltip, trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,122,61,0.06)' } }, valueFormatter: (v: unknown) => this.money(Number(v)) },
     xAxis: { type: 'value', axisLabel: { show: false }, splitLine: { show: false } },
     yAxis: { type: 'category', data: this.byProgram().map((p) => p.label), axisLine, axisTick, axisLabel: { color: INK, fontSize: 12.5 } },
     series: [{
       name: 'Net giving', type: 'bar', data: this.byProgram().map((p) => p.cents), barWidth: 14,
       itemStyle: { color: GREEN, borderRadius: [0, 6, 6, 0] },
-      label: { show: true, position: 'right', color: INK, fontWeight: 600, formatter: (p: { value: number }) => compactMoney(p.value) },
+      label: { show: true, position: 'right', color: INK, fontWeight: 600, formatter: (p: { value: number }) => this.compactMoney(p.value) },
     }],
   }));
 
   protected readonly recentGifts = computed(() =>
-    [...this.store.gifts()].filter((g) => g.status !== 'void').sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, 6));
+    [...this.scope.gifts()].filter((g) => g.status === 'settled' && this.inPeriod(g.occurred_at)).sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, 6));
 
   protected readonly recentContacts = computed(() =>
-    [...this.store.communications()].filter((c) => c.direction !== 'internal').sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, 6));
+    [...this.store.communications()].filter((c) => this.scope.visible(c.donor_id) && c.direction !== 'internal').sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, 6));
 
   protected readonly portfolios = computed(() => {
     const since = new Date(Date.parse(`${this.now}T12:00:00Z`) - 90 * 86_400_000).toISOString();
-    return this.store.boardMembers().map((m) => {
-      const donors = this.store.donors().filter((d) => d.owner_id === m.id);
+    return this.store.boardMembers().filter(m => !this.scope.owner() || m.id === this.scope.owner()).map((m) => {
+      const donors = this.scope.donors().filter((d) => d.owner_id === m.id);
       const ids = new Set(donors.map((d) => d.id));
       const comms = this.store.communications().filter((c) => ids.has(c.donor_id) && c.direction !== 'internal');
       const steps = this.openSteps().filter((f) => ids.has(f.donor_id));
       return {
         id: m.id, name: m.name, donors: donors.length,
-        raised: this.store.gifts().filter((g) => ids.has(g.donor_id) && g.occurred_at.startsWith(String(this.year))).reduce((s, g) => s + this.store.netCents(g), 0),
+        raised: this.scope.gifts().filter((g) => ids.has(g.donor_id) && this.inPeriod(g.occurred_at)).reduce((s, g) => s + this.store.netCents(g), 0),
         reached: new Set(comms.filter((c) => c.occurred_at >= since).map((c) => c.donor_id)).size,
         overdue: steps.filter((f) => f.due_on < this.now).length,
       };
@@ -362,7 +403,7 @@ export class OverviewPage {
     const lapsed = r.donors.filter((d) => d.segment === 'lapsed');
     if (lapsed.length) {
       out.push({ icon: 'lucideTrendingDown', tone: 'danger', path: '/retention', action: 'Review lapsed donors',
-        text: `${lapsed.length} donor${lapsed.length === 1 ? '' : 's'} who gave ${money(lapsed.reduce((s, d) => s + d.prior_cents, 0))} by this date last year ${lapsed.length === 1 ? 'hasn’t' : 'haven’t'} given yet this year.` });
+        text: `${lapsed.length} donor${lapsed.length === 1 ? '' : 's'} who gave ${this.money(lapsed.reduce((s, d) => s + d.prior_cents, 0))} by this date last year ${lapsed.length === 1 ? 'hasn’t' : 'haven’t'} given yet this year.` });
     }
     const overdueByOwner = new Map<string, number>();
     for (const f of this.openSteps()) if (f.due_on < this.now) overdueByOwner.set(f.owner_id, (overdueByOwner.get(f.owner_id) ?? 0) + 1);
@@ -372,14 +413,14 @@ export class OverviewPage {
       out.push({ icon: 'lucideCalendarClock', tone: 'attention', path: '/outreach', action: 'Open the follow-up queue',
         text: mine ? `You have ${top[1]} overdue follow-up${top[1] === 1 ? '' : 's'}.` : `${this.store.member(top[0])?.name ?? 'A board member'} has ${top[1]} overdue follow-up${top[1] === 1 ? '' : 's'}, the most of anyone.` });
     }
-    const pending = this.store.drafts().filter((d) => d.status === 'pending').length;
+    const pending = this.store.drafts().filter((d) => this.scope.visible(d.donor_id) && d.status === 'pending').length;
     if (pending) out.push({ icon: 'lucideListChecks', tone: 'neutral', path: '/outreach', action: 'Review drafts',
       text: `${pending} drafted message${pending === 1 ? ' is' : 's are'} waiting for a person to approve.` });
     const news = r.donors.filter((d) => d.segment === 'new');
     if (news.length) {
       const bySource = new Map<string, number>();
       for (const d of news) {
-        const first = this.store.giftsFor(d.donor_id).sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))[0];
+        const first = this.scope.gifts().filter(g => g.donor_id === d.donor_id).sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))[0];
         if (first) bySource.set(SOURCE_LABEL[first.source], (bySource.get(SOURCE_LABEL[first.source]) ?? 0) + 1);
       }
       const best = [...bySource.entries()].sort((a, b) => b[1] - a[1])[0];
@@ -388,7 +429,7 @@ export class OverviewPage {
     }
     const grew = r.donors.filter((d) => d.segment === 'increased');
     if (grew.length && out.length < 4) out.push({ icon: 'lucideHeartHandshake', tone: 'positive', path: '/retention', action: 'Thank them',
-      text: `${grew.length} donor${grew.length === 1 ? '' : 's'} gave more than last year, adding ${money(grew.reduce((s, d) => s + d.current_cents - d.prior_cents, 0))}.` });
+      text: `${grew.length} donor${grew.length === 1 ? '' : 's'} gave more than last year, adding ${this.money(grew.reduce((s, d) => s + d.current_cents - d.prior_cents, 0))}.` });
     return out.slice(0, 4);
   });
 

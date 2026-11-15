@@ -60,17 +60,24 @@ Read API; raw keys are shown once and kept out of browser storage. Follow-ups
 supports server-backed task creation/completion, quarterly task planning (admin),
 draft editing and approval, consent-checked email/SMS compose, and confirmed manual
 send logging with scoped history. Quarterly touches require a logged contact.
+The admin Funder reports screen now requests the server's funder/program/period
+packet and downloads its audited CSV. Print/PDF uses the same loaded report.
+Amounts remain per-currency with unattributed gifts separate; unavailable outcome
+data is never replaced with zero. Administrators can upload and review aggregate JSON outcomes, then explicitly approve them.
+The example uses the selected program and period; fill the actual source and results.
+Reports refresh after persistence. Same program/period/metric uploads correct prior approved values.
+
 Import now uploads original CSV/XLSX bytes and walks through server mapping,
 explicit financial facts, invalid-record acknowledgments, donor/gift decisions,
 per-currency reconciliation and atomic commit. Re-uploading the same file returns
 the saved result. Review state stays in memory and clears on session changes;
-abandoning a staged batch purges it on the server. XLSX API support requires #105.
+abandoning a staged batch purges it on the server. XLSX API support is merged in #105.
 Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
-server routes have not landed (overview, donations, add donor,
-funder reports, settings) are hidden. Any other write shows "not
-connected yet" instead of pretending to save. Other owners appear as a short member
-ID until the API has a member directory route.
+server routes have not landed (donations and settings) are hidden. Any other write shows "not
+connected yet" instead of pretending to save. The owner directory exposes IDs only, so other owners appear as short member IDs.
+Manual donor entry and the optional settled USD first gift now persist through
+the API, with server-selected ownership and stable identities for uncertain retries.
 
 Live donor summaries and timelines now load gifts, campaign/program labels and
 communications from the server. Contact logs save through scoped routes and reload
@@ -93,3 +100,14 @@ Lighthouse accessibility is 100 on every route (checked against the production b
   cells are excluded; duplicates are merged only by explicit choice.
 - Outreach: Cadence drafts. A person approves, sends from their own email or
   phone, then records it. Nothing is sent automatically.
+
+The overview uses scoped persisted gifts and outreach, the selected currency, net settled amounts, and Phoenix calendar boundaries.
+
+Overview and Retention read server retention KPIs for the selected currency.
+Currency changes select the matching server bucket; sign-out clears loaded reports.
+
+Overview and Retention share period/program/owner/campaign/acquisition-year controls.
+Gift widgets compare the selected Phoenix calendar range with the matching prior
+year; current follow-ups keep their own due dates while following the donor scope.
+Acquisition year uses first positive settled giving across currencies. Filters
+intersect server authorization and clear private dimensions when the session changes.
