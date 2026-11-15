@@ -1,5 +1,13 @@
 # Database foundation
 
+Migration 010 adds admin-only approved aggregate program outcomes. Upload through
+`POST /api/v1/reports/outcomes` with `{approved: true, outcomes: [...]}`; each row
+contains `program_id`, `from`, `to` (exclusive Phoenix calendar end), `metric`,
+`value`, `unit`, `denominator` and `source`. Null is not reported; zero is reported.
+The same program/period/metric replaces its approved values and records a new audit
+event. Batches are atomic. Funder JSON, CSV and print include overlapping approved
+rows with their source, period, units, denominator and approval date.
+
 Apply pending migrations to a fresh PostgreSQL database using a privileged
 migration connection, never the API runtime connection:
 
