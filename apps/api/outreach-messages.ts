@@ -21,6 +21,7 @@ const CreateDraft = z.strictObject({ donor_id: IdSchema, template: z.enum(templa
 const EditDraft = z.strictObject({ subject: z.string().nullable().optional(), body: z.string().optional() })
   .refine((v) => v.subject !== undefined || v.body !== undefined);
 const ManualSend = z.strictObject({ confirmed: z.literal(true) });
+const ListDrafts = z.strictObject({ status: z.enum(['open', 'draft', 'approved', 'sent', 'failed', 'logged']).default('open') });
 const LogContact = z.strictObject({ channel: z.enum(['call', 'meeting', 'sms', 'email']), occurred_at: timestamp,
   note: z.string().max(2000).optional() });
 
@@ -81,6 +82,20 @@ export function createMessageRouter(env: Env, db: Database, verify: (header: str
   const router = express.Router();
   const now = () => options.now?.() ?? new Date().toISOString();
   const actorOf = (m: { id: string; role: 'admin' | 'board' }): Actor => ({ member_id: m.id, role: m.role });
+
+  /** Drafts this member may see (RLS scopes board members to their donors). Default: still awaiting a send. */
+  router.get('/api/v1/drafts', async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const { status } = parse(ListDrafts, req.query);
+    const statuses = status === 'open' ? ['draft', 'approved'] : [status];
+    const items = await withMember(db, env.CIC_ORG_ID, identity, async (client) => (await client.query(
+      `SELECT d.id, d.donor_id, d.author_id, d.channel, d.recipient, d.subject, d.body, d.status, d.approved_by,
+          ${stamp('d.approved_at')} AS approved_at, ${stamp('d.created_at')} AS created_at
+        FROM drafts d JOIN donors n ON n.org_id = d.org_id AND n.id = d.donor_id
+        WHERE d.status = ANY($1::text[]) AND n.archived_at IS NULL ORDER BY d.created_at DESC, d.id LIMIT 200`,
+      [statuses])).rows);
+    res.json({ items });
+  });
 
   router.post('/api/v1/drafts', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
