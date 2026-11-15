@@ -12,19 +12,9 @@ P1 proposals are recorded here so nobody loses them, not as a queue to start. If
 
 ## P0 status
 
-| P0 feature | Server | Live UI | Blocking gap |
-|---|---|---|---|
-| Import spreadsheet, Zeffy and Benevity into one donor table; dedupe across sources | Merged CSV pipeline, XLSX adapter, replay dedupe (#74/#77/#78/#79/#97) | Demo only; `import.ts` calls `store.importRows` | Wire upload/review/commit to `/api/v1/imports`; add authorized XLSX upload (#19/#94) |
-| Donor timeline: gifts and communications in one view | Gift and outreach routes merged | Live store loads donors only; gifts/comms empty | Load gifts and messages for the selected donor; keep board visibility |
-| Owner round-robin, reassignment, logged outreach | `create_assigned_donor` used by donor create and import commit; `reassign_donor` merged | Reassign and outreach logging blocked in live mode | Wire reassign; persist email/text/call/meeting/note against the donor |
-| Per-donor next step plus quarterly touch, drafted and reminded | #64/#65/#87 merged | #102 loads follow-ups and keys; mutations are the next slice | Create/complete tasks and quarterly touches through the API |
-| Retention year over year: new, increased, decreased, lapsed | `/api/v1/reports/retention` merged | Current period is live; multi-year chart uses demo gifts | Query prior periods from the server and render YoY |
-| Templated thank-you, approval and send history | Templates, approval hash, manual-send log merged | Outreach page reads the demo store | Load, edit, approve and confirm sends; never claim a send that failed |
-| One-click funder export | `/api/v1/reports/funder-packet` JSON/CSV plus audit merged | `funders.ts` builds a local CSV | Call the packet endpoint; export must be server-audited |
-| Key-authenticated read API: totals and recent activity by period, program and board member | `dashboard.ts` and `api-keys.ts` merged; #96 CORS merged | #102 enables live key management | Verify a real key over HTTP and in a signed-in journey |
-| Full-stack deployment | Config and smoke script merged | Public URL returned static HTML, smoke 2/7 at 10:26 UTC | Vercel Root Directory, Node 24.x, six env vars, redeploy, rerun smoke |
+Use [board #3](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/3), task issues and merged PRs for current implementation status. A passing local test or merged PR is not deployed acceptance.
 
-Known open items: #102 (live queues and keys), #83 (native PostgreSQL proof), #94 (XLSX API upload), #30 (full-stack deploy). #92 was merged.
+Track the remaining live workflows in #106 (imports), #111 (history), #113 (Clerk/MFA), #115 (manual entry/ownership), #116 (reporting) and #30 (deployment). Retention's prior live periods are not wired; its demo-history chart is restricted to demo mode. Verify current behavior against the acceptance gate below instead of assuming these issue references are still open.
 
 ## P0 acceptance gate
 
@@ -44,16 +34,9 @@ All of these must pass on the deployed app before P1 starts:
 
 ## Work split until the gate passes
 
-As of 2026-11-15 10:45 UTC, only Ibrahim's agents are active. Ash's and Nathan's agents are idle, so their slices below move to Ibrahim's session. This split exists to stop duplicate work, not to reassign his takeover.
+The explicit human-directed takeover assigns remaining P0 implementation and integration to Ibrahim's session. Inactivity alone never transfers ownership. Nathan is available for independent review; Aayan handles coordination and acceptance review. Agree file boundaries before concurrent implementation.
 
-| Owner | Scope |
-|---|---|
-| Ibrahim | **All remaining P0 implementation:** #102 follow-up/key mutations; live import screen and XLSX upload (#19/#94); donor/gift reads and entry; donor timeline; owner reassignment; funder/report calls; retention YoY; live screen wiring; build and accessibility checks; deploy configuration |
-| Aayan | Status and coordination; exact-head review; acceptance checklist. No new implementation |
-| Ash | Inactive. No work assigned until an agent is running again |
-| Nathan | Inactive. No work assigned until an agent is running again |
-
-Consequence: independent review cannot come from the same session that writes the code. Aayan reviews exact heads where possible; Ibrahim must still show red-first tests and executed verification. Human review remains required before merge.
+The human subsequently authorized independent subagent reviews within Ibrahim's session and merging passing PRs without waiting for unavailable teammates. Record exact reviewed heads and executed tests. Keep implementation, independent review and deployed acceptance evidence distinct.
 
 ## Reference documents
 
@@ -62,12 +45,12 @@ Read these before changing P0 code:
 - [This plan](./P0-LIVE-PLAN.md), including the P0 table and the 11-check acceptance gate.
 - [README](../README.md): run commands, feature claims, import contract summary and test commands.
 - [Deployment guide](./DEPLOY.md): full-stack Vercel settings and smoke check.
-- [Demo script](./DEMO.md) on PR #98: what the demo may and may not claim.
+- [Demo script](./DEMO.md): what the demo may and may not claim.
 - [AGENTS.md](../AGENTS.md): repository working agreements.
 - Issue #19 comment `6890332974`: the published import API contract.
 - [#94](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/94): XLSX upload transport.
 - [#30](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/30): full-stack deployment.
-- Local requirements PDF: `.agents/CIC_Donor_Platform_Implementation_Plan (1).pdf` (gitignored, not in this PR).
+- [Implementation requirements](../CIC_Donor_Platform_Implementation_Plan.pdf), tracked in this repository.
 
 Rules:
 
@@ -78,7 +61,7 @@ Rules:
 
 ## P1 after the P0 gate
 
-Owners are provisional. If Ash's and Nathan's agents are still idle when P0 passes, Ibrahim's session owns all P1 implementation and Aayan reviews.
+Owners are provisional and require human agreement. Agent inactivity does not reassign work. Calendar and grant integrations remain deferred beyond the PDF P1 scope unless humans explicitly reprioritize them.
 
 | Feature | Intended slice | Provisional owner |
 |---|---|---|
@@ -109,7 +92,7 @@ P2 shape is intentionally undecided.
 ```mermaid
 flowchart LR
   A[P0 server work<br/>merged] --> B[Live UI wiring<br/>#102 and follow-ups]
-  B --> C[Import + XLSX upload<br/>#19 / #94]
+  B --> C[Import + XLSX upload<br/>#106 / #94]
   C --> D[Donor timeline, owner,<br/>reporting screens]
   D --> E[Full-stack deploy<br/>#30]
   E --> F{P0 acceptance<br/>11 checks}
