@@ -1,10 +1,12 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { NgxEchartsDirective } from 'ngx-echarts';
 import type { EChartsCoreOption } from 'echarts/core';
 import { Store } from '../core/store';
+import { Api, ApiError, type ApiRetention } from '../core/api';
+import { retentionFromServer } from '../core/report-models';
 import { date, dateShort, money, pct, relativeDue, today } from '../core/format';
 import { SEGMENTS, SEGMENT_COPY, retention, yearWindows, ytdWindows } from '../core/retention';
 import { SOURCE_LABEL } from '../core/models';
@@ -21,6 +23,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
   imports: [RouterLink, NgIcon, HlmButtonImports, NgxEchartsDirective, CountUp, Sparkline],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (store.live() && !server()) { <p role="status">{{ serverError() ?? 'Loading overview...' }}</p> } @else {
     <div class="page">
       <header class="page-head">
         <div>
@@ -176,6 +179,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
         }
       </div>
     </div>
+    }
   `,
   styles: `
     .hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1.5fr); border-radius: var(--r-surface); overflow: hidden; }
@@ -217,6 +221,9 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
 })
 export class OverviewPage {
   protected readonly store = inject(Store);
+  private readonly api = inject(Api);
+  protected readonly server = signal<ApiRetention | null>(null);
+  protected readonly serverError = signal<string | null>(null);
   protected readonly money = (cents: number) => money(cents, this.store.currency());
   private readonly compactMoney = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: this.store.currency(), notation: 'compact', maximumFractionDigits: 1 }).format(cents / 100);
   protected readonly date = date;
@@ -232,7 +239,25 @@ export class OverviewPage {
   protected readonly dollars = (n: number) => this.money(n * 100);
   protected readonly percent = (n: number) => `${Math.round(n)}%`;
 
-  protected readonly r = computed(() => retention(this.store.gifts(), ytdWindows(this.now)));
+  protected readonly r = computed(() => this.store.live()
+    ? this.server() ? retentionFromServer(this.server()!, this.store.currency()) : retention([], ytdWindows(this.now))
+    : retention(this.store.gifts(), ytdWindows(this.now)));
+
+  private reportGeneration = 0;
+  constructor() {
+    effect(() => {
+      const generation = ++this.reportGeneration;
+      const epoch = this.store.sessionEpoch(), signedIn = this.store.signedIn();
+      this.server.set(null); this.serverError.set(null);
+      if (!this.store.live() || !signedIn) return;
+      void this.api.retention(this.now).then(report => {
+        if (generation === this.reportGeneration && epoch === this.store.sessionEpoch() && this.store.signedIn()) this.server.set(report);
+      }).catch(error => {
+        if (generation === this.reportGeneration && epoch === this.store.sessionEpoch() && this.store.signedIn())
+          this.serverError.set(error instanceof ApiError ? error.message : 'The overview could not load.');
+      });
+    });
+  }
   protected readonly givingDonors = computed(() => {
     const c = this.r().counts;
     return c.new + c.reactivated + c.increased + c.flat + c.decreased;

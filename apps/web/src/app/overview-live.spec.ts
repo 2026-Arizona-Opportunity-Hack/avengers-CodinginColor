@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { signal, type Signal } from '@angular/core';
+import { Api } from './core/api';
 import { Store } from './core/store';
 import type { Gift } from './core/models';
 import type { RetentionResult } from './core/retention';
@@ -12,12 +13,12 @@ const gift = (id: string, occurred_at: string, amount_cents = 1000, refund_cents
 function setup() {
   vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-15T12:00:00-07:00'));
   const store = {
-    gifts: signal<Gift[]>([]), currency: signal('EUR'), followUps: signal([]),
+    live: signal(false), signedIn: signal(true), sessionEpoch: signal(1), gifts: signal<Gift[]>([]), currency: signal('EUR'), followUps: signal([]),
     donors: signal([{ id: 'visible', owner_id: 'member' }]), boardMembers: signal([{ id: 'member', name: 'Owner' }]),
     communications: signal([]), campaign: () => ({ program_id: 'program' }), program: () => ({ title: 'Academy' }),
     netCents: (g: Gift) => g.status === 'settled' ? g.amount_cents - g.refund_cents : 0,
   };
-  TestBed.configureTestingModule({ providers: [{ provide: Store, useValue: store }] });
+  TestBed.configureTestingModule({ providers: [{ provide: Store, useValue: store }, { provide: Api, useValue: { retention: vi.fn() } }] });
   const page = TestBed.runInInjectionContext(() => new OverviewPage()) as unknown as {
     r: Signal<RetentionResult>; money(cents: number): string; dollars(value: number): string;
     byProgram: Signal<Array<{ label: string; cents: number }>>; cum(year: number): Array<number | null>;
