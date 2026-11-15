@@ -1,6 +1,9 @@
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { Api, ApiError, type LiveStatus } from './core/api';
+import { provideRouter, Router } from '@angular/router';
+import { GiftEntry } from './pages/gift-entry';
+import { DonorNewPage, moneyCents, validGiftDate } from './pages/donor-new';
 import { Store } from './core/store';
 
 const donor = { id: 'donor', org_id: 'org', owner_id: 'board', name: 'Synthetic Donor',
@@ -234,5 +237,153 @@ describe('live workspace data and keys', () => {
     await older;
     expect(store.followUps()).toEqual([]);
     expect(store.sessionEpoch()).toBe(epoch);
+  });
+});
+
+
+describe('manual donor and gift persistence', () => {
+  const input = { name: 'New Donor', email: null, phone: null, company: null,
+    kind: 'individual' as const, consent: 'unknown' as const, preferred_channel: 'email' as const, custom: {}, source: 'manual' as const };
+  it('parses exact cents and rejects impossible or future gift dates', () => {
+    expect(moneyCents('0.29')).toBe(29);
+    expect(moneyCents('90071992547409.91')).toBe(Number.MAX_SAFE_INTEGER);
+    for (const value of ['0', '-1', '1.001', '1e3', '90071992547409.92']) expect(moneyCents(value)).toBeNull();
+    expect(validGiftDate('2024-02-29', '2026-11-15')).toBe(true);
+    expect(validGiftDate('2026-02-30', '2026-11-15')).toBe(false);
+    expect(validGiftDate('2026-11-16', '2026-11-15')).toBe(false);
+  });
+  it('honors the server assignment without fetching an inaccessible record', async () => {
+    const { store, api } = session('board'); await store.refreshLive();
+    api.request.mockResolvedValueOnce({ id: 'new', owner_id: 'other' });
+    const before = api.request.mock.calls.length;
+    expect(await store.addDonor(input, 'request')).toEqual({ kind: 'saved', value: { id: 'new', owner_id: 'other' } });
+    expect(api.request.mock.calls.slice(before)).toHaveLength(1);
+    expect(store.donor('new')).toBeNull();
+    expect(JSON.parse(String(api.request.mock.calls.at(-1)?.[1]?.body))).toMatchObject({request_id:'request',metadata:{sources:['manual']}});
+    api.request.mockRejectedValueOnce(new ApiError(409));
+    expect(await store.addDonor(input, 'request')).toEqual({kind:'retry'});
+  });
+  it('drops a delayed donor response after sign out', async () => {
+    const { store, api, signOut } = session(); await store.refreshLive();
+    let resolve!: (value: unknown) => void;
+    api.request.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+    const pending = store.addDonor(input, 'request'); signOut(); resolve({ id: 'late', owner_id: 'board' });
+    expect(await pending).toEqual({kind:'retry'}); expect(store.allDonors()).toEqual([]);
+  });
+  it('retries only the first gift after a partial failure using the same external ID', async () => {
+    TestBed.configureTestingModule({ providers: [provideRouter([])] });
+    const { store, api } = session(); await store.refreshLive();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(DonorNewPage); fixture.detectChanges();
+    const set = (name: string, value: string) => {
+      const field = fixture.nativeElement.querySelector(`[name="${name}"]`) as HTMLInputElement;
+      field.value = value; field.dispatchEvent(new Event('input')); fixture.detectChanges();
+    };
+    set('first', 'Avery'); set('amount', '0.29');
+    api.request.mockResolvedValueOnce({ id: 'new', owner_id: 'board' });
+    api.request.mockResolvedValueOnce({ ...donor, id: 'new', name: 'Avery' });
+    api.request.mockRejectedValueOnce(new ApiError(503));
+    const submit = async () => { fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit', {cancelable:true})); await fixture.whenStable(); fixture.detectChanges(); };
+    await submit();
+    expect(navigate).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain('Donor saved. The first gift could not be confirmed.');
+    const firstGift = api.request.mock.calls.filter(([p, i]) => p === '/api/v1/gifts' && i?.method === 'POST')[0];
+    const facts = JSON.parse(String(firstGift[1]?.body));
+    expect(facts).toMatchObject({amount_cents:29,refund_cents:0,currency:'USD',status:'settled',donor_id:'new'});
+    api.request.mockResolvedValueOnce({ ...facts, id: 'gift', source: 'manual' }); await submit();
+    expect(api.request.mock.calls.filter(([p, i]) => p === '/api/v1/donors' && i?.method === 'POST')).toHaveLength(1);
+    const gifts = api.request.mock.calls.filter(([p, i]) => p === '/api/v1/gifts' && i?.method === 'POST');
+    expect(gifts).toHaveLength(2); expect(gifts[1][1]?.body).toBe(firstGift[1]?.body);
+    expect(store.allGifts().filter(g => g.id === 'gift')).toHaveLength(1);
+    expect(navigate).toHaveBeenCalledWith(['/donors', 'new']);
+  });
+});
+
+
+describe('existing donor gift form', () => {
+  it('validates refunds, saves explicit currency/status and clears retry state when the donor changes', async () => {
+    const { store, api } = session(); await store.refreshLive();
+    const fixture = TestBed.createComponent(GiftEntry);
+    fixture.componentRef.setInput('donorId', 'donor'); fixture.detectChanges();
+    const set = (name: string, value: string) => {
+      const field = fixture.nativeElement.querySelector(`[name="${name}"]`) as HTMLInputElement;
+      field.value = value;
+    };
+    const submit = async () => { fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit', {cancelable:true})); await fixture.whenStable(); fixture.detectChanges(); };
+    set('amount', '10.29'); set('refund', '11'); set('currency', 'EUR'); set('status', 'pending');
+    const before = api.request.mock.calls.length; await submit();
+    expect(api.request.mock.calls).toHaveLength(before);
+    expect(fixture.nativeElement.textContent).toContain('refund between zero and the amount');
+    set('refund', '0.29'); api.request.mockRejectedValueOnce(new ApiError(503)); await submit();
+    const facts = JSON.parse(String(api.request.mock.calls.at(-1)?.[1]?.body));
+    expect(facts).toMatchObject({ donor_id:'donor',amount_cents:1029,refund_cents:29,currency:'EUR',status:'pending' });
+    expect(store.allGifts()).toEqual([]);
+    fixture.componentRef.setInput('donorId', 'another-donor'); fixture.detectChanges();
+    set('amount', '12'); set('refund', '0');
+    api.request.mockImplementationOnce(async (_p, init) => ({...JSON.parse(String(init?.body)),id:'saved',source:'manual'}));
+    await submit();
+    const next = JSON.parse(String(api.request.mock.calls.at(-1)?.[1]?.body));
+    expect(next.donor_id).toBe('another-donor'); expect(next.external_id).not.toBe(facts.external_id);
+    expect(store.selectedCurrency()).toBe('EUR');
+    expect(store.allGifts()[0]).toMatchObject({id:'saved',amount_cents:1200});
+    expect(fixture.nativeElement.textContent).toContain('Gift saved to the timeline.');
+  });
+});
+
+
+describe('manual entry rejected payload corrections', () => {
+  it('blocks oversized donor facts and malformed grouping, then allows correction after a definitive 400', async () => {
+    TestBed.configureTestingModule({providers:[provideRouter([])]});
+    const {store, api} = session(); await store.refreshLive();
+    vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    const fixture = TestBed.createComponent(DonorNewPage); fixture.detectChanges();
+    const set = (name:string,value:string) => {
+      const field = fixture.nativeElement.querySelector(`[name="${name}"]`) as HTMLInputElement;
+      field.value=value;field.dispatchEvent(new Event('input'));fixture.detectChanges();
+    };
+    const submit=async()=>{fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true}));await fixture.whenStable();fixture.detectChanges();};
+    const before=api.request.mock.calls.length;
+    set('first','a'.repeat(301)); await submit();
+    set('first','Avery');set('phone','1'.repeat(51));await submit();
+    set('phone','');set('amount','1,2');await submit();
+    expect(api.request.mock.calls).toHaveLength(before);
+    set('amount','');api.request.mockRejectedValueOnce(new ApiError(400));await submit();
+    const first = api.request.mock.calls.at(-1);
+    expect(fixture.nativeElement.querySelector('[name="first"]').matches(':disabled')).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain('The donor was rejected. Correct the details');
+    set('first','Corrected');api.request.mockResolvedValueOnce({id:'new',owner_id:'board'});
+    api.request.mockResolvedValueOnce({...donor,id:'new',name:'Corrected'});await submit();
+    const writes=api.request.mock.calls.filter(([p,i])=>p==='/api/v1/donors'&&i?.method==='POST');
+    expect(writes).toHaveLength(2);
+    const corrected=JSON.parse(String(writes[1][1]?.body));
+    expect(corrected.name).toBe('Corrected');
+    expect(corrected.request_id).not.toBe(JSON.parse(String(first?.[1]?.body)).request_id);
+  });
+  it('keeps the saved donor while allowing first-gift correction after 400', async () => {
+    TestBed.configureTestingModule({providers:[provideRouter([])]});
+    const {store,api}=session();await store.refreshLive();
+    const navigate=vi.spyOn(TestBed.inject(Router),'navigate').mockResolvedValue(true);
+    const fixture=TestBed.createComponent(DonorNewPage);fixture.detectChanges();
+    const set=(name:string,value:string)=>{const field=fixture.nativeElement.querySelector(`[name="${name}"]`) as HTMLInputElement;field.value=value;field.dispatchEvent(new Event('input'));fixture.detectChanges();};
+    const submit=async()=>{fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true}));await fixture.whenStable();fixture.detectChanges();};
+    set('first','Avery');set('amount','12');api.request.mockResolvedValueOnce({id:'new',owner_id:'board'});
+    api.request.mockResolvedValueOnce({...donor,id:'new'});api.request.mockRejectedValueOnce(new ApiError(400));await submit();
+    expect(fixture.nativeElement.querySelector('[name="first"]').matches(':disabled')).toBe(true);
+    expect(fixture.nativeElement.querySelector('[name="amount"]').matches(':disabled')).toBe(false);
+    set('amount','15');api.request.mockImplementationOnce(async(_p,i)=>({...JSON.parse(String(i?.body)),id:'gift',source:'manual'}));await submit();
+    expect(api.request.mock.calls.filter(([p,i])=>p==='/api/v1/donors'&&i?.method==='POST')).toHaveLength(1);
+    expect(store.allGifts()[0].amount_cents).toBe(1500);expect(navigate).toHaveBeenCalledWith(['/donors','new']);
+  });
+  it('unlocks an existing-donor gift after 400 and submits changed facts with a fresh identity', async () => {
+    const {store,api}=session();await store.refreshLive();
+    const fixture=TestBed.createComponent(GiftEntry);fixture.componentRef.setInput('donorId','donor');fixture.detectChanges();
+    const field=fixture.nativeElement.querySelector('[name="amount"]') as HTMLInputElement;field.value='12';
+    const submit=async()=>{fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit',{cancelable:true}));await fixture.whenStable();fixture.detectChanges();};
+    api.request.mockRejectedValueOnce(new ApiError(400));await submit();
+    const first=JSON.parse(String(api.request.mock.calls.at(-1)?.[1]?.body));expect(field.matches(':disabled')).toBe(false);
+    field.value='15';api.request.mockImplementationOnce(async(_p,i)=>({...JSON.parse(String(i?.body)),id:'gift',source:'manual'}));await submit();
+    const corrected=JSON.parse(String(api.request.mock.calls.at(-1)?.[1]?.body));
+    expect(corrected.external_id).not.toBe(first.external_id);expect(corrected.amount_cents).toBe(1500);
+    expect(store.allGifts()[0].amount_cents).toBe(1500);
   });
 });

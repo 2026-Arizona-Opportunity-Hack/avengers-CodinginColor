@@ -99,11 +99,23 @@ uses synthetic review state; deployed signed-in acceptance remains pending.
 ## Tech stack
 
 - Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
-- Backend: Node.js 24.2+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
+- Backend: Node.js 24.15+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
 - Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.
 - APIs / services: Clerk for invite-only sign-in. Tests run real migrations on in-memory PostgreSQL (PGlite); no live service or credentials are needed.
 
 ## Run it locally
+
+Administrators can use the live Funder reports screen to select a donor, program
+and inclusive calendar range, inspect the server packet, then download its audited
+CSV or print it. Gift totals stay separated by currency and attribution. Until
+approved outcomes are uploaded, reports explicitly show that outcome data is
+unavailable.
+
+Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
+`cohort` (acquisition year) filters alongside inclusive `asOf`. Dates compare
+matched Phoenix calendar windows within one year. Cohort is the donor's first
+positive settled gift year across their visible history, before campaign/program
+narrowing. Every filter intersects the caller's existing organization/owner scope.
 
 Live administrators can reassign a donor to any active same-organization board
 member, including members without donors. Assignment and open-task transfer remain
@@ -146,13 +158,14 @@ are covered step by step in the deploy runbook, `docs/DEPLOY.md` (#42).
 
 ## Links
 
+- Deployment setup: [Vercel runbook](docs/DEPLOY.md). The repository pins Express and Node 24, validates runtime settings before building, and generates same-origin frontend configuration.
 - Live demo: [cadence-cic.vercel.app](https://cadence-cic.vercel.app). This is the web app on sample data only, with no backend. The full-stack deploy is tracked in #30.
 - Demo video:
 - Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md), [outreach](packages/outreach/README.md), [web app](apps/web/README.md), [deploy runbook](docs/DEPLOY.md)
 
 ## CSV import preflight
 
-Requires Node.js 24.2 or newer. Install the shared contract's locked dependencies;
+Requires Node.js 24.15 or newer. Install the shared contract's locked dependencies;
 no credentials are needed.
 
 ```bash
@@ -422,3 +435,12 @@ Existing Claude clock and secret-guard hooks remain active.
 Winning teams finish the project with the nonprofit — the [Definition of Done](https://www.ohack.dev/about/completion) (deployed, nonprofit sign-off, docs, open source) is tracked on your team page. Keep the repo public and the README honest; recruiters do read these.
 
 Need a hand this weekend? [#ask-a-mentor](https://opportunity-hack.slack.com/archives/C01E5CGDQ74) on Slack, or ask in [#avengers](https://opportunity-hack.slack.com/app_redirect?channel=avengers) and a mentor will drop in.
+
+Manual donor entry saves through the authenticated API with server-selected ownership.
+The optional first gift records a settled USD gift; a partial gift failure stays
+on the form for a same-key retry. Donors assigned to another board member remain
+visible only to that owner and admins.
+
+Each visible donor also has a historical gift form with explicit currency, refund,
+status, campaign and date. Failed saves retain the same request identity for retry;
+confirmed gifts update that currency in the timeline.

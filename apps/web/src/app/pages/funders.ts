@@ -7,12 +7,14 @@ import { Store } from '../core/store';
 import { date, money, today } from '../core/format';
 import { downloadCsv } from '../core/csv';
 import { Donor } from '../core/models';
+import { LiveFundersPage } from './funders-live';
 
 @Component({
   selector: 'app-funders',
-  imports: [RouterLink, NgIcon, HlmButtonImports],
+  imports: [RouterLink, NgIcon, HlmButtonImports, LiveFundersPage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (store.live()) { <app-live-funders /> } @else {
     <div class="page">
       <header class="page-head no-print">
         <div>
@@ -119,6 +121,7 @@ import { Donor } from '../core/models';
         }
       </div>
     </div>
+    }
   `,
   styles: `
     .builder { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 20px; align-items: start; }
