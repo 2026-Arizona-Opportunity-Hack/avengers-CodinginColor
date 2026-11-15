@@ -56,6 +56,11 @@ Read API; raw keys are shown once and kept out of browser storage. Follow-ups
 supports server-backed task creation/completion, quarterly task planning (admin),
 draft editing and approval, consent-checked email/SMS compose, and confirmed manual
 send logging with scoped history. Quarterly touches require a logged contact.
+The admin Funder reports screen now requests the server's funder/program/period
+packet and downloads its audited CSV. Print/PDF uses the same loaded report.
+Amounts remain per-currency with unattributed gifts separate; unavailable outcome
+data is never replaced with zero. Approved outcome upload is a separate remaining
+integration requirement.
 Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
 server routes have not landed (overview, donations, add donor, import,
