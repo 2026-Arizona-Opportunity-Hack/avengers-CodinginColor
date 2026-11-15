@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { Store } from '../core/store';
@@ -167,10 +167,17 @@ export class ApiAccessPage {
       })),
   }, null, 2));
 
-  protected create(event: Event) {
+  constructor() {
+    effect(() => { this.store.sessionEpoch(); this.newKey.set(null); this.copied.set(false); });
+  }
+
+  protected async create(event: Event) {
     event.preventDefault();
     if (!this.label().trim()) return;
-    this.newKey.set(this.store.createApiKey(this.label().trim()));
+    const epoch = this.store.sessionEpoch();
+    const secret = await this.store.createApiKey(this.label().trim());
+    if (!secret || epoch !== this.store.sessionEpoch()) return;
+    this.newKey.set(secret);
     this.copied.set(false);
     this.label.set('');
   }

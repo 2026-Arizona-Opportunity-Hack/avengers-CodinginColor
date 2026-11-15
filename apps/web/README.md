@@ -50,10 +50,13 @@ origin, and the API's `APP_ORIGIN` must equal the app's origin. With no valid
 
 In live mode, Donors, Donor detail (edit and archive) and Retention read and write
 through `GET/PATCH /api/v1/donors`, `POST /api/v1/donors/:id/archive`,
-`GET /api/v1/me` and `GET /api/v1/reports/retention`. Donor records are kept in
+`GET /api/v1/me` and `GET /api/v1/reports/retention`. Queues and drafts load from
+the scoped outreach routes. Administrators can issue and revoke real keys on
+Read API; raw keys are shown once and kept out of browser storage.
+Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
 server routes have not landed (overview, donations, add donor, outreach, import,
-funder reports, API keys, settings) are hidden. Any other write shows "not
+funder reports, settings) are hidden. Any other write shows "not
 connected yet" instead of pretending to save. Other owners appear as a short member
 ID until the API has a member directory route.
 
