@@ -1,0 +1,76 @@
+first name,last name,email,phone,company,donation amount,contact person,campaign
+Olivia,Green,olivia.green@example.com,602-555-1020,Desert Financial,75,Maya Patel,Day of Compute
+Ethan,Mitchell,ethan.mitchell@example.com,6025551021,,50,Morgan Chen,Desert Edge AI Academy
+Aiden,Jones,aiden.jones@example.com,602-555-1022,Freeport-McMoRan,20,Jordan Kim,Day of Compute
+Isabella,Lopez,isabella.lopez@example.com,602-555-1023,Carvana,125,Maya Patel,Desert Edge AI Academy
+Mia,Jackson,mia.jackson@example.com,602-555-1024,American Express,75,Jordan Kim,General Fund
+Lucas,Sanchez,lucas.sanchez@example.com,602-555-1025,Honeywell,50,Jordan Kim,AI Academy
+Amelia,Allen,amelia.allen@example.com,602-555-1026,Intel,200,Jordan Kim,Giving Tuesday 2026
+Harper,Flores,HARPER.FLORES@EXAMPLE.COM,602-555-1027,Honeywell,300,Jordan Kim,Summer Camp 2026
+Mateo,Campbell,mateo.campbell@example.com,6025551028,Desert Financial,75,Morgan Chen,Year-End 2026
+Aria,Brown,aria.brown@example.com,602-555-1029,Arizona Community Foundation,125,Morgan Chen,General Fund
+Nora,Hernandez,nora.hernandez@example.com,602-555-1030,APS,75,Alex Rivera,Summer Camp 2026
+Diego,Moore,diego.moore@example.com,602-555-1031,Verizon,20,Morgan Chen,Summer Camp 2026
+Priya,Harris,priya.harris@example.com,602-555-1032,SRP,200,Morgan Chen,Maryvale Program
+Marcus,Young,marcus.young@example.com,602-555-1033,Carvana,100,Diana Lee Guzman,AI Academy
+Jasmine,Hill,jasmine.hill@example.com,602-555-1034,Carvana,100,Diana Lee Guzman,Maryvale Program
+Daniel,Rivera,daniel.rivera@example.com,6025551035,American Express,500,Jordan Kim,Desert Edge AI Academy
+Leah,Williams,LEAH.WILLIAMS@EXAMPLE.COM,602-555-1036,SRP,500,Taylor Brooks,Maryvale Program
+Adrian,Martinez,adrian.martinez@example.com,602-555-1037,SRP,20,Morgan Chen,AI Academy
+Sofia,Taylor,sofia.taylor@example.com,602-555-1038,American Express,100,Morgan Chen,Day of Compute
+Gabriel,White,gabriel.white@example.com,602-555-1039,APS,100,Jordan Kim,Giving Tuesday 2026
+Natalie,Walker,natalie.walker@example.com,602-555-1040,SRP,35,Morgan Chen,Desert Edge AI Academy
+Isaac,Nguyen,isaac.nguyen@example.com,602-555-1041,Arizona Community Foundation,125,Jordan Kim,Maryvale Program
+Grace,Hall,grace.hall@example.com,6025551042,Banner Health,200,Taylor Brooks,STEM Access Fund
+Zoe,Johnson,zoe.johnson@example.com,602-555-1043,Intel,35,Maya Patel,Desert Edge AI Academy
+Caleb,Rodriguez,caleb.rodriguez@example.com,602-555-1044,Arizona Community Foundation,75,Alex Rivera,General Fund
+Layla,Thomas,LAYLA.THOMAS@EXAMPLE.COM,602-555-1045,Freeport-McMoRan,20,Diana Lee Guzman,Desert Edge AI Academy
+Julian,Thompson,julian.thompson@example.com,602-555-1046,APS,20,Morgan Chen,STEM Access Fund
+Eva,Robinson,eva.robinson@example.com,602-555-1047,Freeport-McMoRan,500,Morgan Chen,Summer Camp 2026
+Miles,Torres,miles.torres@example.com,602-555-1048,Desert Financial,125,Diana Lee Guzman,Desert Edge AI Academy
+Chloe,Baker,chloe.baker@example.com,6025551049,American Express,35,Taylor Brooks,Maryvale Program
+Avery,Smith,avery.smith50@example.com,602-555-1050,Arizona Community Foundation,125,Jordan Kim,AI Academy
+Jordan,Davis,jordan.davis51@example.com,602-555-1051,Carvana,100,Diana Lee Guzman,STEM Access Fund
+Taylor,Anderson,taylor.anderson52@example.com,602-555-1052,Honeywell,100,Taylor Brooks,Desert Edge AI Academy
+Morgan,Perez,morgan.perez53@example.com,602-555-1053,Freeport-McMoRan,125,Morgan Chen,Desert Edge AI Academy
+Riley,Lewis,RILEY.LEWIS54@EXAMPLE.COM,602-555-1054,Microsoft,100,Jordan Kim,STEM Access Fund
+Cameron,Scott,cameron.scott55@example.com,602-555-1055,APS,50,Alex Rivera,Summer Camp 2026
+Casey,Nelson,casey.nelson56@example.com,6025551056,PayPal,200,Morgan Chen,Desert Edge AI Academy
+Parker,Roberts,parker.roberts57@example.com,602-555-1057,Arizona Community Foundation,50,Maya Patel,General Fund
+Quinn,Miller,quinn.miller58@example.com,602-555-1058,Banner Health,200,Diana Lee Guzman,STEM Access Fund
+Reese,Wilson,reese.wilson59@example.com,602-555-1059,Carvana,20,Morgan Chen,General Fund
+Alex,Lee,alex.lee60@example.com,602-555-1060,Desert Financial,100,Maya Patel,Summer Camp 2026
+Jamie,Ramirez,jamie.ramirez61@example.com,602-555-1061,Intel,200,Maya Patel,Maryvale Program
+Drew,Wright,drew.wright62@example.com,602-555-1062,Freeport-McMoRan,300,Taylor Brooks,Year-End 2026
+Skyler,Adams,SKYLER.ADAMS63@EXAMPLE.COM,6025551063,Desert Financial,300,Jordan Kim,Summer Camp 2026
+Emerson,Carter,emerson.carter64@example.com,602-555-1064,,500,Diana Lee Guzman,Year-End 2026
+Lucas,Sanchez,lucas.sanchez75@example.com,602-555-1075,Honeywell,50,Morgan Chen,AI Academy
+Amelia,Allen,amelia.allen76@example.com,602-555-1076,State Farm,100,Taylor Brooks,STEM Access Fund
+Harper,Flores,harper.flores77@example.com,6025551077,Microsoft,125,Maya Patel,AI Academy
+Mateo,Campbell,mateo.campbell78@example.com,602-555-1078,Microsoft,75,Jordan Kim,General Fund
+Aria,Brown,aria.brown79@example.com,602-555-1079,Desert Financial,75,Taylor Brooks,Summer Camp 2026
+Nora,Hernandez,nora.hernandez80@example.com,602-555-1080,Desert Financial,50,Maya Patel,Giving Tuesday 2026
+Diego,Moore,DIEGO.MOORE81@EXAMPLE.COM,602-555-1081,Microsoft,20,Morgan Chen,Summer Camp 2026
+Priya,Harris,priya.harris82@example.com,602-555-1082,SRP,300,Diana Lee Guzman,AI Academy
+Marcus,Young,marcus.young83@example.com,602-555-1083,Carvana,300,Jordan Kim,Desert Edge AI Academy
+Jasmine,Hill,jasmine.hill84@example.com,6025551084,Arizona Community Foundation,75,Maya Patel,Desert Edge AI Academy
+Daniel,Rivera,daniel.rivera85@example.com,602-555-1085,Honeywell,300,Alex Rivera,Desert Edge AI Academy
+Leah,Williams,leah.williams86@example.com,602-555-1086,Arizona Community Foundation,75,Maya Patel,Day of Compute
+Adrian,Martinez,adrian.martinez87@example.com,602-555-1087,SRP,20,Alex Rivera,AI Academy
+Sofia,Taylor,sofia.taylor88@example.com,602-555-1088,SRP,200,Diana Lee Guzman,Summer Camp 2026
+Gabriel,White,gabriel.white89@example.com,602-555-1089,Honeywell,50,Alex Rivera,STEM Access Fund
+Natalie,Walker,NATALIE.WALKER90@EXAMPLE.COM,602-555-1090,American Express,300,Alex Rivera,Giving Tuesday 2026
+Isaac,Nguyen,isaac.nguyen91@example.com,6025551091,Carvana,500,Morgan Chen,Summer Camp 2026
+Grace,Hall,grace.hall92@example.com,602-555-1092,Honeywell,35,Morgan Chen,Year-End 2026
+Zoe,Johnson,zoe.johnson93@example.com,602-555-1093,,50,Alex Rivera,Year-End 2026
+Caleb,Rodriguez,caleb.rodriguez94@example.com,602-555-1094,Freeport-McMoRan,500,Diana Lee Guzman,STEM Access Fund
+Layla,Thomas,layla.thomas95@example.com,602-555-1095,SRP,125,Maya Patel,Year-End 2026
+Julian,Thompson,julian.thompson96@example.com,602-555-1096,State Farm,500,Maya Patel,Desert Edge AI Academy
+Eva,Robinson,eva.robinson97@example.com,602-555-1097,APS,500,Jordan Kim,Year-End 2026
+Miles,Torres,miles.torres98@example.com,6025551098,SRP,50,Diana Lee Guzman,Year-End 2026
+Chloe,Baker,CHLOE.BAKER99@EXAMPLE.COM,602-555-1099,Freeport-McMoRan,300,Taylor Brooks,General Fund
+Avery,Smith,avery.smith100@example.com,602-555-1100,,75,Morgan Chen,General Fund
+Jordan,Davis,jordan.davis101@example.com,602-555-1101,Carvana,500,Diana Lee Guzman,Year-End 2026
+Taylor,Anderson,taylor.anderson102@example.com,602-555-1102,Banner Health,75,Maya Patel,General Fund
+Morgan,Perez,morgan.perez103@example.com,602-555-1103,American Express,300,Alex Rivera,AI Academy
+Riley,Lewis,riley.lewis104@example.com,602-555-1104,SRP,100,Alex Rivera,Summer Camp 2026
