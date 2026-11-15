@@ -31,6 +31,26 @@ test('commit atomically assigns donors and maps gift rows, preserves exact facts
   const [batch]=(await sql.query<{raw_csv:unknown;layout:unknown;status:string}>('SELECT raw_csv,layout,status FROM import_batches WHERE id=$1',[id])).rows;
   assert.deepEqual(batch,{raw_csv:null,layout:null,status:'committed'});
 });
+
+test('review and commit preserve different row statuses and partial refunds',async t=>{
+  const {call,sql}=await importFixture(t);
+  const file='first name,email,donation amount,refunded amount,status,currency,occurred at,external id\n' +
+    'Avery,a@example.org,12.34,2.34,settled,USD,2026-01-01T12:00:00Z,mixed-1\n' +
+    'Sam,s@example.org,50,0,pending,EUR,2026-01-02T12:00:00Z,mixed-2';
+  const {batch_id:id}=await (await call('POST','',file)).json() as {batch_id:string};
+  assert.equal((await call('POST',`/${id}/layout`,{mapping:{},batch_values:{}})).status,200);
+  const donor=await (await call('POST',`/${id}/donors/plan`)).json() as {plan_hash:string};
+  assert.equal((await call('POST',`/${id}/donors/review`,{plan_hash:donor.plan_hash,decisions:[]})).status,200);
+  const gift=await (await call('POST',`/${id}/gifts/plan`)).json() as {plan_hash:string};
+  const hashes={donor_plan_hash:donor.plan_hash,plan_hash:gift.plan_hash};
+  assert.equal((await call('POST',`/${id}/gifts/review`,{...hashes,decisions:[]})).status,200);
+  assert.equal((await call('POST',`/${id}/commit`,hashes)).status,200);
+  assert.equal((await call('POST','',file)).status,200);
+  await sql.exec('SET SESSION AUTHORIZATION postgres; RESET ROLE');
+  assert.deepEqual((await sql.query(`SELECT amount_cents::text AS amount,refund_cents::text AS refund,status,currency
+    FROM gifts ORDER BY external_id`)).rows,[{amount:'1234',refund:'234',status:'settled',currency:'USD'},
+    {amount:'5000',refund:'0',status:'pending',currency:'EUR'}]);
+});
 test('commit requires completed review, the reviewing actor and strict server-owned operations',async t=>{
   const {call,id,hashes}=await ready(t,csv,false);
   assert.equal((await call('POST',`/${id}/commit`,hashes)).status,409);

@@ -2,7 +2,7 @@ import { Component, ElementRef, computed, effect, inject, signal, viewChild } fr
 import { Api, ApiError } from '../core/api';
 import { Store } from '../core/store';
 import { IMPORT_FIELDS, LiveImports, importTotals, type ImportDecision, type ImportLayout,
-  type ImportPlan, type ImportPreview, type ImportResult, type PlanRow, type PreviewRow } from '../core/import-live';
+  type ImportPlan, type ImportPreview, type ImportResult, type ImportSuggestion, type PlanRow, type PreviewRow } from '../core/import-live';
 
 @Component({
   selector: 'app-live-import',
@@ -34,20 +34,30 @@ import { IMPORT_FIELDS, LiveImports, importTotals, type ImportDecision, type Imp
             <h2 #stageHeading tabindex="-1">Map columns and confirm financial facts</h2>
             <p>Automatic aliases retain the source units. For manual mapping, decimal amounts convert 12.34 to 1234 cents; amount_cents already contains integer cents.</p>
             <div class="fields">@for (h of p.headers; track h; let i = $index) {
-              <label class="field">{{ h }}<select class="input" [value]="mapping()[h] === null ? '__ignore' : mapping()[h] ?? ''" (change)="map(h, $any($event.target).value)">
+              <div class="stack"><label class="field">{{ h }}<select class="input" [value]="mapping()[h] === null ? '__ignore' : mapping()[h] ?? ''" (change)="map(h, $any($event.target).value)">
                 <option value="">Automatic: {{ p.mapping[i] ?? 'unmapped' }}</option><option value="__ignore">Ignore column</option>
                 @for (f of fields; track f) { <option [value]="f">{{ f === 'amount_decimal' ? 'Amount in major units, e.g. dollars' : f === 'amount_cents' ? 'Amount already in cents' : f.replaceAll('_', ' ') }}</option> }
               </select></label>
+              @if (p.mapping[i] === null && mapping()[h] === undefined) {
+                <button class="btn" type="button" (click)="suggest(h)">Suggest mapping for {{ h }}</button>
+                @if (suggestions()[h]; as s) {
+                  <p>Suggested: {{ s.target.replaceAll('_', ' ') }} ({{ (s.confidence * 100).toFixed(0) }}% confidence). Review before using.</p>
+                  @if (s.target !== 'unknown') {
+                    <button class="btn" type="button" (click)="map(h, s.target === 'ignore' ? '__ignore' : s.target)">Use suggestion for {{ h }}</button>
+                  }
+                }
+              }
+              </div>
             }</div>
             <div class="fields">
               @if (!mapped('currency')) { <label class="field">Currency for missing values<input class="input" name="currency" maxlength="3" placeholder="USD" [value]="layout().batch_values.currency ?? ''" /></label> }
               @if (!mapped('occurred_at')) { <label class="field">Gift timestamp with timezone, only if missing<input class="input" name="occurred_at" placeholder="2026-11-01T12:00:00-07:00" [value]="layout().batch_values.occurred_at ?? ''" /></label> }
-              <label class="field">Confirmed gift status<select class="input" name="status" required [value]="layout().batch_values.status ?? ''"><option value="">Choose status</option><option value="settled">Settled</option><option value="pending">Pending</option><option value="void">Void</option></select></label>
-              <label class="field">Confirmed refund per row, integer cents<input class="input" name="refund_cents" type="number" min="0" step="1" required [value]="layout().batch_values.refund_cents ?? ''" /></label>
+              @if (!mapped('status')) { <label class="field">Confirmed gift status<select class="input" name="status" required [value]="layout().batch_values.status ?? ''"><option value="">Choose status</option><option value="settled">Settled</option><option value="pending">Pending</option><option value="void">Void</option></select></label> }
+              @if (!mapped('refund_cents')) { <label class="field">Confirmed refund per row, integer cents<input class="input" name="refund_cents" type="number" min="0" step="1" required [value]="layout().batch_values.refund_cents ?? ''" /></label> }
               <label class="field">Text date format, if needed<select class="input" name="date_format" [value]="layout().date_format ?? ''"><option value="">Timestamp already includes timezone</option>@for (f of dateFormats; track f) { <option [value]="f">{{ f }}</option> }</select></label>
               <label class="field">UTC offset for text dates<input class="input" name="utc_offset" placeholder="-07:00" [value]="layout().utc_offset ?? '-07:00'" /></label>
             </div>
-            <p>Confirm these batch facts against the source. A single refund value applies to every included row; split files with different refund/status facts before importing.</p>
+            <p>Confirm batch facts against the source. Mapped status and refund columns retain each row's facts; batch values apply only when that column is unmapped.</p>
             <p>{{ p.counts.rows }} source rows; {{ p.counts.donors }} donor drafts; {{ p.counts.gifts }} gift drafts; {{ p.counts.excluded }} invalid rows excluded.</p>
             @for (issue of p.issues; track $index) { <p role="status">{{ issue.field }}: {{ issue.code }}</p> }
             @if (invalidRows().length) { <label><input type="checkbox" [checked]="skipInvalid()" (change)="skipInvalid.set($any($event.target).checked); applied.set(false)" /> I reviewed and acknowledge excluding all {{ invalidRows().length }} invalid source records.</label> }
@@ -113,6 +123,7 @@ export class LiveImportPage {
   protected readonly previewRows = signal<PreviewRow[]>([]);
   protected readonly layout = signal<ImportLayout>({ mapping: {}, skip_records: [], batch_values: {} });
   protected readonly mapping = signal<Record<string, string | null>>({});
+  protected readonly suggestions = signal<Record<string, ImportSuggestion>>({});
   protected readonly filename = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -137,6 +148,7 @@ export class LiveImportPage {
   constructor() { effect(() => { this.store.sessionEpoch(); this.generation++; this.busy.set(false); this.clear(); }); }
 
   protected clear() {
+    this.suggestions.set({});
     this.batch.set(null); this.preview.set(null); this.previewRows.set([]); this.rows.set([]); this.plan.set(null);
     this.layout.set({ mapping: {}, skip_records: [], batch_values: {} }); this.mapping.set({}); this.choices.set({});
     this.filename.set(''); this.phase.set('mapping'); this.applied.set(false); this.skipInvalid.set(false); this.page.set(0); this.error.set(null);
@@ -173,20 +185,37 @@ export class LiveImportPage {
     });
   }
 
+  protected async suggest(header: string) {
+    await this.run(() => this.client.suggest(this.batch()!.batch_id, header), result => {
+      if (result.suggestion) this.suggestions.update(s => ({ ...s, [header]: result.suggestion! }));
+      else this.error.set('Suggestions are unavailable. Choose a mapping manually.');
+    });
+  }
+
   protected map(header: string, value: string) {
     const mapping = { ...this.mapping() }; if (!value) delete mapping[header]; else mapping[header] = value === '__ignore' ? null : value;
     this.mapping.set(mapping); this.applied.set(false);
   }
   protected mapped(field: string) {
-    return this.preview()?.headers.some((h, i) => (Object.hasOwn(this.mapping(), h) ? this.mapping()[h] : this.preview()?.mapping[i]) === field);
+    return this.preview()?.headers.some((h, i) => {
+      const target = Object.hasOwn(this.mapping(), h) ? this.mapping()[h] : this.preview()?.mapping[i];
+      return (target === 'refund_decimal' ? 'refund_cents' : target === 'amount_decimal' ? 'amount_cents' : target) === field;
+    });
   }
   protected applyLayout(event: Event) {
     event.preventDefault(); const form = new FormData(event.target as HTMLFormElement);
     return this.run(async () => {
-      const refund = String(form.get('refund_cents') ?? '').trim(), status = String(form.get('status') ?? '');
-      if (!/^\d+$/.test(refund) || !Number.isSafeInteger(Number(refund)) || !['settled', 'pending', 'void'].includes(status))
-        throw new Error('Confirm a gift status and nonnegative integer refund cents for each included row.');
-      const batch_values: ImportLayout['batch_values'] = { status, refund_cents: Number(refund) };
+      const batch_values: ImportLayout['batch_values'] = {};
+      if (!this.mapped('status')) {
+        const status = String(form.get('status') ?? '');
+        if (!['settled', 'pending', 'void'].includes(status)) throw new Error('Confirm a gift status for each included row.');
+        batch_values.status = status;
+      }
+      if (!this.mapped('refund_cents')) {
+        const refund = String(form.get('refund_cents') ?? '').trim();
+        if (!/^\d+$/.test(refund) || !Number.isSafeInteger(Number(refund))) throw new Error('Confirm nonnegative integer refund cents.');
+        batch_values.refund_cents = Number(refund);
+      }
       for (const field of ['currency', 'occurred_at'] as const) if (String(form.get(field) ?? '').trim()) batch_values[field] = String(form.get(field)).trim();
       const date_format = String(form.get('date_format') ?? '');
       const layout: ImportLayout = { mapping: this.mapping(), batch_values,

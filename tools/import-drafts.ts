@@ -65,9 +65,8 @@ export function buildImportDrafts(preview: ReturnType<typeof previewCsv>,
   const unresolved = preview.issues.filter(issue => issue.recordNumber === null &&
     !(issue.code === 'unresolved_gift_metadata' && supplied.has(issue.field)))
     .map(issue => ({ field: issue.field, code: issue.code }));
-  // No column can carry these two, so only a reviewer value can settle them.
   for (const field of ['status', 'refund_cents']) {
-    if (!supplied.has(field)) unresolved.push({ field, code: 'unresolved_gift_metadata' });
+    if (!supplied.has(field) && !preview.mapping.includes(field)) unresolved.push({ field, code: 'unresolved_gift_metadata' });
   }
   return { status: 'needs_review', donors, gifts, rows, excluded, unresolved };
 }

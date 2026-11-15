@@ -3,7 +3,7 @@ import { signal, type WritableSignal } from '@angular/core';
 import { Api, ApiError } from './core/api';
 import { Store } from './core/store';
 import { LiveImportPage } from './pages/import-live';
-import type { ImportResult } from './core/import-live';
+import type { ImportPreview, ImportResult } from './core/import-live';
 
 const batch = { batch_id: 'batch', status: 'reviewing' };
 const preview = { headers: ['first name', 'email', 'donation amount'], mapping: ['first_name', 'email', 'amount_cents'],
@@ -21,6 +21,7 @@ function setup() {
     if (path === '/api/v1/imports') return committed ? { ...result, replayed: true } : batch;
     if (path.endsWith('/batch')) return { ...batch, preview, layout: {} };
     if (path.endsWith('/layout')) return { ...batch, preview };
+    if (path.endsWith('/suggestion')) return { suggestion: { approval_required: true, target: 'company', confidence: 0.2 } };
     if (path.includes('/plan/rows')) return { items: [path.includes('kind=donor') ? row : { ...row, action: 'insert',
       draft: { amount_cents: 1234, refund_cents: 0, currency: 'USD', status: 'settled' } }], total: 1, next_offset: 1 };
     if (path.includes('/rows?')) return { items: [source], total: 1, next_offset: 1 };
@@ -39,6 +40,8 @@ function setup() {
     approve(): Promise<void>; commit(): Promise<void>; abandon(): Promise<void>; clear(): void;
     batch: WritableSignal<ImportResult | null>; phase: WritableSignal<string>; applied: WritableSignal<boolean>;
     error: WritableSignal<string | null>; previewRows: WritableSignal<unknown[]>;
+    preview: WritableSignal<ImportPreview | null>; mapping: WritableSignal<Record<string, string | null>>;
+    suggest(header: string): Promise<void>;
   };
   const get = FormData.prototype.get;
   vi.spyOn(FormData.prototype, 'get').mockImplementation(function (this: FormData, name: string) {
@@ -49,6 +52,29 @@ function setup() {
 }
 
 afterEach(() => vi.restoreAllMocks());
+
+it('keeps optional suggestions separate until the reviewer explicitly accepts one', async () => {
+  const { api, fixture, page, upload } = setup();
+  await upload();
+  page.preview.set({ ...preview, headers: ['Mystery'], mapping: [null] }); fixture.detectChanges();
+  await page.suggest('Mystery'); fixture.detectChanges();
+  expect(page.mapping()).toEqual({});
+  expect(fixture.nativeElement.textContent).toContain('20% confidence');
+  expect(api.request.mock.calls.find(([path]) => path.endsWith('/suggestion'))?.[1]?.body).toBe(JSON.stringify({ header: 'Mystery' }));
+  const accept = [...fixture.nativeElement.querySelectorAll('button')].find((b: unknown) => (b as HTMLButtonElement).textContent?.includes('Use suggestion')) as HTMLButtonElement;
+  accept.click(); fixture.detectChanges();
+  expect(page.mapping()).toEqual({ Mystery: 'company' });
+  expect(page.applied()).toBe(false);
+  page.clear(); expect(page.mapping()).toEqual({});
+});
+
+it('keeps manual mapping available when optional suggestions are unavailable', async () => {
+  const { api, page, upload } = setup(); await upload();
+  api.request.mockResolvedValueOnce({ suggestion: null, unavailable: true });
+  await page.suggest('Mystery');
+  expect(page.mapping()).toEqual({});
+  expect(page.error()).toContain('Choose a mapping manually');
+});
 
 it('walks through server mapping, both reviews, reconciliation, commit and duplicate replay', async () => {
   const { api, fixture, page, upload } = setup();
@@ -90,4 +116,32 @@ it('requires a fresh review after a stale-plan response and can purge the staged
   expect(page.error()).toContain('review changed');
   await page.abandon(); expect(page.batch()).toBeNull();
   expect(api.request).toHaveBeenCalledWith('/api/v1/imports/batch/abandon', expect.objectContaining({ method: 'POST' }));
+});
+
+it('uses mapped row statuses and refunds without replacing them with batch defaults', async () => {
+  const { api, fixture, page, upload } = setup();
+  api.request.mockResolvedValueOnce(batch).mockResolvedValueOnce({ ...batch, layout: {}, preview: {
+    ...preview, headers: [...preview.headers, 'status', 'refunded amount'], mapping: [...preview.mapping, 'status', 'refund_cents'],
+  } });
+  await upload(); fixture.detectChanges();
+  const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+  expect(form.elements.namedItem('status')).toBeNull(); expect(form.elements.namedItem('refund_cents')).toBeNull();
+  (form.elements.namedItem('currency') as HTMLInputElement).value = 'USD';
+  (form.elements.namedItem('occurred_at') as HTMLInputElement).value = '2026-01-01T12:00:00Z';
+  await page.applyLayout(eventFor(form));
+  const body = JSON.parse(String(api.request.mock.calls.find(([path]) => path.endsWith('/layout'))![1]?.body));
+  expect(body.batch_values).toEqual({ currency: 'USD', occurred_at: '2026-01-01T12:00:00Z' });
+});
+
+it('retains manually mapped decimal refunds instead of requesting conflicting batch cents', async () => {
+  const { api, fixture, page, upload } = setup(); await upload();
+  page.preview.set({ ...preview, headers: [...preview.headers, 'Return'], mapping: [...preview.mapping, null] });
+  page.mapping.set({ Return: 'refund_decimal' }); fixture.detectChanges();
+  const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+  expect(form.elements.namedItem('refund_cents')).toBeNull();
+  (form.elements.namedItem('status') as HTMLInputElement).value = 'settled';
+  await page.applyLayout(eventFor(form));
+  const body = JSON.parse(String(api.request.mock.calls.find(([path]) => path.endsWith('/layout'))![1]?.body));
+  expect(body.mapping).toEqual({ Return: 'refund_decimal' });
+  expect(body.batch_values).toEqual({ status: 'settled' });
 });

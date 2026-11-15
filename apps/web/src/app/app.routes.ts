@@ -6,7 +6,6 @@ import { Store } from './core/store';
 const adminOnly: CanMatchFn = () => inject(Store).isAdmin() || inject(Router).parseUrl('/');
 /** Screens whose server routes have not landed yet stay demo-only, so live mode never shows invented data. */
 const demoOnly: CanMatchFn = () => !inject(Store).live() || inject(Router).parseUrl('/not-connected');
-const overview: CanMatchFn = () => !inject(Store).live() || inject(Router).parseUrl('/donors');
 
 /** Every app screen needs a signed-in member; the server checks again on every request. */
 const signedIn: CanMatchFn = (_route, segments: UrlSegment[]) => inject(Store).signedIn()
@@ -19,9 +18,9 @@ export const routes: Routes = [
     canMatch: [signedIn],
     loadComponent: () => import('./shell/shell').then((m) => m.Shell),
     children: [
-      { path: '', pathMatch: 'full', title: 'Overview · Coding in Color', canMatch: [overview], loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
+      { path: '', pathMatch: 'full', title: 'Overview · Coding in Color', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
       { path: 'donors', title: 'Donors · Coding in Color', loadComponent: () => import('./pages/donors').then((m) => m.DonorsPage) },
-      { path: 'donors/new', canMatch: [demoOnly], title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
+      { path: 'donors/new', title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
       { path: 'donors/:id', title: 'Donor · Coding in Color', loadComponent: () => import('./pages/donor-detail').then((m) => m.DonorDetailPage) },
       { path: 'donations', canMatch: [demoOnly], title: 'Donations · Coding in Color', loadComponent: () => import('./pages/donations').then((m) => m.DonationsPage) },
       { path: 'outreach', title: 'Follow-ups · Coding in Color', loadComponent: () => import('./pages/outreach').then((m) => m.OutreachPage) },

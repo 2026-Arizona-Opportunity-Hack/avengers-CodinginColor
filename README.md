@@ -81,6 +81,10 @@ demo data in the browser.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
+Unmapped headers can request optional Jev suggestions. Only the selected header leaves the server;
+the reviewer must explicitly accept a suggestion and apply the mapping. Without a configured key
+or when the provider is unavailable, deterministic aliases and manual mapping continue to work.
+
 The live admin Import screen uses the API for upload, mapping, donor/gift review
 and atomic commit. It requires explicit status/refund and missing date/currency
 facts, acknowledges invalid records, and separates source totals from canonical
@@ -101,6 +105,12 @@ and inclusive calendar range, inspect the server packet, then download its audit
 CSV or print it. Gift totals stay separated by currency and attribution. Until
 approved outcomes are uploaded, reports explicitly show that outcome data is
 unavailable.
+
+Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
+`cohort` (acquisition year) filters alongside inclusive `asOf`. Dates compare
+matched Phoenix calendar windows within one year. Cohort is the donor's first
+positive settled gift year across their visible history, before campaign/program
+narrowing. Every filter intersects the caller's existing organization/owner scope.
 
 Live administrators can reassign a donor to any active same-organization board
 member, including members without donors. Assignment and open-task transfer remain
@@ -192,7 +202,8 @@ For ambiguous headers, pass an optional JSON mapping file as the final argument:
 `node tools/import-preview.ts spreadsheet export.csv mapping.json`.
 Keys must exactly match source headers. Targets are `first_name`, `last_name`,
 `email`, `phone`, `company`, `contact_person`, `campaign`, `occurred_at`,
-`currency`, `external_id`, `amount_decimal`, or `amount_cents`; null explicitly
+`currency`, `external_id`, `amount_decimal`, `amount_cents`, `status`,
+`refund_decimal`, or `refund_cents`; null explicitly
 ignores a column while retaining its raw cells. Unknown targets/headers and
 multiple columns targeting the same field are rejected.
 
@@ -249,6 +260,13 @@ then validated, together with timestamps and optional external IDs, using the
 shared schemas from contract PR #8. Missing/invalid facts remain review issues.
 Mappings are explicit input choices, not final approval: previews still report
 `needs_review`, and donor IDs, refunds, gift status and persistence are not inferred.
+
+Refund mappings follow the same unit rule: `refund_decimal` and the known
+`refunded amount` header consume major units, while `refund_cents` consumes integer
+cents. Mapped statuses must be `settled`, `pending` or `void` (case-insensitive).
+Invalid/missing mapped facts and refunds exceeding gift amounts require review.
+Batch status/refund values are only requested when those columns are unmapped;
+they never replace the financial facts in a mapped row.
 
 ## Reconciliation planning (Data)
 
@@ -412,3 +430,12 @@ Existing Claude clock and secret-guard hooks remain active.
 Winning teams finish the project with the nonprofit — the [Definition of Done](https://www.ohack.dev/about/completion) (deployed, nonprofit sign-off, docs, open source) is tracked on your team page. Keep the repo public and the README honest; recruiters do read these.
 
 Need a hand this weekend? [#ask-a-mentor](https://opportunity-hack.slack.com/archives/C01E5CGDQ74) on Slack, or ask in [#avengers](https://opportunity-hack.slack.com/app_redirect?channel=avengers) and a mentor will drop in.
+
+Manual donor entry saves through the authenticated API with server-selected ownership.
+The optional first gift records a settled USD gift; a partial gift failure stays
+on the form for a same-key retry. Donors assigned to another board member remain
+visible only to that owner and admins.
+
+Each visible donor also has a historical gift form with explicit currency, refund,
+status, campaign and date. Failed saves retain the same request identity for retry;
+confirmed gifts update that currency in the timeline.
