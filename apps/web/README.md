@@ -73,8 +73,7 @@ per-currency reconciliation and atomic commit. Re-uploading the same file return
 the saved result. Review state stays in memory and clears on session changes;
 abandoning a staged batch purges it on the server. XLSX API support is merged in #105.
 Donor records are kept in
-memory only, never in browser storage, and are cleared on sign-out. Screens whose
-server routes have not landed (donations and settings) are hidden. Any other write shows "not
+memory only, never in browser storage, and are cleared on sign-out. Live Donations and Team settings are enabled. Unsupported writes show "not
 connected yet" instead of pretending to save. The owner directory exposes IDs only, so other owners appear as short member IDs.
 Manual donor entry and the optional settled USD first gift now persist through
 the API, with server-selected ownership and stable identities for uncertain retries.
@@ -92,7 +91,7 @@ workflow; failed delivery is never counted as a successful contact.
 - Charts use brand-green fill, hatching and dots, so series never depend on color alone.
 - Every control is a native button, link or form element with a visible focus ring.
 
-Lighthouse accessibility is 100 on every route (checked against the production build).
+The earlier UI redesign reported Lighthouse accessibility100 on its then-existing routes. Rerun the audit on current routes before closing #73; this integration pass does not claim a new Lighthouse result.
 
 ## Human in the loop
 

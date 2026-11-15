@@ -1,0 +1,31 @@
+import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { Api,ApiError } from './core/api';
+import { Store } from './core/store';
+import { StaffInvitations } from './pages/staff-invitations';
+import { InvitationSignUpPage } from './pages/invitation-sign-up';
+import { provideRouter } from '@angular/router';
+it('sends only on explicit submission and retries uncertain delivery with the same intent',async()=>{
+  const request=vi.fn(async():Promise<unknown>=>({items:[]}));
+  TestBed.configureTestingModule({providers:[{provide:Api,useValue:{request}},{provide:Store,useValue:{sessionEpoch:signal(1),isAdmin:()=>true}}]});
+  const fixture=TestBed.createComponent(StaffInvitations);fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
+  expect(request.mock.calls).toHaveLength(1);
+  const form=fixture.nativeElement.querySelector('form') as HTMLFormElement;
+  (form.querySelector('[name="email"]') as HTMLInputElement).value='staff@example.org';
+  const submit=async()=>{form.dispatchEvent(new Event('submit',{cancelable:true}));await fixture.whenStable();fixture.detectChanges();};
+  request.mockRejectedValueOnce(new ApiError(503));await submit();
+  expect(fixture.nativeElement.textContent).toContain('Failed delivery does not grant access.');
+  const first=request.mock.calls.at(-1) as unknown as [string,RequestInit];
+  const pending=JSON.parse(String(first[1].body));expect(pending.role).toBe('board');
+  request.mockResolvedValueOnce({id:pending.request_id,email:pending.email,role:'board',state:'sent',expires_at:'2026-11-22'});await submit();
+  const second=request.mock.calls.at(-1) as unknown as [string,RequestInit];expect(second[1].body).toBe(first[1].body);
+  expect(fixture.nativeElement.textContent).toContain('Invitation email sent.');
+  expect(fixture.nativeElement.textContent).toContain('board ? sent');
+});
+it('mounts and unmounts the Clerk sign-up landing',async()=>{
+  const mountSignUp=vi.fn(),unmountSignUp=vi.fn();
+  const status=signal('signed-out');
+  TestBed.configureTestingModule({providers:[provideRouter([]),{provide:Api,useValue:{status,error:()=>null,canRetry:()=>false,mountSignUp,unmountSignUp}},{provide:Store,useValue:{}}]});
+  const fixture=TestBed.createComponent(InvitationSignUpPage);fixture.detectChanges();await fixture.whenStable();
+  expect(mountSignUp).toHaveBeenCalledTimes(1);fixture.destroy();expect(unmountSignUp).toHaveBeenCalledTimes(1);
+});
