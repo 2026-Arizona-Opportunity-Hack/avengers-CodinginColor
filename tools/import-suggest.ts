@@ -30,7 +30,7 @@ export function suggestionRequest(columns: Column[]) {
 }
 
 export function readSuggestion(response: unknown): {
-  accepted: boolean;
+  approval_required: true;
   target: Target;
   confidence: number;
 } {
@@ -47,12 +47,14 @@ export function readSuggestion(response: unknown): {
   const target = answer.choice as Target;
   const probability = (answer.probabilities as Record<string, unknown>)[target];
   if (typeof probability !== 'number' || !Number.isFinite(probability) ||
-      probability < 0 || probability > 1) {
+      probability < 0 || probability > 1 ||
+      Object.entries(answer.probabilities).some(([key, value]) => !targets.includes(key as Target) ||
+        typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) ||
+      Object.values(answer.probabilities).reduce<number>((sum, value) => sum + (value as number), 0) > 1.000001) {
     throw new Error('Invalid column suggestion');
   }
   return {
-    accepted: target !== 'ignore' && target !== 'unknown' &&
-      answer.confidence >= 0.8 && probability >= 0.8,
+    approval_required: true,
     target,
     confidence: answer.confidence,
   };
@@ -76,6 +78,9 @@ export async function suggestColumn(
       redirect: 'error',
       signal: AbortSignal.timeout(5000),
     });
+    if (response.redirected || response.status >= 300 && response.status < 400) {
+      throw new Error('Suggestion request failed');
+    }
     if (response.status !== 200) {
       throw new Error(`Suggestion request failed (${response.status})`);
     }
@@ -84,5 +89,35 @@ export async function suggestColumn(
     if (error instanceof Error && /^Suggestion request failed \(\d+\)$/.test(error.message)) throw error;
     if (error instanceof Error && error.message === 'Invalid column suggestion') throw error;
     throw new Error('Suggestion request failed');
+  }
+}
+import { readFile } from 'node:fs/promises';
+import { basename } from 'node:path';
+import { previewCsv } from './import-preview.ts';
+
+
+export async function suggestAmbiguous(preview: Pick<ReturnType<typeof previewCsv>, 'headers' | 'mapping' | 'issues'>,
+  propose: (column: Column) => Promise<ReturnType<typeof readSuggestion>> = suggestColumn) {
+  const suggestions: ({ header: string } & ReturnType<typeof readSuggestion>)[] = [];
+  for (let i = 0; i < preview.headers.length; i++) {
+    if (preview.mapping[i] !== null || !preview.issues.some(issue => issue.recordNumber === null &&
+      issue.code === 'unmapped_column' && issue.field === preview.headers[i])) continue;
+    const header = preview.headers[i];
+    suggestions.push({ header, ...await propose({ header, samples: [] }) });
+  }
+  return suggestions;
+}
+
+if (import.meta.main) {
+  try {
+    const [source, file, extra] = process.argv.slice(2);
+    if (!source || !file || extra) throw new Error('Usage: node tools/import-suggest.ts <source> <file.csv>');
+    const bytes = await readFile(file);
+    if (bytes.length > 5 * 1024 * 1024) throw new Error('CSV exceeds 5 MiB');
+    const preview = previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes), source, basename(file));
+    console.log(JSON.stringify({ suggestions: await suggestAmbiguous(preview), approval_required: true }, null, 2));
+  } catch (error) {
+    console.error(error instanceof Error && !('code' in error) ? error.message : 'Unable to read CSV file');
+    process.exitCode = 1;
   }
 }

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readSuggestion, suggestionRequest, suggestColumn } from '../tools/import-suggest.ts';
+import { readSuggestion, suggestionRequest, suggestColumn, suggestAmbiguous } from '../tools/import-suggest.ts';
+import { previewCsv } from '../tools/import-preview.ts';
 
 const targets = ['first_name', 'last_name', 'email', 'phone', 'company', 'amount_cents', 'amount_decimal',
   'contact_person', 'campaign', 'occurred_at', 'currency', 'external_id', 'ignore', 'unknown'];
@@ -28,14 +29,38 @@ test('a suggestion request requires exactly one bounded nonempty header', () => 
 test('a low-confidence or unknown answer is a proposal, never an applied mapping', () => {
   const low = readSuggestion({ answers: { column: { type: 'choice', choice: 'amount_decimal',
     probabilities: { amount_decimal: 0.51, unknown: 0.49 }, confidence: 0.51 } } });
-  assert.equal(low.accepted, false);
+  assert.equal(low.approval_required, true);
   assert.equal(low.target, 'amount_decimal');
   const unknown = readSuggestion({ answers: { column: { type: 'choice', choice: 'unknown',
     probabilities: { unknown: 0.9 }, confidence: 0.9 } } });
-  assert.equal(unknown.accepted, false);
+  assert.equal(unknown.approval_required, true);
   const sure = readSuggestion({ answers: { column: { type: 'choice', choice: 'amount_decimal',
     probabilities: { amount_decimal: 0.93, unknown: 0.07 }, confidence: 0.86 } } });
-  assert.deepEqual(sure, { accepted: true, target: 'amount_decimal', confidence: 0.86 });
+  assert.deepEqual(sure, { approval_required: true, target: 'amount_decimal', confidence: 0.86 });
+  assert.equal('accepted' in sure, false);
+});
+
+test('known columns use deterministic mappings before any external suggestion', async () => {
+  const preview = { headers: ['first name', 'Gift Amt'], mapping: ['first_name', null],
+    issues: [{ recordNumber: null, field: 'Gift Amt', code: 'unmapped_column' }] };
+  let calls = 0;
+  const results = await suggestAmbiguous(preview, async column => { calls++;
+    assert.equal(column.header, 'Gift Amt');
+    return { approval_required: true, target: 'amount_decimal', confidence: 0.9 };
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(results, [{ header: 'Gift Amt', approval_required: true, target: 'amount_decimal', confidence: 0.9 }]);
+});
+
+test('explicitly ignored columns never leave the machine for suggestion', async () => {
+  const preview = previewCsv('first name,Ignore Me,Contribution Value\nAvery,private,12.34',
+    'spreadsheet', 'local.csv', { 'Ignore Me': null });
+  const sent: string[] = [];
+  await suggestAmbiguous(preview, async column => {
+    sent.push(column.header);
+    return { approval_required: true, target: 'amount_decimal', confidence: 0.9 };
+  });
+  assert.deepEqual(sent, ['Contribution Value']);
 });
 
 test('a response outside the allowlist or without a confidence is rejected', () => {
@@ -50,6 +75,10 @@ test('a response outside the allowlist or without a confidence is rejected', () 
     assert.throws(() => readSuggestion({ answers: { column: { type: 'choice', choice: 'email',
       probabilities: { email: 0.9 }, confidence: bad } } }), /Invalid column suggestion/);
   }
+  assert.throws(() => readSuggestion({ answers: { column: { type: 'choice', choice: 'email',
+    probabilities: { email: 0.9, owner_id: 0.1 }, confidence: 0.9 } } }), /Invalid column suggestion/);
+  assert.throws(() => readSuggestion({ answers: { column: { type: 'choice', choice: 'email',
+    probabilities: { email: 0.9, unknown: 0.9 }, confidence: 0.9 } } }), /Invalid column suggestion/);
 });
 
 test('malformed response fails closed', () => {
@@ -79,6 +108,8 @@ test('official endpoint, canonical key, request safety and errors are enforced',
 
     for (const failure of [
       () => Promise.resolve(new Response('synthetic-primary', { status: 500 })),
+      () => Promise.resolve(Response.redirect('https://example.org/', 302)),
+      () => Promise.reject(new DOMException('timed out', 'TimeoutError')),
       () => Promise.reject(new Error('synthetic-primary network failure')),
     ]) {
       await assert.rejects(suggestColumn({ header: 'Gift Amt', samples: [] }, failure as typeof fetch),
