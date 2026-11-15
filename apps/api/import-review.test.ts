@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {importFixture,iid} from './import-fixture.ts';
+const csv='first name,last name,email,donation amount,external id\nAvery,Example,avery@example.org,12.34,tx-1';
+const layout={mapping:{},batch_values:{currency:'USD',occurred_at:'2026-01-01T01:00:00.123456Z',status:'settled',refund_cents:0}};
+test('two-phase plans bind fresh facts, hashes and the authenticated reviewer; clients cannot supply operations',async t=>{
+  const {call,sql}=await importFixture(t);
+  const {batch_id:id}=await (await call('POST','',csv)).json() as {batch_id:string};
+  await call('POST',`/${id}/layout`,layout);
+  assert.equal((await call('POST',`/${id}/gifts/plan`)).status,409);
+  const dp=await call('POST',`/${id}/donors/plan`); assert.equal(dp.status,200);
+  const {plan_hash:dh}=await dp.json() as {plan_hash:string};
+  const review=(kind:string,value:unknown)=>call('POST',`/${id}/${kind}/review`,value);
+  assert.equal((await review('donors',{plan_hash:dh,decisions:[],reviewer_id:iid(11)})).status,400);
+  assert.equal((await review('donors',{plan_hash:'sha256:'+'0'.repeat(64),decisions:[]})).status,409);
+  assert.equal((await review('donors',{plan_hash:dh,decisions:[{kind:'donor',row:0,action:'new',reviewer_id:iid(11)}]})).status,400);
+  assert.equal((await review('donors',{plan_hash:dh,decisions:[]})).status,200);
+  const gp=await call('POST',`/${id}/gifts/plan`); assert.equal(gp.status,200);
+  const {plan_hash:gh}=await gp.json() as {plan_hash:string};
+  assert.equal((await review('gifts',{donor_plan_hash:dh,plan_hash:gh,decisions:[]})).status,200);
+  const rows=await call('GET',`/${id}/plan/rows?kind=gift`); assert.equal(rows.status,200);
+  assert.equal((await rows.json() as {items:unknown[]}).items.length,1);
+  await sql.exec('SET SESSION AUTHORIZATION postgres; RESET ROLE');
+  assert.equal((await sql.query<{n:number}>('SELECT count(*)::int AS n FROM gifts')).rows[0].n,0);
+  // A donor appearing after the reviewed snapshot changes the match and invalidates gift planning.
+  await sql.query('INSERT INTO donors(org_id,owner_id,name,email) VALUES($1,$2,$3,$4)',[iid(1),iid(11),'Avery Example','avery@example.org']);
+  await sql.exec('SET SESSION AUTHORIZATION import_login');
+  assert.equal((await call('POST',`/${id}/gifts/plan`)).status,409);
+  assert.equal((await call('POST',`/${id}/layout`,layout)).status,200);
+  const cleared=await call('POST',`/${id}/gifts/plan`); assert.equal(cleared.status,409);
+});
