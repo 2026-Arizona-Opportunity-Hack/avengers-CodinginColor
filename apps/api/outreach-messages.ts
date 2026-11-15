@@ -89,7 +89,7 @@ export function createMessageRouter(env: Env, db: Database, verify: (header: str
     const { status } = parse(ListDrafts, req.query);
     const statuses = status === 'open' ? ['draft', 'approved'] : [status];
     const items = await withMember(db, env.CIC_ORG_ID, identity, async (client) => (await client.query(
-      `SELECT d.id, d.donor_id, d.author_id, d.channel, d.recipient, d.subject, d.body, d.status, d.approved_by,
+      `SELECT d.id, d.donor_id, n.owner_id, d.author_id, d.channel, d.recipient, d.subject, d.body, d.status, d.approved_by,
           ${stamp('d.approved_at')} AS approved_at, ${stamp('d.created_at')} AS created_at
         FROM drafts d JOIN donors n ON n.org_id = d.org_id AND n.id = d.donor_id
         WHERE d.status = ANY($1::text[]) AND n.archived_at IS NULL ORDER BY d.created_at DESC, d.id LIMIT 200`,
@@ -107,10 +107,12 @@ export function createMessageRouter(env: Env, db: Database, verify: (header: str
         draft = createDraft({ donor, channel: TEMPLATES[input.template].channel, template: input.template, fields: input.fields });
       } catch (error) { rule(error); }
       const [created] = (await client.query(`INSERT INTO drafts (org_id, donor_id, author_id, channel, recipient, subject, body)
-        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, channel, recipient, subject, body, status`,
+        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, donor_id, author_id, channel, recipient, subject, body, status,
+          ${stamp('created_at')} AS created_at`,
       [env.CIC_ORG_ID, donor.id, member.id, draft.channel, draft.recipient, draft.subject, draft.body])).rows;
       await audit(client, env.CIC_ORG_ID, member.id, 'draft.create', String(created.id));
-      return created;
+      // owner_id is the donor's current owner (who works the queue); author_id is who drafted it.
+      return { ...created, owner_id: donor.owner_id };
     });
     res.status(201).json(row);
   });
