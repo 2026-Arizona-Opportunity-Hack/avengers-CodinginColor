@@ -66,11 +66,12 @@ export function planDonorMatches(orgId: string, drafts: unknown[], existing: unk
   return { status: 'needs_review' as const, rows };
 }
 
-function giftKey(gift: GiftWrite) {
-  if (gift.external_id) return JSON.stringify(['external', gift.source, gift.external_id]);
-  if (gift.source_row) return JSON.stringify(['row', gift.source, gift.source_row.batch_id, gift.source_row.row_key]);
-  return null;
-}
+// Transaction and provenance identities are independent; either can match a stored gift.
+const externalKey = (gift: GiftWrite) => gift.external_id
+  ? JSON.stringify(['external', gift.source, gift.external_id]) : null;
+const rowKey = (gift: GiftWrite) => gift.source_row
+  ? JSON.stringify(['row', gift.source, gift.source_row.batch_id, gift.source_row.row_key]) : null;
+const giftKeys = (gift: GiftWrite) => [externalKey(gift), rowKey(gift)];
 
 // The shared contract allows more fractional digits than Date preserves.
 const instant = (value: string) => [Date.parse(value),
@@ -88,28 +89,38 @@ export function planGiftChanges(orgId: string, drafts: unknown[], existing: unkn
   if (!Array.isArray(drafts)) throw new Error('Drafts must be an array');
   const parsed = drafts.map(draft => GiftWriteSchema.safeParse(draft));
   const valid = parsed.flatMap((result, row) => result.success ? [{ ...result.data, row }] : []);
-  const stored = index(gifts, gift => [giftKey(gift)]), incoming = index(valid, gift => [giftKey(gift)]);
+  const stored = index(gifts, giftKeys), incoming = index(valid, giftKeys);
   const storedSimilar = index(gifts, gift => [similarGift(gift)]), incomingSimilar = index(valid, gift => [similarGift(gift)]);
   if ([...stored.values()].some(group => group.length > 1)) throw new Error('Existing gift identities are not unique');
   const rows = parsed.map((result, row): Decision => {
     if (!result.success) return { row, action: 'review', reason: 'invalid_gift', existingIds: [], matchingRows: [] };
-    const gift = result.data, key = giftKey(gift);
-    const matches = key === null ? [] : stored.get(key) ?? [];
-    const peers = key === null ? [] : incoming.get(key) ?? [];
-    const existingIds = matches.map(match => match.id), matchingRows = peers.filter(peer => peer.row !== row).map(peer => peer.row);
-    if (peers.some(peer => giftFacts(peer) !== giftFacts(gift))) {
+    const gift = result.data, keys = giftKeys(gift);
+    // Match on either identity, so one can never mask the other.
+    const candidates = (key: string | null) => key === null ? [] : stored.get(key) ?? [];
+    const matches = [...new Set(keys.flatMap(candidates))];
+    const peers = [...new Set(keys.flatMap(key => key === null ? [] : incoming.get(key) ?? []))]
+      .filter(peer => peer.row !== row);
+    const existingIds = matches.map(match => match.id), matchingRows = peers.map(peer => peer.row);
+    if (peers.some(peer => giftFacts(peer) !== giftFacts(gift) || peer.external_id !== gift.external_id)) {
       return { row, action: 'review', reason: 'conflicting_batch_transaction', existingIds, matchingRows };
     }
     if (matches.length) {
-      const replay = giftFacts(matches[0]) === giftFacts(gift);
-      return { row, action: replay ? 'duplicate' : 'review',
-        reason: replay ? 'exact_replay' : 'changed_transaction', existingIds, matchingRows };
+      if (matches.some(match => giftFacts(match) !== giftFacts(gift))) {
+        return { row, action: 'review', reason: 'changed_transaction', existingIds, matchingRows };
+      }
+      // Two identities naming one stored gift must also agree on its external ID.
+      const targets = keys.map(key => candidates(key)[0]?.id ?? null);
+      const conflict = (targets[0] !== null && targets[1] !== null && targets[0] !== targets[1]) ||
+        matches.some(match => gift.external_id && match.external_id !== gift.external_id);
+      return { row, action: conflict ? 'review' : 'duplicate',
+        reason: conflict ? 'conflicting_identity' : 'exact_replay', existingIds, matchingRows };
     }
     const possible = storedSimilar.get(similarGift(gift)) ?? [];
     const possibleRows = (incomingSimilar.get(similarGift(gift)) ?? []).filter(peer => peer.row !== row);
-    if (key === null || possible.some(other => other.source !== gift.source) ||
+    const identity = keys.every(key => key === null);
+    if (identity || possible.some(other => other.source !== gift.source) ||
         possibleRows.some(other => other.source !== gift.source)) {
-      return { row, action: 'review', reason: key === null ? 'missing_transaction_identity' : 'cross_source_candidate',
+      return { row, action: 'review', reason: identity ? 'missing_transaction_identity' : 'cross_source_candidate',
         existingIds: possible.map(other => other.id), matchingRows: possibleRows.map(other => other.row) };
     }
     const previous = peers.find(peer => peer.row < row);
