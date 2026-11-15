@@ -75,7 +75,7 @@ test('summary returns suppressed, per-currency aggregates for a valid key and no
     [['2026-01', true], ['2026-02', true], ['2026-03', true]]);
 });
 
-test('summary retention compares adjacent windows per currency and suppresses small cohorts', async (t) => {
+test('summary retention compares prior-year windows per currency and suppresses small cohorts', async (t) => {
   const { db, key, otherKey, get } = await setup(t);
   await db.exec(`SET SESSION AUTHORIZATION postgres;
     INSERT INTO donors(id,org_id,owner_id,name) VALUES
@@ -89,9 +89,17 @@ test('summary retention compares adjacent windows per currency and suppresses sm
   const path = '/api/v1/summary?from=2026-01-01&to=2027-01-01';
   const body = await (await get(path, { 'X-API-Key': key.key })).json();
   assert.deepEqual(body.retention, {
-    windows: { current: body.window, prior: { from: '2025-01-01T07:00:00.000Z', to: body.window.from } },
+    windows: { current: body.window, prior: { from: '2025-01-01T00:00:00-07:00', to: '2026-01-01T00:00:00-07:00' } },
     byCurrency: { USD: { suppressed: false, retained_donors: 3, prior_donors: 6 }, EUR: { suppressed: true } },
   });
+  const partial = await (await get('/api/v1/summary?from=2026-01-01&to=2026-07-01', { 'X-API-Key': key.key })).json();
+  assert.deepEqual(partial.retention.windows.prior, { from: '2025-01-01T00:00:00-07:00', to: '2025-07-01T00:00:00-07:00' });
+  const leap = await (await get('/api/v1/summary?from=2024-02-29&to=2024-03-01', { 'X-API-Key': key.key })).json();
+  assert.deepEqual(leap.retention.windows.prior, { from: '2023-02-28T00:00:00-07:00', to: '2023-03-01T00:00:00-07:00' });
+  const leapEnd = await (await get('/api/v1/summary?from=2024-02-28&to=2024-02-29', { 'X-API-Key': key.key })).json();
+  assert.deepEqual(leapEnd.retention.windows.prior, { from: '2023-02-28T00:00:00-07:00', to: '2023-03-01T00:00:00-07:00' });
+  const multi = await (await get('/api/v1/summary?from=2025-01-01&to=2027-01-01', { 'X-API-Key': key.key })).json();
+  assert.deepEqual(multi.retention.windows.prior, { from: '2024-01-01T00:00:00-07:00', to: '2026-01-01T00:00:00-07:00' });
   const other = await (await get(path, { 'X-API-Key': otherKey.key })).json();
   assert.deepEqual(other.retention.byCurrency, { USD: { suppressed: true } });
   await db.exec(`SET SESSION AUTHORIZATION postgres;
