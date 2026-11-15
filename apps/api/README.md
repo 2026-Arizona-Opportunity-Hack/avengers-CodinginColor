@@ -65,3 +65,15 @@ separate records. `PATCH /api/v1/gifts/:id` accepts a nonempty subset of campaig
 amount, refund, currency, occurred_at and status, merges the stored record under a
 row lock, revalidates, and audits `gift.correct` atomically; identity and
 provenance cannot be rewritten. Gifts are never hard-deleted.
+
+Import staging requires an active admin with verified MFA. `POST /api/v1/imports`
+accepts raw UTF-8 `text/csv` up to 4 MiB, with `X-Import-Source` and basename-only
+`X-Import-Filename`. The server computes the file hash and batch UUID; exact replay
+resumes the existing batch and changing its source label gives409. Staging writes
+no donor or gift rows. `POST /:batchId/layout` accepts reviewed column mapping,
+explicit batch financial metadata and optional paired date-format/UTC-offset.
+`GET /:batchId` returns a summary; `GET /:batchId/rows?kind=preview|donor|gift`
+returns bounded pages. `POST /:batchId/abandon` irreversibly purges staged bytes
+and layout. All routes are under `/api/v1/imports`, enforced by membership and
+database RLS; foreign batches are404. Stage/layout/abandon are audited atomically.
+Review and commit endpoints follow in a separate slice; staging is not a saved import.
