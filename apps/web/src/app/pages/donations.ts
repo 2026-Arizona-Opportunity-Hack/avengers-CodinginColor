@@ -22,7 +22,7 @@ import { downloadCsv } from '../core/csv';
       <header class="page-head">
         <div>
           <h1>Donations</h1>
-          <p class="lede">Every gift from every source. Money only: conversations live on each donor's timeline.</p>
+          <p class="lede">Every gift from every source.</p>
         </div>
         <div class="actions">
           <button hlmBtn variant="outline" type="button" (click)="exportCsv()" [disabled]="rows().length === 0"><ng-icon name="lucideFileDown" size="16" /> Download CSV</button>
@@ -45,7 +45,7 @@ import { downloadCsv } from '../core/csv';
       <div class="top">
         <section class="panel" aria-labelledby="m-h">
           <div class="panel-head">
-            <div><h2 id="m-h">Net giving by month</h2><p class="sub">Settled gifts minus refunds, for the filters above</p></div>
+            <h2 id="m-h">Net giving by month</h2>
             <dl class="mini" aria-live="polite">
               <div><dt>Gifts</dt><dd>{{ rows().length }}</dd></div>
               <div><dt>Gross</dt><dd>{{ money(totals().gross) }}</dd></div>
@@ -56,7 +56,7 @@ import { downloadCsv } from '../core/csv';
           <div echarts [options]="monthOptions()" [initOpts]="{ renderer: 'svg' }" class="h-[260px] px-3 pb-3"></div>
         </section>
         <section class="panel" aria-labelledby="s-h">
-          <div class="panel-head"><div><h2 id="s-h">Where it came from</h2><p class="sub">Net by source</p></div></div>
+          <div class="panel-head"><h2 id="s-h">Where it came from</h2></div>
           <ul class="bars">
             @for (b of bySource(); track b.label) {
               <li><span class="b-name">{{ b.label }}</span><span class="b-track"><span [style.width.%]="(b.cents / maxSource()) * 100"></span></span><span class="b-val">{{ compact(b.cents) }}</span></li>

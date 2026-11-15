@@ -17,7 +17,7 @@ type Sort = 'name' | 'lifetime' | 'recent';
       <header class="page-head">
         <div>
           <h1>{{ store.isAdmin() ? 'Donors' : 'Your donors' }}</h1>
-          <p class="lede">One record per person or organization, merged across every source. Each has exactly one board owner.</p>
+          <p class="lede">One record per donor, merged across every source.</p>
         </div>
         <div class="actions">
           @if (store.isAdmin() && !store.live()) { <a hlmBtn variant="outline" routerLink="/import"><ng-icon name="lucideUpload" size="16" /> Import file</a> }

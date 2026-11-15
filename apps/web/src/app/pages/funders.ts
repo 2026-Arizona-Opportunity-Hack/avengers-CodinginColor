@@ -17,7 +17,7 @@ import { Donor } from '../core/models';
       <header class="page-head no-print">
         <div>
           <h1>Funder reports</h1>
-          <p class="lede">Gift history plus the program outcomes it funded, for one funder, in one file. Pick a funder; the packet updates as you go.</p>
+          <p class="lede">One funder's gifts and funded outcomes, in one packet.</p>
         </div>
       </header>
 

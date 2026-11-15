@@ -35,7 +35,7 @@ function fromServer(report: ApiRetention): RetentionResult {
       <header class="page-head">
         <div>
           <h1>Retention</h1>
-          <p class="lede">Who stayed, grew, shrank or left. Every donor who gave in either period lands in exactly one segment.</p>
+          <p class="lede">Who stayed, grew, shrank or left, year over year.</p>
         </div>
         <div class="segmented" role="group" aria-label="Period">
           @for (p of store.live() ? periods.slice(0, 1) : periods; track p.value) {
@@ -65,13 +65,13 @@ function fromServer(report: ApiRetention): RetentionResult {
 
       <div class="main-grid">
         <section class="panel" aria-labelledby="flow-h">
-          <div class="panel-head"><div><h2 id="flow-h">Donor flow</h2><p class="sub">Where last period's donors went, and who joined this period</p></div></div>
+          <div class="panel-head"><h2 id="flow-h">Donor flow</h2></div>
           <div echarts [options]="flowOptions()" [initOpts]="{ renderer: 'svg' }" class="h-[330px] px-3 pb-3"></div>
           <p class="sr-only">{{ r().priorDonors }} donors last period: {{ r().retained }} kept, {{ r().counts.lapsed }} lapsed. This period adds {{ r().counts.new }} new and {{ r().counts.reactivated }} reactivated donors.</p>
         </section>
 
         <section class="panel" aria-labelledby="seg-h">
-          <div class="panel-head"><div><h2 id="seg-h">Segments</h2><p class="sub">Select one to see its donors</p></div></div>
+          <div class="panel-head"><h2 id="seg-h">Segments</h2></div>
           <ul class="segs">
             @for (s of segments; track s) {
               <li>
@@ -120,7 +120,7 @@ function fromServer(report: ApiRetention): RetentionResult {
 
       <div class="grid-2 mt-5">
         <section class="panel" aria-labelledby="yoy-h">
-          <div class="panel-head"><div><h2 id="yoy-h">Activation and churn by year</h2><p class="sub">Donors gained against donors lost; {{ thisYear }} is year to date</p></div></div>
+          <div class="panel-head"><h2 id="yoy-h">Activation and churn by year</h2></div>
           <div echarts [options]="yoyOptions()" [initOpts]="{ renderer: 'svg' }" class="h-[260px] px-3 pb-3"></div>
           <details class="data">
             <summary>View the numbers</summary>
@@ -138,7 +138,7 @@ function fromServer(report: ApiRetention): RetentionResult {
         <div class="flex flex-col gap-5">
           @if (store.isAdmin()) {
             <section class="panel" aria-labelledby="own-h">
-              <div class="panel-head"><div><h2 id="own-h">By board member</h2><p class="sub">Kept against lapsed in each portfolio</p></div></div>
+              <div class="panel-head"><h2 id="own-h">By board member</h2></div>
               <ul class="bars">
                 @for (o of byOwner(); track o.name) {
                   <li>
@@ -154,7 +154,7 @@ function fromServer(report: ApiRetention): RetentionResult {
           }
           @if (!store.live()) {
             <section class="panel" aria-labelledby="src-h">
-              <div class="panel-head"><div><h2 id="src-h">Where new donors came from</h2><p class="sub">Source of each new donor's first gift</p></div></div>
+              <div class="panel-head"><h2 id="src-h">Where new donors came from</h2></div>
               <ul class="bars">
                 @for (s of newBySource(); track s.label) {
                   <li><span class="b-name">{{ s.label }}</span>

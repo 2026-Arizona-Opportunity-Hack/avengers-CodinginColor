@@ -31,7 +31,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       <nav aria-label="Primary" class="flex flex-col gap-5">
         @for (group of groups(); track group.label) {
           <div>
-            <p class="nav-group">{{ group.label }}</p>
+            @if (!$first) { <p class="nav-group">{{ group.label }}</p> }
             <ul class="flex flex-col gap-0.5">
               @for (item of group.items; track item.path) {
                 <li>
@@ -58,20 +58,14 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       </a>
     </ng-template>
 
-    <aside class="rail glass" aria-label="Sidebar">
+    <aside class="rail" aria-label="Sidebar">
       <ng-container [ngTemplateOutlet]="brand" />
       <div class="mt-6 flex-1 overflow-y-auto pe-1"><ng-container [ngTemplateOutlet]="navList" /></div>
-      <div class="workspace">
-        <span class="dot" [class.live]="store.live()" aria-hidden="true"></span>
-        <div class="min-w-0">
-          <p class="text-[13px] font-medium">{{ store.live() ? 'Live workspace' : 'Demo workspace' }}</p>
-          <p class="text-muted-foreground text-xs">{{ store.live() ? 'Access checked by the server' : 'Synthetic records only' }}</p>
-        </div>
-      </div>
+      <p class="workspace"><span class="dot" [class.live]="store.live()" aria-hidden="true"></span>{{ store.live() ? 'Live workspace' : 'Demo workspace' }}</p>
     </aside>
 
     <div class="main-col">
-      <header class="topbar glass">
+      <header class="topbar frosted">
         <hlm-sheet side="left" #drawer="hlmSheet">
           <button hlmBtn variant="ghost" size="icon" class="lg:hidden" hlmSheetTrigger aria-label="Open navigation">
             <ng-icon name="lucideMenu" size="18" />
@@ -174,49 +168,48 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
   styles: `
     :host { display: block; min-height: 100dvh; }
     .rail {
-      position: fixed; inset-block: 12px; inset-inline-start: 12px; z-index: 30; width: var(--rail-w);
-      display: none; flex-direction: column; padding: 16px 12px; border-radius: 22px;
+      position: fixed; inset-block: 0; inset-inline-start: 0; z-index: 30; width: var(--rail-w);
+      display: none; flex-direction: column; padding: 18px 12px 14px;
+      background: rgb(255 255 255 / 0.62); border-inline-end: 1px solid rgb(15 26 21 / 0.07);
     }
-    @media (min-width: 1024px) { .rail { display: flex; } .main-col { padding-inline-start: calc(var(--rail-w) + 24px); } }
-    .brand { display: flex; align-items: center; gap: 10px; padding: 2px 8px; text-decoration: none; font-size: 15px; }
-    .mark { width: 30px; height: 30px; flex: none; }
-    .nav-group { padding: 0 10px 6px; font-size: 12px; font-weight: 500; color: var(--muted-foreground); }
+    @media (min-width: 1024px) { .rail { display: flex; } .main-col { padding-inline-start: var(--rail-w); } }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px; text-decoration: none; font-size: 14.5px; }
+    .mark { width: 28px; height: 28px; flex: none; }
+    .nav-group { padding: 0 12px 6px; font-size: 12px; font-weight: 500; color: var(--ink-600); }
     .nav-link {
-      display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 10px; border-radius: 12px;
+      display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; border-radius: 9px;
       text-decoration: none; font-size: 13.5px; font-weight: 500; color: var(--ink-600);
-      transition: background-color 150ms var(--ease), color 150ms var(--ease);
+      transition: background-color 120ms ease, color 120ms ease;
     }
-    .nav-link:hover { background: rgb(255 255 255 / 0.7); color: var(--foreground); }
-    .nav-link.active { background: #fff; color: var(--foreground); box-shadow: 0 1px 2px rgb(15 50 30 / 0.08), 0 0 0 1px rgb(15 26 21 / 0.04); }
-    .nav-link.active ng-icon { color: var(--primary); }
-    .count {
-      min-width: 20px; height: 20px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 999px;
-      font-size: 11px; font-weight: 600; background: var(--primary); color: #fff;
-    }
-    .workspace { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding: 12px; border-radius: 14px; background: rgb(255 255 255 / 0.55); }
-    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--attention); flex: none; box-shadow: 0 0 0 3px rgb(180 83 9 / 0.15); }
-    .dot.live { background: var(--green-500); box-shadow: 0 0 0 3px rgb(0 168 80 / 0.18); }
+    .nav-link ng-icon { color: var(--ink-400); }
+    .nav-link:hover { background: rgb(15 26 21 / 0.04); color: var(--foreground); }
+    .nav-link.active { background: rgb(0 122 61 / 0.08); color: var(--green-700); }
+    .nav-link.active ng-icon { color: var(--green-700); }
+    .count { min-width: 20px; height: 18px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 6px;
+      font-size: 11px; font-weight: 600; background: rgb(0 122 61 / 0.1); color: var(--green-700); }
+    .workspace { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; font-size: 12px; color: var(--ink-600); }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--attention); flex: none; }
+    .dot.live { background: var(--green-500); }
 
     .topbar {
-      position: sticky; top: 12px; z-index: 20; margin: 12px 12px 0; height: 56px; border-radius: 18px;
-      display: flex; align-items: center; gap: 8px; padding: 0 8px 0 10px;
+      position: sticky; top: 0; z-index: 20; height: var(--topbar-h);
+      display: flex; align-items: center; gap: 8px; padding: 0 16px 0 20px; border-bottom: 1px solid rgb(15 26 21 / 0.06);
     }
-    @media (min-width: 1024px) { .topbar { margin-inline-start: 0; } }
     .search {
-      display: flex; align-items: center; gap: 10px; height: 38px; width: min(440px, 100%); padding: 0 8px 0 14px;
-      border-radius: 999px; border: 1px solid var(--border); background: rgb(255 255 255 / 0.7);
-      color: var(--muted-foreground); font-size: 13.5px; cursor: pointer; transition: border-color 150ms var(--ease), background-color 150ms var(--ease);
+      display: flex; align-items: center; gap: 10px; height: 36px; width: min(420px, 100%); padding: 0 8px 0 12px;
+      border-radius: 10px; border: 1px solid rgb(15 26 21 / 0.1); background: #fff;
+      color: var(--ink-600); font-size: 13.5px; cursor: pointer; transition: border-color 120ms ease;
     }
-    .search:hover { background: #fff; border-color: var(--input); }
-    .bell-dot { position: absolute; top: 8px; inset-inline-end: 9px; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px #fff; }
+    .search:hover { border-color: rgb(15 26 21 / 0.2); }
+    .bell-dot { position: absolute; top: 8px; inset-inline-end: 9px; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 2px #fff; }
     .account-btn {
-      display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 10px 0 4px; border-radius: 999px; border: 0; background: transparent;
-      cursor: pointer; max-width: 240px; transition: background-color 150ms var(--ease);
+      display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 8px 0 4px; border-radius: 10px; border: 0; background: transparent;
+      cursor: pointer; max-width: 240px; transition: background-color 120ms ease;
     }
-    .account-btn:hover { background: rgb(255 255 255 / 0.7); }
+    .account-btn:hover { background: rgb(15 26 21 / 0.04); }
     .avatar-fallback { background: var(--green-50); color: var(--green-700); font-weight: 600; font-size: 12px; }
     main { outline: none; }
-    :host ::ng-deep .drawer { padding: 20px 14px; background: var(--glass-strong); backdrop-filter: blur(24px); }
+    :host ::ng-deep .drawer { padding: 20px 14px; background: #fff; }
   `,
 })
 export class Shell {

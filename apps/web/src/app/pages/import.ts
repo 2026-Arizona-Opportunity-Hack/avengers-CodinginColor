@@ -42,7 +42,7 @@ interface Match { row: Checked; donor: Donor; reason: string; }
       <header class="page-head">
         <div>
           <h1>Import</h1>
-          <p class="lede">Spreadsheets and exports from Zeffy, Benevity, AZ Gives and United Way. Nothing is saved until you confirm the last step.</p>
+          <p class="lede">Spreadsheets and platform exports. Nothing is saved until you confirm.</p>
         </div>
       </header>
 

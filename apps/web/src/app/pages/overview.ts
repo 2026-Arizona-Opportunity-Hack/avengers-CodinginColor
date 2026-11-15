@@ -25,7 +25,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
       <header class="page-head">
         <div>
           <h1>{{ store.isAdmin() ? 'Organization health' : 'Your portfolio' }}</h1>
-          <p class="lede">{{ year }} so far, compared with the same date last year{{ store.isAdmin() ? ', across every board member' : ', for the donors you own' }}.</p>
+          <p class="lede">{{ year }} to date, compared with the same point last year.</p>
         </div>
         <div class="actions">
           <a hlmBtn variant="outline" routerLink="/outreach"><ng-icon name="lucideListChecks" size="16" /> Follow-ups</a>
@@ -66,7 +66,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
       <div class="grid-main">
         <section class="panel chart-panel" aria-labelledby="pulse-h">
           <div class="panel-head">
-            <div><h2 id="pulse-h">Giving pulse</h2><p class="sub">Cumulative net giving by month, {{ year }} against {{ year - 1 }}</p></div>
+            <h2 id="pulse-h">Giving pulse</h2>
           </div>
           <div echarts [options]="pulseOptions()" [initOpts]="{ renderer: 'svg' }" class="chart h-[300px]"></div>
           <table class="sr-only">
@@ -77,7 +77,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
         </section>
 
         <section class="panel insights" aria-labelledby="ins-h">
-          <div class="panel-head"><div><h2 id="ins-h">What needs attention</h2><p class="sub">Computed from your records, not guessed</p></div></div>
+          <div class="panel-head"><h2 id="ins-h">What needs attention</h2></div>
           <ul class="ins-list">
             @for (i of insights(); track i.text) {
               <li>
@@ -96,20 +96,20 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
 
       <div class="grid-3 mt-5">
         <section class="panel" aria-labelledby="mov-h">
-          <div class="panel-head"><div><h2 id="mov-h">Donor movement</h2><p class="sub">Donors in each retention segment, year to date</p></div>
+          <div class="panel-head"><h2 id="mov-h">Donor movement</h2>
             <a routerLink="/retention" class="head-link">Retention</a></div>
           <div echarts [options]="movementOptions()" [initOpts]="{ renderer: 'svg' }" class="chart h-[240px]"></div>
           <table class="sr-only"><caption>Donors by retention segment</caption><tbody>
             @for (s of segments; track s) { <tr><th scope="row">{{ copy[s].label }}</th><td>{{ r().counts[s] }}</td></tr> }</tbody></table>
         </section>
         <section class="panel" aria-labelledby="prog-h">
-          <div class="panel-head"><div><h2 id="prog-h">Raised by program</h2><p class="sub">Net giving in {{ year }}; general campaigns are unrestricted</p></div></div>
+          <div class="panel-head"><h2 id="prog-h">Raised by program</h2></div>
           <div echarts [options]="programOptions()" [initOpts]="{ renderer: 'svg' }" class="chart h-[240px]"></div>
           <table class="sr-only"><caption>Net giving by program</caption><tbody>
             @for (p of byProgram(); track p.label) { <tr><th scope="row">{{ p.label }}</th><td>{{ money(p.cents) }}</td></tr> }</tbody></table>
         </section>
         <section class="panel" aria-labelledby="due-h">
-          <div class="panel-head"><div><h2 id="due-h">Due this week</h2><p class="sub">Next steps with a date in the next 7 days</p></div>
+          <div class="panel-head"><h2 id="due-h">Due this week</h2>
             <a routerLink="/outreach" class="head-link">All</a></div>
           <ul class="list">
             @for (f of due().slice(0, 5); track f.id) {
@@ -131,7 +131,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
 
       <div class="grid-2 mt-5">
         <section class="panel" aria-labelledby="gifts-h">
-          <div class="panel-head"><div><h2 id="gifts-h">Latest gifts</h2><p class="sub">Most recent first</p></div><a routerLink="/donations" class="head-link">All donations</a></div>
+          <div class="panel-head"><h2 id="gifts-h">Latest gifts</h2><a routerLink="/donations" class="head-link">All donations</a></div>
           <ul class="list">
             @for (g of recentGifts(); track g.id) {
               <li class="flex items-center gap-3">
@@ -148,7 +148,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
 
         @if (store.isAdmin()) {
           <section class="panel" aria-labelledby="board-h">
-            <div class="panel-head"><div><h2 id="board-h">Board portfolios</h2><p class="sub">Who owns which donors, and who has been reached in 90 days</p></div></div>
+            <div class="panel-head"><h2 id="board-h">Board portfolios</h2></div>
             <ul class="list">
               @for (row of portfolios(); track row.id) {
                 <li class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5">
@@ -163,7 +163,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
           </section>
         } @else {
           <section class="panel" aria-labelledby="mine-h">
-            <div class="panel-head"><div><h2 id="mine-h">Your last contacts</h2><p class="sub">Calls, texts, emails and meetings you logged</p></div></div>
+            <div class="panel-head"><h2 id="mine-h">Your last contacts</h2></div>
             <ul class="list">
               @for (c of recentContacts(); track c.id) {
                 <li class="flex items-center gap-3">

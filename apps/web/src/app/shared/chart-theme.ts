@@ -9,8 +9,9 @@ export const BASE = {
   backgroundColor: 'transparent',
   textStyle: { fontFamily: "'Instrument Sans Variable', ui-sans-serif, system-ui, sans-serif", color: INK_MUTED, fontSize: 12 },
   aria: { enabled: true },
-  animationDuration: 700,
-  animationEasing: 'cubicOut' as const,
+  animationDuration: 350,
+  animationDurationUpdate: 200,
+  animationEasing: 'quadraticOut' as const,
   tooltip: {
     backgroundColor: 'rgba(255,255,255,0.96)',
     borderColor: 'rgba(15,26,21,0.08)',

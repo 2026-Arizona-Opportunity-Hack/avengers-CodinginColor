@@ -21,12 +21,8 @@ const MIN_DONORS = 3;
       <header class="page-head">
         <div>
           <h1>Read API</h1>
-          <p class="lede">Key-authenticated, read-only totals for CIC's own dashboard: giving already aggregated by month, program or board member.</p>
+          <p class="lede">Read-only totals for CIC's dashboard. No donor names or contact details.</p>
         </div>
-        <ul class="promises" aria-label="What the API guarantees">
-          <li><ng-icon name="lucideLock" size="14" aria-hidden="true" />Read-only</li>
-          <li><ng-icon name="lucideShieldCheck" size="14" aria-hidden="true" />No names or contact details</li>
-        </ul>
       </header>
 
       <section aria-labelledby="keys-h">

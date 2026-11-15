@@ -22,9 +22,8 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
       <header class="page-head">
         <div>
           <h1>Outreach</h1>
-          <p class="lede">Cadence drafts and reminds. A person approves every message and sends it from their own email or phone.</p>
+          <p class="lede">Drafted by Cadence. Approved and sent by a person.</p>
         </div>
-        <span class="guard"><ng-icon name="lucideShieldCheck" size="16" aria-hidden="true" /> Nothing is ever sent automatically</span>
       </header>
 
       <div class="tabs" role="tablist" aria-label="Outreach">

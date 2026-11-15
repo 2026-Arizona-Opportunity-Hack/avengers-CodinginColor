@@ -35,7 +35,7 @@ const ACCESS: Array<[string, string, string]> = [
       <header class="page-head">
         <div>
           <h1>Settings</h1>
-          <p class="lede">Who can sign in and what they can do, which fields a donor record carries, and every change made.</p>
+          <p class="lede">People, permissions, donor fields and history.</p>
         </div>
       </header>
 

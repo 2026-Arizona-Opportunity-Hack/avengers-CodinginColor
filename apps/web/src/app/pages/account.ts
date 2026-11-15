@@ -16,7 +16,7 @@ interface Permission { label: string; allowed: boolean; }
       <header class="page-head">
         <div>
           <h1>Account and security</h1>
-          <p class="lede">Your profile, what your role can see and do, and how your sign-in is protected.</p>
+          <p class="lede">Your profile, what your role can do, and how sign-in is protected.</p>
         </div>
       </header>
 
