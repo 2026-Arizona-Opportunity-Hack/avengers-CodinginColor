@@ -83,4 +83,13 @@ and the applicable donor/gift ID only. The server binds reviewer identity and
 rebuilds from fresh scoped facts. Stale plans return409 with a fresh hash; layout
 changes invalidate both phases. `GET /:id/plan/rows?kind=donor|gift` returns bounded
 review rows and authorized candidates. Review never writes donors/gifts. Commit
-follows separately; a ready plan is not a saved import.
+is explicit: `POST /:id/commit` accepts only `{donor_plan_hash,plan_hash}`. It
+serializes imports per org, locks current donor/gift facts, rebuilds both plans,
+applies assigned donors then gifts, audits and saves the result in one transaction.
+Stale facts return409; a dependency/audit failure returns503 and rolls everything
+back. Identical retries/re-uploads return the saved result with `replayed:true`.
+Raw bytes, layout and decisions are purged on success. Excluded CSV records require
+explicit `layout.skip_records:[recordNumber,...]` before review; otherwise commit
+fails400. Their validation issues are available on preview row pages. No financial
+defaults or client-supplied write operations are accepted. This is CSV-only until
+the Data-owned XLSX ingestion handoff; the UI must wire these server routes.

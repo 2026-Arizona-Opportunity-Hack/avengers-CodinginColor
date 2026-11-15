@@ -45,9 +45,9 @@ export function registerImportReview(router:Router,access:ImportAccess,org:strin
       const b=await batchOf(c,parse(IdSchema,req.params.id),org); sameReviewer(b,m.id);
       const p=await plans(c,b,org),plan=kind==='donor'?p.donor:giftPlan(b,p).gift;
       if(kind==='donor'&&b.donor_plan_hash!==plan.plan_hash) {
-        await c.query("UPDATE import_batches SET donor_plan_hash=$2,donor_decisions='[]',gift_decisions='[]',gift_plan_hash=NULL WHERE id=$1",[b.id,plan.plan_hash]);
+        await c.query("UPDATE import_batches SET donor_plan_hash=$2,donor_decisions=NULL,gift_decisions=NULL,gift_plan_hash=NULL WHERE id=$1",[b.id,plan.plan_hash]);
       } else if(kind==='gift'&&b.gift_plan_hash!==plan.plan_hash) {
-        await c.query("UPDATE import_batches SET gift_plan_hash=$2,gift_decisions='[]' WHERE id=$1",[b.id,plan.plan_hash]);
+        await c.query("UPDATE import_batches SET gift_plan_hash=$2,gift_decisions=NULL WHERE id=$1",[b.id,plan.plan_hash]);
       }
       return {plan_hash:plan.plan_hash,donor_plan_hash:p.donor.plan_hash,counts:counts(plan,kind),
         excluded:p.drafts.excluded.length,unresolved:p.drafts.unresolved};
@@ -61,7 +61,7 @@ export function registerImportReview(router:Router,access:ImportAccess,org:strin
       const decisions=input.decisions.map(d=>({...d,plan_hash:plan.plan_hash,reviewer_id:m.id}));
       const result=resolve(plan,decisions);
       if(kind==='donor') {
-        await c.query("UPDATE import_batches SET donor_decisions=$2,gift_decisions='[]',gift_plan_hash=NULL,reviewer_id=$3 WHERE id=$1",[b.id,JSON.stringify(decisions),m.id]);
+        await c.query("UPDATE import_batches SET donor_decisions=$2,gift_decisions=NULL,gift_plan_hash=NULL,reviewer_id=$3 WHERE id=$1",[b.id,JSON.stringify(decisions),m.id]);
       } else await c.query('UPDATE import_batches SET gift_decisions=$2,reviewer_id=$3 WHERE id=$1',[b.id,JSON.stringify(decisions),m.id]);
       await c.query("INSERT INTO audit_events(org_id,actor_id,action,target_id,status) VALUES($1,$2,$3,$4,'success')",[org,m.id,'import.review.'+kind,b.id]);
       return {status:result.status,...(result.status==='needs_review'?{pending:result.pending.slice(0,200),total_pending:result.pending.length}:{}),
