@@ -13,13 +13,33 @@ const Query = z.strictObject({
 });
 const fields = "id, org_id, owner_id, name, email, phone, consent, metadata, to_char(archived_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS.US\"Z\"') AS archived_at";
 const Update = DonorWriteSchema.partial().refine(value => Object.keys(value).length > 0);
+const Owner = z.strictObject({ owner_id: IdSchema });
+const Assigned = z.strictObject({ id: IdSchema, owner_id: IdSchema });
 function valid<T>(result: z.ZodSafeParseResult<T>): T {
   if (!result.success) throw new HttpError(400);
   return result.data;
 }
+// SQLSTATEs raised by the scoped assignment functions; anything else stays a dependency failure.
+function failed(error: unknown, statuses: Record<string, number>): never {
+  const code = (error as { code?: unknown } | null)?.code;
+  const status = typeof code === 'string' ? statuses[code] : undefined;
+  throw status ? new HttpError(status) : error;
+}
 
 export function donors(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
   const router = Router();
+  router.post('/', async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const write = valid(DonorWriteSchema.safeParse(req.body));
+    // The function returns only IDs, so a creator assigned elsewhere never receives the row.
+    const assigned = await withMember(db, env.CIC_ORG_ID, identity, async client => {
+      const result = await client.query('SELECT * FROM public.create_assigned_donor($1,$2,$3,$4,$5::jsonb)',
+        [write.name, write.email ?? null, write.phone ?? null, write.consent, JSON.stringify(write.metadata)])
+        .catch(error => failed(error, { '42501': 403, P0001: 409 }));
+      return Assigned.parse(result.rows[0]);
+    });
+    res.status(201).json(assigned);
+  });
   router.get('/', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
     const query = valid(Query.safeParse(req.query));
@@ -57,6 +77,17 @@ export function donors(env: Env, db: Database, verify: (header: string | undefin
       return DonorSchema.parse(rows.rows[0]);
     });
     res.json(donor);
+  });
+  router.post('/:id/owner', async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const id = valid(IdSchema.safeParse(req.params.id));
+    const owner = valid(Owner.safeParse(req.body));
+    const assigned = await withMember(db, env.CIC_ORG_ID, identity, async client => {
+      const result = await client.query('SELECT * FROM public.reassign_donor($1,$2)', [id, owner.owner_id])
+        .catch(error => failed(error, { '42501': 403, P0002: 404, P0001: 409 }));
+      return Assigned.parse(result.rows[0]);
+    });
+    res.json(assigned);
   });
   router.post('/:id/archive', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
