@@ -128,3 +128,12 @@ Clerk user with a verified primary email. `PATCH /:id` changes `{role,active}`.
 Self-admin removal, last-admin removal and making an active donor owner ineligible
 return409; reassign the portfolio first. Unknown/foreign IDs return404. Changes
 and audit events commit together; Clerk invitations remain a separate workflow.
+
+Admin/MFA `POST /api/v1/invitations` accepts `{request_id,email,role?}` (default
+board), saves role intent, then sends one Clerk invitation outside SQL. Identical
+sent retries return200 without another email. Failed/queued delivery never grants
+access; explicit retry of a failed request may send again. Ten attempts per admin
+per hour are allowed. GET lists up to200; POST `/:id/revoke` closes database intent
+before provider cleanup. Only sent/unexpired intent may be claimed from a verified
+primary Clerk email at /me. Existing inactive memberships stay inactive. Roles
+never come from client email, query parameters or Clerk public metadata.
