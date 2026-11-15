@@ -423,3 +423,12 @@ Existing Claude clock and secret-guard hooks remain active.
 Winning teams finish the project with the nonprofit — the [Definition of Done](https://www.ohack.dev/about/completion) (deployed, nonprofit sign-off, docs, open source) is tracked on your team page. Keep the repo public and the README honest; recruiters do read these.
 
 Need a hand this weekend? [#ask-a-mentor](https://opportunity-hack.slack.com/archives/C01E5CGDQ74) on Slack, or ask in [#avengers](https://opportunity-hack.slack.com/app_redirect?channel=avengers) and a mentor will drop in.
+
+Manual donor entry saves through the authenticated API with server-selected ownership.
+The optional first gift records a settled USD gift; a partial gift failure stays
+on the form for a same-key retry. Donors assigned to another board member remain
+visible only to that owner and admins.
+
+Each visible donor also has a historical gift form with explicit currency, refund,
+status, campaign and date. Failed saves retain the same request identity for retry;
+confirmed gifts update that currency in the timeline.

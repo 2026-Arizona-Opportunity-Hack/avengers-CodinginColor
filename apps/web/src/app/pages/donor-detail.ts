@@ -2,6 +2,7 @@ import { Component, ElementRef, computed, inject, input, signal, viewChild } fro
 import { Router, RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
+import { GiftEntry } from './gift-entry';
 import { Store } from '../core/store';
 import { date, money, relativeDue, today } from '../core/format';
 import { CommunicationKind, Consent, SOURCE_LABEL } from '../core/models';
@@ -17,7 +18,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
 
 @Component({
   selector: 'app-donor-detail',
-  imports: [RouterLink, NgIcon, HlmButtonImports],
+  imports: [RouterLink, NgIcon, HlmButtonImports, GiftEntry],
   template: `
     @let d = donor();
     @if (!d) {
@@ -91,6 +92,8 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
                 <button class="btn" type="submit" [disabled]="!stepAction().trim() || !stepDue()">Add</button>
               </form>
             </section>
+
+            <app-gift-entry [donorId]="d.id" />
 
             <section class="section" aria-labelledby="tl-h">
               <div class="section-head">
