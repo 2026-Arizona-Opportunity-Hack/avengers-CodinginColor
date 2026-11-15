@@ -14,6 +14,7 @@ const signedIn: CanMatchFn = (_route, segments: UrlSegment[]) => inject(Store).s
 export const routes: Routes = [
   { path: 'impact', title: 'Your impact | Coding in Color', loadComponent: () => import('./pages/donor-impact').then(m => m.DonorImpactPage) },
   { path: 'sign-up', title: 'Accept invitation', loadComponent: () => import('./pages/invitation-sign-up').then(m => m.InvitationSignUpPage) },
+  { path: 'setup-security', title: 'Set up two-step verification · Coding in Color', loadComponent: () => import('./pages/setup-security').then(m => m.SetupSecurityPage) },
   { path: 'sign-in', title: 'Sign in · Coding in Color', loadComponent: () => import('./pages/sign-in').then((m) => m.SignInPage) },
   {
     path: '',

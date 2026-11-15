@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, ElementRef, computed, effect, inject, input, viewChild } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { toast } from '@spartan-ng/brain/sonner';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
@@ -14,7 +14,7 @@ import { Store } from '../core/store';
  */
 @Component({
   selector: 'app-sign-in',
-  imports: [NgIcon, HlmButtonImports, HlmSkeletonImports],
+  imports: [RouterLink, NgIcon, HlmButtonImports, HlmSkeletonImports],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="wrap">
@@ -33,6 +33,9 @@ import { Store } from '../core/store';
 
       <main id="main" class="card glass" aria-labelledby="signin-h">
         <h2 id="signin-h" class="text-xl font-semibold tracking-tight">Sign in to Coding in Color</h2>
+        @if (securitySetup() === 'complete' && !store.signedIn()) {
+          <p class="status" role="status">Sign in again and enter your authenticator code to finish.</p>
+        }
 
         @if (signedOut() && !store.signedIn()) {
           <p class="status" role="status"><ng-icon name="lucideCircleCheck" size="16" aria-hidden="true" /> You're signed out.</p>
@@ -45,11 +48,21 @@ import { Store } from '../core/store';
               <div #clerk class="mt-6"></div>
             }
             @case ('error') {
-              <p class="mt-3 text-sm" role="alert">{{ api.error() }}</p>
-              <button hlmBtn class="mt-5" (click)="retry()"><ng-icon name="lucideRefreshCw" size="16" /> Try again</button>
-              @if (api.canRetry()) {
-                <button hlmBtn variant="outline" class="mt-3" type="button" (click)="api.manageSecurity()">Manage sign-in security</button>
-                <button hlmBtn variant="ghost" class="mt-3" type="button" (click)="store.signOut()">Sign out</button>
+              @if (api.errorCode() === 'admin_mfa_required' && api.canRetry()) {
+                <section class="mt-5 space-y-4" aria-labelledby="setup-security-title">
+                  <h3 id="setup-security-title" class="text-lg font-semibold">Set up two-step verification</h3>
+                  <p>Your admin account needs one more step before you can open the workspace. Add an authenticator, verify its code, then sign in again.</p>
+                  <a hlmBtn routerLink="/setup-security" [queryParams]="{ next: safeNext() }">Set up two-step verification</a>
+                  <p class="text-sm">This extra step is required for admins. Board accounts can sign in without it.</p>
+                  <button hlmBtn variant="ghost" type="button" (click)="store.signOut()">Use another account</button>
+                </section>
+              } @else {
+                <p class="mt-3 text-sm" role="alert">{{ api.error() }}</p>
+                <button hlmBtn class="mt-5" (click)="retry()"><ng-icon name="lucideRefreshCw" size="16" /> Try again</button>
+                @if (api.canRetry()) {
+                  <button hlmBtn variant="outline" class="mt-3" type="button" (click)="api.manageSecurity()">Manage sign-in security</button>
+                  <button hlmBtn variant="ghost" class="mt-3" type="button" (click)="store.signOut()">Sign out</button>
+                }
               }
             }
             @default {
@@ -122,6 +135,7 @@ export class SignInPage {
   private readonly router = inject(Router);
   readonly next = input<string>();
   readonly signedOut = input<string>();
+  readonly securitySetup = input<string>();
   private readonly clerk = viewChild<ElementRef<HTMLDivElement>>('clerk');
 
   protected readonly accounts = computed(() => this.store.members().filter((m) => m.active).map((m) => {
@@ -140,7 +154,7 @@ export class SignInPage {
   }
 
   /** Only same-app paths, so a crafted link can't bounce someone off-site after sign-in. */
-  private safeNext() {
+  protected safeNext() {
     const n = this.next();
     return n && n.startsWith('/') && !n.startsWith('//') && !n.startsWith('/sign-in') ? n : '/';
   }
