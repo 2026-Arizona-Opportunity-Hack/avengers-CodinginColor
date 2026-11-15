@@ -115,4 +115,10 @@ Review lapsed donors from Follow-ups or Retention. The current scoped report ope
 a lapsed drill-down; eligible active contacts can receive an editable server nudge
 draft. Every nudge still requires the normal approval and manual-send steps.
 
+On an active donor profile, Draft a program update loads scoped net program gifts
+and approved available aggregate results for an inclusive date range. Inspect the
+source facts, edit the message and save it for the existing approval/send workflow.
+Source changes invalidate the proposal; identical unsent saves reuse the draft.
+No model key is required. External suggestions receive only synthetic fact types.
+
 Reporting charts, owner giving totals and the funder selector retain authorized archived donor history. Archived donors remain excluded from active assignment counts and follow-up workload.

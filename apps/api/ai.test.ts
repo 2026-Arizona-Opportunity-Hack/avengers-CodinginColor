@@ -12,7 +12,7 @@ test('optional JSON advice is bounded, structured and separate from trusted inst
     assert.equal(init?.redirect, 'error'); assert.ok(init?.signal); const body = JSON.parse(String(init?.body));
     assert.match(body.messages[0].content, /No em dashes/); assert.equal(body.messages[1].content, JSON.stringify(request.data));
     assert.equal(body.response_format.json_schema.strict, true); assert.equal(body.max_completion_tokens, 500);
-    assert.equal(body.reasoning_effort, 'none'); return reply('{"segment":"lapsed"}');
+    assert.equal(body.reasoning_effort, undefined); return reply('{"segment":"lapsed"}');
   };
   assert.deepEqual(await proposeJson(request, { config, fetchImpl }), { segment: 'lapsed' });
   for (const bad of [{ ...config, key: '' }, { ...config, model: '' }, { ...config, baseUrl: 'http://example.org/v1' }])
