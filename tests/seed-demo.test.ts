@@ -109,7 +109,8 @@ test('the real retention calculation puts each seeded donor in its designed segm
   const gifts = (await db.query<Record<string, string>>(`SELECT donor_id, amount_cents::text AS amount_cents,
       refund_cents::text AS refund_cents, currency, status,
       to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS occurred_at FROM gifts`)).rows
-    .map((g) => ({ ...g, amount_cents: Number(g.amount_cents), refund_cents: Number(g.refund_cents),
+    .map((g) => ({ donor_id: g.donor_id, currency: g.currency, occurred_at: g.occurred_at,
+      amount_cents: Number(g.amount_cents), refund_cents: Number(g.refund_cents),
       status: g.status as 'settled' | 'pending' | 'void' }));
   const usd = retentionReport(gifts, ytdWindows('2026-11-14', '-07:00')).byCurrency.USD;
   // 24 individuals cycle through 7 patterns (dormant donors are omitted) plus two foundations.
