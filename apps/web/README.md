@@ -35,8 +35,27 @@ switch between an admin and a board member and see role scoping. The UI mirrors
 the server's rules; the API and PostgreSQL row-level security remain the authority.
 Settings → Reset demo data restores the original records.
 
-Wiring to the backend replaces `Store` reads with calls to the routes in
-`apps/api/README.md` (`GET /api/v1/donors`, `/donors/:id`, reporting routes in #27–#29).
+### Live mode (#59)
+
+Put a `config.json` next to `index.html` (in `public/` for `npm start`, or in the
+deployed `dist/web/browser/`) to sign in with Clerk and read the real API:
+
+```json
+{ "apiBase": "https://api.example.org", "clerkPublishableKey": "pk_test_REPLACE_ME" }
+```
+
+Both values are public. `apiBase` is `""` when the API serves the app from the same
+origin, and the API's `APP_ORIGIN` must equal the app's origin. With no valid
+`config.json` the app stays in demo mode.
+
+In live mode, Donors, Donor detail (edit and archive) and Retention read and write
+through `GET/PATCH /api/v1/donors`, `POST /api/v1/donors/:id/archive`,
+`GET /api/v1/me` and `GET /api/v1/reports/retention`. Donor records are kept in
+memory only, never in browser storage, and are cleared on sign-out. Screens whose
+server routes have not landed (overview, donations, add donor, outreach, import,
+funder reports, API keys, settings) are hidden. Any other write shows "not
+connected yet" instead of pretending to save. Other owners appear as a short member
+ID until the API has a member directory route.
 
 ## Design rules
 

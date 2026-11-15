@@ -1,10 +1,12 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { filter } from 'rxjs';
 import { Store } from './core/store';
+import { Api } from './core/api';
 import { today } from './core/format';
 
-interface NavItem { path: string; label: string; admin?: boolean; exact?: boolean; count?: () => number; }
+/** `live` marks screens whose server routes exist; the rest are hidden in live mode. */
+interface NavItem { path: string; label: string; admin?: boolean; exact?: boolean; live?: boolean; count?: () => number; }
 interface NavGroup { label: string; items: NavItem[]; }
 
 const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
@@ -44,6 +46,18 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
           }
         </nav>
 
+        @if (store.live()) {
+          <div class="session">
+            <p class="label">Signed in</p>
+            @if (api.status() === 'ready') {
+              <p class="session-meta">{{ store.me().title }} · <span class="tag" [class.solid]="store.isAdmin()">{{ store.isAdmin() ? 'Admin' : 'Board' }}</span></p>
+              <button class="btn small" type="button" (click)="signOut()">Sign out</button>
+            } @else {
+              <p class="session-meta">Not signed in</p>
+            }
+            <p class="demo-note"><span class="tag solid">Live data</span> Access is checked by the server.</p>
+          </div>
+        } @else {
         <div class="session">
           <label class="label" for="session">Signed in as</label>
           <select id="session" class="select" (change)="switchTo($any($event.target).value)">
@@ -54,10 +68,38 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
           <p class="session-meta">{{ store.me().title }} · <span class="tag" [class.solid]="store.isAdmin()">{{ store.isAdmin() ? 'Admin' : 'Board' }}</span></p>
           <p class="demo-note"><span class="tag dashed">Demo data</span> Synthetic records only.</p>
         </div>
+        }
       </aside>
 
       <main id="main" tabindex="-1">
-        <router-outlet />
+        @if (store.notice(); as notice) {
+          <div class="notice" role="alert">
+            <p>{{ notice }}</p>
+            <button class="btn small" type="button" (click)="store.notice.set(null)">Dismiss</button>
+          </div>
+        }
+        @if (!store.live() || api.status() === 'ready') {
+          <router-outlet />
+        } @else {
+          <div class="page gate">
+            @switch (api.status()) {
+              @case ('signed-out') {
+                <h1>Sign in to Cadence</h1>
+                <p class="lede">Use the account Coding in Color invited you with. Admins confirm a second factor.</p>
+                <div #signin class="signin"></div>
+              }
+              @case ('error') {
+                <h1>Cadence could not connect</h1>
+                <p class="lede" role="alert">{{ api.error() }}</p>
+                <button class="btn primary" type="button" (click)="retry()">Try again</button>
+              }
+              @default {
+                <h1>Connecting…</h1>
+                <p class="lede" role="status">Loading your donors from the server.</p>
+              }
+            }
+          </div>
+        }
       </main>
     </div>
   `,
@@ -83,6 +125,11 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     .session-meta, .demo-note { font-size: 12px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     main { min-width: 0; outline: none; border-left: 1px solid var(--rule); min-height: 100vh; }
     .mobile-bar { display: none; }
+    .notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 24px 0;
+      padding: 10px 14px; border: 1px solid var(--brand); border-left-width: 4px; border-radius: var(--radius); background: var(--paper); }
+    .notice p { margin: 0; }
+    .gate { max-width: 560px; }
+    .signin { margin-top: 24px; }
     @media (max-width: 860px) {
       .shell { grid-template-columns: 1fr; }
       main { border-left: 0; }
@@ -96,7 +143,9 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
 })
 export class App {
   protected readonly store = inject(Store);
+  protected readonly api = inject(Api);
   private readonly router = inject(Router);
+  private readonly signin = viewChild<ElementRef<HTMLDivElement>>('signin');
   protected readonly navOpen = signal(false);
 
   private readonly dueCount = computed(() => {
@@ -109,12 +158,12 @@ export class App {
     const all: NavGroup[] = [
       { label: 'Relationships', items: [
         { path: '/', label: 'Overview', exact: true },
-        { path: '/donors', label: this.store.isAdmin() ? 'Donors' : 'Your donors' },
+        { path: '/donors', label: this.store.isAdmin() ? 'Donors' : 'Your donors', live: true },
         { path: '/donations', label: 'Donations' },
         { path: '/outreach', label: 'Outreach', count: () => this.dueCount() + this.approvalCount() },
       ] },
       { label: 'Insights', items: [
-        { path: '/retention', label: 'Retention' },
+        { path: '/retention', label: 'Retention', live: true },
         { path: '/funders', label: 'Funder reports', admin: true },
       ] },
       { label: 'Data', items: [
@@ -124,15 +173,31 @@ export class App {
       ] },
     ];
     return all
-      .map((g) => ({ ...g, items: g.items.filter((i) => !i.admin || this.store.isAdmin()) }))
+      .map((g) => ({ ...g, items: g.items.filter((i) => (!i.admin || this.store.isAdmin()) && (!this.store.live() || i.live)) }))
       .filter((g) => g.items.length > 0);
   });
 
   constructor() {
+    effect((onCleanup) => {
+      const el = this.signin()?.nativeElement;
+      if (!el) return;
+      this.api.mountSignIn(el);
+      onCleanup(() => this.api.unmountSignIn(el));
+    });
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       this.navOpen.set(false);
       document.getElementById('main')?.focus({ preventScroll: true });
     });
+  }
+
+  /** If Clerk never loaded there is no session to retry with, so start over. */
+  protected retry() {
+    if (this.api.canRetry()) void this.store.refreshLive(); else location.reload();
+  }
+
+  protected async signOut() {
+    await this.api.signOut();
+    this.router.navigateByUrl('/');
   }
 
   protected switchTo(id: string) {
