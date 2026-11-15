@@ -13,7 +13,16 @@ test('a suggestion request asks one choice question and sends no donor rows', ()
   const question = body.questions.column;
   assert.equal(question.type, 'choice');
   assert.deepEqual(Object.keys(question.criteria).sort(), [...targets].sort());
-  assert.match(question.instructions, /Contribution Value/);
+  assert.doesNotMatch(question.instructions, /Contribution Value/);
+  assert.equal(body.state, JSON.stringify(['Contribution Value']));
+});
+
+test('a suggestion request requires exactly one bounded nonempty header', () => {
+  for (const columns of [[], [
+    { header: 'A', samples: [] }, { header: 'B', samples: [] },
+  ], [{ header: 'x'.repeat(301), samples: [] }], [{ header: '  ', samples: [] }]]) {
+    assert.throws(() => suggestionRequest(columns), /Invalid column suggestion request/);
+  }
 });
 
 test('a low-confidence or unknown answer is a proposal, never an applied mapping', () => {
@@ -35,17 +44,79 @@ test('a response outside the allowlist or without a confidence is rejected', () 
   assert.throws(() => readSuggestion({ answers: { column: { type: 'choice', choice: 'email',
     probabilities: { email: 1 } } } }), /Invalid column suggestion/);
   assert.throws(() => readSuggestion({ answers: {} }), /Invalid column suggestion/);
+  for (const bad of [NaN, Infinity, -0.01, 1.01]) {
+    assert.throws(() => readSuggestion({ answers: { column: { type: 'choice', choice: 'email',
+      probabilities: { email: bad }, confidence: 0.9 } } }), /Invalid column suggestion/);
+    assert.throws(() => readSuggestion({ answers: { column: { type: 'choice', choice: 'email',
+      probabilities: { email: 0.9 }, confidence: bad } } }), /Invalid column suggestion/);
+  }
 });
 
-test('a missing API key fails before any request', async () => {
-  const previous = process.env.JEV_API_KEY;
+test('malformed response fails closed', () => {
+  assert.throws(() => readSuggestion(null), /Invalid column suggestion/);
+});
+
+test('official endpoint, canonical key, request safety and errors are enforced', async () => {
+  const oldPrimary = process.env.TYPESAFE_API_KEY;
+  const oldLegacy = process.env.JEV_API_KEY;
+  process.env.TYPESAFE_API_KEY = 'synthetic-primary';
+  process.env.JEV_API_KEY = 'synthetic-legacy';
+  try {
+    let init: RequestInit | undefined;
+    let url = '';
+    await suggestColumn({ header: 'Gift Amt', samples: ['10.00', 'PRIVATE'] }, (async (input, options) => {
+      url = String(input);
+      init = options;
+      return Response.json({ answers: { column: { type: 'choice', choice: 'amount_decimal',
+        probabilities: { amount_decimal: 0.9 }, confidence: 0.9 } } });
+    }) as typeof fetch);
+    assert.equal(url, 'https://api.typesafe.ai/v1/systemone');
+    assert.equal(new Headers(init?.headers).get('authorization'), 'Bearer synthetic-primary');
+    assert.equal(init?.redirect, 'error');
+    assert.ok(init?.signal instanceof AbortSignal);
+    assert.match(JSON.stringify(init?.body), /Gift Amt/);
+    assert.doesNotMatch(JSON.stringify(init?.body), /10\.00|PRIVATE/);
+
+    for (const failure of [
+      () => Promise.resolve(new Response('synthetic-primary', { status: 500 })),
+      () => Promise.reject(new Error('synthetic-primary network failure')),
+    ]) {
+      await assert.rejects(suggestColumn({ header: 'Gift Amt', samples: [] }, failure as typeof fetch),
+        (error: Error) => !error.message.includes('synthetic-primary'));
+    }
+  } finally {
+    if (oldPrimary === undefined) delete process.env.TYPESAFE_API_KEY;
+    else process.env.TYPESAFE_API_KEY = oldPrimary;
+    if (oldLegacy === undefined) delete process.env.JEV_API_KEY;
+    else process.env.JEV_API_KEY = oldLegacy;
+  }
+});
+
+test('missing key fails before fetch; legacy key remains supported', async () => {
+  const oldPrimary = process.env.TYPESAFE_API_KEY;
+  const oldLegacy = process.env.JEV_API_KEY;
+  delete process.env.TYPESAFE_API_KEY;
   delete process.env.JEV_API_KEY;
   try {
-    await assert.rejects(suggestColumn({ header: 'Gift Amt', samples: ['10.00'] }, () => {
-      throw new Error('network');
-    }), /JEV_API_KEY/);
+    let called = false;
+    await assert.rejects(suggestColumn({ header: 'Gift Amt', samples: [] }, (async () => {
+      called = true;
+      return Response.json({});
+    }) as typeof fetch), /TYPESAFE_API_KEY/);
+    assert.equal(called, false);
+
+    process.env.JEV_API_KEY = 'synthetic-legacy';
+    let authorization = '';
+    await suggestColumn({ header: 'Gift Amt', samples: [] }, (async (_input, init) => {
+      authorization = new Headers(init?.headers).get('authorization') ?? '';
+      return Response.json({ answers: { column: { type: 'choice', choice: 'amount_decimal',
+        probabilities: { amount_decimal: 0.9 }, confidence: 0.9 } } });
+    }) as typeof fetch);
+    assert.equal(authorization, 'Bearer synthetic-legacy');
   } finally {
-    if (previous === undefined) delete process.env.JEV_API_KEY;
-    else process.env.JEV_API_KEY = previous;
+    if (oldPrimary === undefined) delete process.env.TYPESAFE_API_KEY;
+    else process.env.TYPESAFE_API_KEY = oldPrimary;
+    if (oldLegacy === undefined) delete process.env.JEV_API_KEY;
+    else process.env.JEV_API_KEY = oldLegacy;
   }
 });
