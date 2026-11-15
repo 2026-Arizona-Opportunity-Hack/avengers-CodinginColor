@@ -57,6 +57,7 @@ BEGIN
   ALTER FUNCTION public.cic_record_aggregate_access(text,text,integer) OWNER TO cic_reporting;
   SET LOCAL ROLE cic_reporting;
   REVOKE ALL ON FUNCTION public.cic_record_aggregate_access(text,text,integer) FROM PUBLIC;
+  REVOKE ALL ON FUNCTION public.cic_record_aggregate_access(text,text,integer) FROM cic_runtime;
   GRANT EXECUTE ON FUNCTION public.cic_record_aggregate_access(text,text,integer) TO cic_runtime;
   EXECUTE format('SET LOCAL ROLE %I',actor);
   IF need_create THEN REVOKE CREATE ON SCHEMA public FROM cic_reporting; END IF;
@@ -70,7 +71,8 @@ BEGIN
     AND p.proowner='cic_reporting'::regrole AND p.prosecdef AND p.proconfig=ARRAY['search_path=pg_catalog'])
     OR EXISTS(SELECT FROM pg_proc p,aclexplode(p.proacl) a
       WHERE p.oid='public.cic_record_aggregate_access(text,text,integer)'::regprocedure
-      AND a.grantee NOT IN ('cic_reporting'::regrole,'cic_runtime'::regrole))
+      AND (a.grantee NOT IN ('cic_reporting'::regrole,'cic_runtime'::regrole)
+        OR a.grantor<>'cic_reporting'::regrole OR a.is_grantable))
     OR NOT has_function_privilege('cic_runtime','public.cic_record_aggregate_access(text,text,integer)','EXECUTE') THEN
     RAISE EXCEPTION 'Unexpected audit function privileges';
   END IF;

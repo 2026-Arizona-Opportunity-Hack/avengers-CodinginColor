@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { PGlite } from '@electric-sql/pglite';
 import { migrate } from '../db/migrate.ts';
+import { readdir,readFile } from 'node:fs/promises';
 
 const org='00000000-0000-4000-8000-000000000001', foreign='00000000-0000-4000-8000-000000000002';
 const key='00000000-0000-4000-8000-000000000003', otherKey='00000000-0000-4000-8000-000000000004';
@@ -60,4 +61,18 @@ test('aggregate audit is identifier-only, key authenticated, append-only and adm
     VALUES('${foreign}','${key}','summary',200)`),/foreign key/);
   await db.exec('RESET ROLE; CREATE ROLE audit_outsider NOLOGIN; SET SESSION AUTHORIZATION audit_outsider');
   await assert.rejects(record(hash,'summary',200),/permission denied/);
+});
+
+test('019 removes inherited runtime grant option without changing default ACLs',async t=>{
+  const db=new PGlite(); t.after(()=>db.close());
+  for(const name of (await readdir('db/migrations')).filter(n=>/^\d{3}_.*\.sql$/.test(n)&&n<'019_').sort())
+    await db.exec(await readFile(`db/migrations/${name}`,'utf8'));
+  await db.exec('ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON FUNCTIONS TO cic_runtime WITH GRANT OPTION');
+  const before=(await db.query('SELECT * FROM pg_default_acl')).rows;
+  await db.exec(await readFile('db/migrations/019_aggregate_access_audit.sql','utf8'));
+  assert.deepEqual((await db.query('SELECT * FROM pg_default_acl')).rows,before);
+  const acl=(await db.query(`SELECT a.is_grantable,pg_get_userbyid(a.grantor) grantor
+    FROM pg_proc p,aclexplode(p.proacl) a WHERE p.oid='public.cic_record_aggregate_access(text,text,integer)'::regprocedure
+    AND a.grantee='cic_runtime'::regrole`)).rows;
+  assert.deepEqual(acl,[{is_grantable:false,grantor:'cic_reporting'}]);
 });

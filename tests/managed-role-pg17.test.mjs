@@ -73,10 +73,12 @@ test('019 preserves native PG17 managed membership grantors/options and schema C
       GRANT cic_reporting TO audit_owner WITH ADMIN TRUE, INHERIT FALSE, SET FALSE; RESET ROLE;
       GRANT CREATE ON SCHEMA public TO audit_owner WITH GRANT OPTION;
       GRANT REFERENCES ON public.organizations,public.api_keys TO audit_owner;
-      GRANT SELECT(id) ON public.api_keys TO audit_owner WITH GRANT OPTION;`);
+      GRANT SELECT(id) ON public.api_keys TO audit_owner WITH GRANT OPTION;
+      ALTER DEFAULT PRIVILEGES FOR ROLE audit_owner GRANT EXECUTE ON FUNCTIONS TO cic_runtime WITH GRANT OPTION;`);
     const catalog=async()=>({
       members:(await db.query(`SELECT * FROM pg_auth_members WHERE roleid='cic_reporting'::regrole ORDER BY member,grantor`)).rows,
       schema:(await db.query("SELECT nspacl FROM pg_namespace WHERE oid='public'::regnamespace")).rows,
+      defaults:(await db.query('SELECT * FROM pg_default_acl ORDER BY oid')).rows,
     });
     const source=body(await readFile('db/migrations/019_aggregate_access_audit.sql','utf8'));
     for(const existingCreate of [false,true]) {
@@ -90,6 +92,9 @@ test('019 preserves native PG17 managed membership grantors/options and schema C
         EXISTS(SELECT FROM aclexplode(proacl) a WHERE a.grantee=0) public
         FROM pg_proc WHERE oid='public.cic_record_aggregate_access(text,text,integer)'::regprocedure`)).rows[0];
       assert.deepEqual(result,{owner:'cic_reporting',prosecdef:true,proconfig:['search_path=pg_catalog'],runtime:true,public:false});
+      assert.deepEqual((await db.query(`SELECT a.is_grantable,pg_get_userbyid(a.grantor) grantor
+        FROM pg_proc p,aclexplode(p.proacl) a WHERE p.oid='public.cic_record_aggregate_access(text,text,integer)'::regprocedure
+        AND a.grantee='cic_runtime'::regrole`)).rows,[{is_grantable:false,grantor:'cic_reporting'}]);
       await db.query('ROLLBACK TO SAVEPOINT before_audit');
     }
     await db.query('ROLLBACK');
