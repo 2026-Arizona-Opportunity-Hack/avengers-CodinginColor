@@ -71,6 +71,16 @@ it('keeps saved user drafts unchanged on load and personalizes newly created dra
   expect(created?.status).toBe('pending');
 });
 
+it('respects an edited template when creating a regular draft', async () => {
+  const data = buildDemoDataset(); const template = data.templates.find((t) => t.id === 't-thanks-email')!;
+  template.subject = 'Custom subject {{first_name}}'; template.body = 'My custom template wording';
+  localStorage.setItem('cadence.dataset', JSON.stringify(data));
+  const store = TestBed.inject(Store); store.enableDemo(false); store.signInDemo('m-ceo');
+  const draft = await store.createDraft(data.donors[0].id, template.id, 'Custom template');
+  expect(draft?.subject).toBe(`Custom subject ${data.donors[0].name.split(' ')[0]}`);
+  expect(draft?.body).toBe('My custom template wording');
+});
+
 it('explicitly regenerates persisted old drafts, clears approval, and preserves records and scope', async () => {
   const data = buildDemoDataset();
   for (const t of data.templates) t.body = 'Old generic fixture template';

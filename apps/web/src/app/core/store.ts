@@ -470,7 +470,7 @@ export class Store {
   }
 
   fillTemplate(templateId: string, donor: Donor | null, extra: Record<string, string> = {}): { subject: string; body: string } {
-    const t = TEMPLATES.find((t) => t.id === templateId) ?? this.template(templateId)!;
+    const t = this.template(templateId)!;
     const owner = this.member(donor?.owner_id ?? this.me().id);
     return personalizeDraft(t, donor, {
       gifts: this.data().gifts.filter((g) => this.visibleIds().has(g.donor_id)), campaigns: this.campaigns(), communications: this.communications(),
@@ -485,7 +485,10 @@ export class Store {
     const template = TEMPLATES.find((t) => t.id === draft?.template_id);
     if (!draft || !donor || !template || draft.channel !== template.channel
       || !['pending', 'approved'].includes(draft.status)) return false;
-    return this.editDraft(id, this.fillTemplate(template.id, donor));
+    return this.editDraft(id, personalizeDraft(template, donor, {
+      gifts: this.data().gifts, campaigns: this.campaigns(), communications: this.communications(),
+      outcomes: this.outcomes(), programs: this.programs(),
+    }, { owner_name: this.member(donor.owner_id)?.name.split(' ')[0] ?? 'Coding in Color', quarter: quarterOf(today()) }));
   }
 
   async createDraft(donorId: string, templateId: string, reason: string): Promise<Draft | null> {
