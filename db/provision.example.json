@@ -1,0 +1,8 @@
+{
+  "organization": { "name": "Coding in Color" },
+  "members": [
+    { "clerk_subject": "user_REPLACE_WITH_CEO_CLERK_ID", "role": "admin" },
+    { "clerk_subject": "user_REPLACE_WITH_BOARD_MEMBER_ID", "role": "board" },
+    { "clerk_subject": "user_REPLACE_WITH_FORMER_MEMBER_ID", "role": "board", "active": false }
+  ]
+}
