@@ -13,7 +13,7 @@ const Filters = z.strictObject({ scope: z.enum(['visible', 'mine']), currency: z
   status: z.enum(['settled', 'pending', 'void']).nullable() });
 type Filter = z.infer<typeof Filters>;
 const Body = z.strictObject({ question: z.string().trim().min(1).max(500) });
-const clarify = { needs_clarification: true, explanation: 'I can find visible donors by retention, gift status, currency, or a giving threshold. Try “show my lapsed donors” or “donors giving over $100 this year in USD”.', donors: [] };
+const clarify = { needs_clarification: true, explanation: 'Choose a retention segment, gift status, or giving threshold. You can add a currency and this year or last year. Try “show my lapsed donors” or “donors giving over $100 this year in USD”.', donors: [] };
 const segments = ['new', 'reactivated', 'increased', 'flat', 'decreased', 'lapsed', 'retained'] as const;
 
 /** An intentionally small grammar. Unrecognized or personal text never becomes a broad query. */
@@ -38,6 +38,9 @@ export function interpretQuestion(question: string): Filter | null {
     status: statuses[0] ?? null, minimum_cents: minimum };
   text = text.replace(/\b(?:this year|last year)\b/g, ' ').replace(/\b(?:show|find|list|me|my|all|visible|authorized|donors|donor|supporters|supporter|who|with|gifts|gift|giving|gave|have|has|are|the|in|and|please|usd|eur|gbp|cad|aud|jpy|new|reactivated|increased|flat|decreased|lapsed|retained|settled|pending|void)\b/g, ' ').trim();
   if (text || (minimum !== null && result.status && result.status !== 'settled')) return null;
+  // Currency and period alone do not say which gift activity should qualify a donor.
+  if (!result.segment && !result.status && minimum === null &&
+    (currencies.length || /\b(?:this year|last year|gifts?|giving|gave)\b/i.test(question))) return null;
   return result;
 }
 
