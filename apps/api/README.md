@@ -89,7 +89,9 @@ with `{donor_plan_hash,plan_hash,decisions}`. Decisions contain kind, row, actio
 and the applicable donor/gift ID only. The server binds reviewer identity and
 rebuilds from fresh scoped facts. Stale plans return409 with a fresh hash; layout
 changes invalidate both phases. `GET /:id/plan/rows?kind=donor|gift` returns bounded
-review rows and authorized candidates. Review never writes donors/gifts. Commit
+review rows and authorized candidates. Each review request REPLACES the complete
+decision set for that phase: send all saved decisions, not only the current page.
+Review never writes donors/gifts. Commit
 is explicit: `POST /:id/commit` accepts only `{donor_plan_hash,plan_hash}`. It
 serializes imports per org, locks current donor/gift facts, rebuilds both plans,
 applies assigned donors then gifts, audits and saves the result in one transaction.
@@ -105,3 +107,8 @@ sheet is supported; formulas, macros, unsafe archives and numeric date cells are
 rejected. Enter workbook dates as text and review their format/timezone. Invalid
 workbooks return400 `invalid_xlsx`, oversized input returns413, and wrong MIME or
 extension returns415. The UI must wire these server routes.
+
+`tests/import-native.test.ts` provides optional real-PostgreSQL concurrency proof
+using `CIC_NATIVE_TEST_URL`. It accepts only an empty disposable loopback database
+named `cic_native_<hex>` and creates synthetic test data. It checks overlapping
+commit retries and competing-file staleness; it must never target a live database.
