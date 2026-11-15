@@ -53,7 +53,7 @@ export function ytdWindows(asOf: string, offset: string): RetentionWindows {
 const STAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
 
 /** Exact instant in microseconds since the epoch; rejects anything Date.parse would normalize. */
-function instant(value: string): bigint {
+export function instant(value: string): bigint {
   const m = STAMP.exec(value);
   const [y, mo, d, h, mi, s] = (m?.slice(1, 7) ?? []).map(Number);
   if (!m || mo < 1 || mo > 12 || d < 1 || d > daysIn(y, mo) || h > 23 || mi > 59 || s > 59) {
@@ -64,13 +64,13 @@ function instant(value: string): bigint {
 }
 
 /** Cents addition that refuses to leave the exact integer range instead of rounding. */
-function add(a: number, b: number): number {
+export function add(a: number, b: number): number {
   const sum = a + b;
   if (!Number.isSafeInteger(sum)) throw new RangeError('Cents total exceeds the safe integer range');
   return sum;
 }
 
-function checkGift(g: RetentionGift): void {
+export function checkGift(g: RetentionGift): void {
   const cents = (n: number) => Number.isSafeInteger(n) && n >= 0;
   if (!cents(g.amount_cents) || !cents(g.refund_cents) || g.refund_cents > g.amount_cents) {
     throw new RangeError('Gift amounts must be nonnegative integer cents with refund <= amount');
