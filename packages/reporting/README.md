@@ -119,3 +119,6 @@ curl -H "Authorization: Bearer $CIC_DASHBOARD_KEY" "https://<host>/api/v1/activi
 - **Errors:** `401` for a missing, malformed, unknown or revoked key; `400` for a bad
   query; `429` after 60 requests per minute per key (honor `Retry-After`); `503` if
   the database is unavailable.
+- Summary and activity share one PostgreSQL quota per valid key across app instances.
+  Counters reset on database calendar-minute boundaries; rejected requests also count.
+  Unknown or revoked keys do not allocate counters. Quota failures return `503`.
