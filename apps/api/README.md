@@ -162,3 +162,9 @@ POST `/impact/outcomes/:id/publication` with `{published:true|false}` explicitly
 publishes or withdraws a version. Corrections require republishing. Donor GET
 `/impact?limit=50&offset=0` returns no private IDs, contact details or notes and
 requires a live verified identity plus its own active opted-in grant.
+
+Pending staff claims revalidate the exact Clerk invitation ID and primary email
+outside SQL. Only pending/accepted provider status plus valid database intent can
+claim; dashboard revocation, expiry, missing invitations and provider failures
+fail closed. Final persistence rechecks the same invitation ID, provider ID,
+state and expiry. Existing memberships skip provider invitation lookup entirely.
