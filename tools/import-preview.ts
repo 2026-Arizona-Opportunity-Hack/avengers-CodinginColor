@@ -9,10 +9,20 @@ const aliases = new Map([
   ['donation amount', 'amount_cents'], ['contact person', 'contact_person'],
   ['campaign', 'campaign'], ['amount cents', 'amount_cents'],
   ['occurred at', 'occurred_at'], ['currency', 'currency'], ['external id', 'external_id'],
+  ['donor first', 'first_name'], ['donor last', 'last_name'],
+  ['donor email address', 'email'], ['mobile #', 'phone'], ['employer name', 'company'],
+  ['gift amt', 'amount_cents'], ['board contact', 'contact_person'],
+  ['designation', 'campaign'], ['donation date', 'occurred_at'],
 ]);
 const mappingTargets = new Set([...aliases.values(), 'amount_decimal']);
-const sources = ['spreadsheet', 'zeffy', 'benevity'];
+const sources = ['spreadsheet', 'zeffy', 'benevity', 'az_gives', 'united_way'];
 const MAX_BYTES = 5 * 1024 * 1024;
+const dateFormats = {
+  'MM/DD/YYYY': /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+  'DD/MM/YYYY': /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
+  'YYYY-MM-DD': /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
+};
+type DateOptions = { format: string; offset: string };
 type Issue = { recordNumber: number | null; field: string; code: string };
 
 export function parseCsv(text: string): string[][] {
@@ -56,8 +66,37 @@ export function parseAmountCents(value: string): number | null {
   return cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
 }
 
-export function previewCsv(text: string, source: string, file: string, columnMapping: unknown = {}) {
-  if (!sources.includes(source)) throw new Error('Source must be spreadsheet, zeffy or benevity');
+function checkDateOptions(options: unknown): DateOptions | null {
+  if (options === undefined) return null;
+  if (!options || typeof options !== 'object' || Array.isArray(options)) {
+    throw new Error('Date options must be an object');
+  }
+  const { date_format: format, utc_offset: offset, ...rest } = options as Record<string, unknown>;
+  if (Object.keys(rest).length) throw new Error('Unknown date option');
+  const zone = typeof offset === 'string' ? /^([+-])(\d{2}):(\d{2})$/.exec(offset) : null;
+  if (typeof format !== 'string' || !Object.hasOwn(dateFormats, format) || !zone ||
+      Number(zone[2]) > 14 || Number(zone[3]) > 59 || (Number(zone[2]) === 14 && Number(zone[3]))) {
+    throw new Error('date_format and utc_offset must be a supported pair within ±14:00');
+  }
+  return { format, offset: offset as string };
+}
+
+function confirmedDate(value: string, { format, offset }: DateOptions): string | null {
+  const match = dateFormats[format as keyof typeof dateFormats].exec(value);
+  if (!match) return null;
+  const [year, month, day] = format === 'YYYY-MM-DD' ? [match[1], match[2], match[3]]
+    : format === 'MM/DD/YYYY' ? [match[3], match[1], match[2]] : [match[3], match[2], match[1]];
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  // Date rolls impossible days over, so a changed day means it was never a calendar date.
+  if (date.getUTCFullYear() !== Number(year) || date.getUTCMonth() !== Number(month) - 1 ||
+      date.getUTCDate() !== Number(day)) return null;
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}T00:00:00${offset}`;
+}
+
+export function previewCsv(text: string, source: string, file: string, columnMapping: unknown = {},
+  options?: unknown) {
+  if (!sources.includes(source)) throw new Error(`Source must be one of ${sources.join(', ')}`);
+  const dateOptions = checkDateOptions(options);
   const [headers, ...records] = parseCsv(text);
   if (!headers || headers.every(header => !header.trim())) throw new Error('CSV header is missing');
   const normalized = headers.map(header => header.trim().toLowerCase().replace(/[_-]/g, ' '));
@@ -117,7 +156,9 @@ export function previewCsv(text: string, source: string, file: string, columnMap
         else if (values[field] === 0) issue(field, 'non_positive_amount');
       }
       if (field === 'occurred_at' || field === 'currency' || field === 'external_id') {
-        const input = field === 'currency' ? value.toUpperCase() : value || null;
+        const input = field === 'currency' ? value.toUpperCase()
+          : field === 'occurred_at' && dateOptions
+            ? confirmedDate(value, dateOptions) ?? (value || null) : value || null;
         const parsed = GiftWriteSchema.shape[field].safeParse(input);
         if (parsed.success) values[field] = parsed.data ?? null;
         else {
@@ -145,10 +186,28 @@ export function previewCsv(text: string, source: string, file: string, columnMap
 
 if (import.meta.main) {
   try {
-    const [source, file, mappingFile, ...extra] = process.argv.slice(2);
-    if (!source || !file || extra.length || !file.toLowerCase().endsWith('.csv') ||
-        (mappingFile && !mappingFile.toLowerCase().endsWith('.json'))) {
-      throw new Error('Usage: node tools/import-preview.ts <spreadsheet|zeffy|benevity> <file.csv> [mapping.json]');
+    const [source, file, ...rest] = process.argv.slice(2);
+    if (!source || !file || !file.toLowerCase().endsWith('.csv')) {
+      throw new Error(`Usage: node tools/import-preview.ts <${sources.join('|')}> <file.csv> ` +
+        '[mapping.json] [--date-format MM/DD/YYYY --utc-offset ±HH:MM]');
+    }
+    let mappingFile: string | undefined;
+    const flags = new Map<string, string>();
+    for (let i = 0; i < rest.length; i++) {
+      const arg = rest[i];
+      if (arg === '--date-format' || arg === '--utc-offset') {
+        if (flags.has(arg) || i + 1 >= rest.length) throw new Error(`Missing or repeated value for ${arg}`);
+        flags.set(arg, rest[++i]);
+      } else if (arg.startsWith('--') || mappingFile) {
+        // Unexpected values may be private paths or contacts; never echo them.
+        throw new Error('Unexpected argument; see usage');
+      } else mappingFile = arg;
+    }
+    if (mappingFile && !mappingFile.toLowerCase().endsWith('.json')) {
+      throw new Error('Mapping file must be a .json file');
+    }
+    if (flags.size && flags.size !== 2) {
+      throw new Error('Both --date-format and --utc-offset are required together');
     }
     const bytes = await readFile(file);
     if (bytes.length > MAX_BYTES) throw new Error('CSV exceeds 5 MiB');
@@ -159,8 +218,10 @@ if (import.meta.main) {
       try { columnMapping = JSON.parse(content); }
       catch { throw new Error('Mapping file must contain valid JSON'); }
     }
+    const dateOptions = flags.size ? { date_format: flags.get('--date-format')!,
+      utc_offset: flags.get('--utc-offset')! } : undefined;
     const preview = previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes),
-      source, basename(file), columnMapping);
+      source, basename(file), columnMapping, dateOptions);
     const issueCounts: Record<string, number> = {};
     for (const issue of preview.issues) issueCounts[issue.code] = (issueCounts[issue.code] ?? 0) + 1;
     console.log(JSON.stringify({ source, file: preview.file, status: preview.status,

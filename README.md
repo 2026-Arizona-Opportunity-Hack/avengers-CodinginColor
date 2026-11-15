@@ -109,6 +109,8 @@ npm ci
 node tools/import-preview.ts spreadsheet data/cic_donor_spreadsheet.csv
 node tools/import-preview.ts zeffy data/zeffy_export.csv
 node tools/import-preview.ts benevity data/benevity_export.csv
+node tools/import-preview.ts az_gives apps/web/public/samples/az_gives_export.csv \
+  --date-format MM/DD/YYYY --utc-offset -07:00
 node --test tests/import-preview.test.ts tests/import-mapping.test.ts
 ```
 
@@ -116,11 +118,22 @@ The CLI prints row counts and issue categories without donor contact details.
 Exit code 0 means the preview ran, not that rows are approved; unreadable or
 malformed files exit 1. Input must be UTF-8 CSV, at most 5 MiB. Unknown headers,
 invalid amounts/contacts, formulas and uneven rows require human review.
-Blank data records are retained and flagged. Source labels identify provenance;
-these illustrative CSVs do not establish real Zeffy/Benevity export formats.
+Blank data records are retained and flagged. Source labels identify provenance
+(`spreadsheet`, `zeffy`, `benevity`, `az_gives`, `united_way`); these illustrative
+CSVs do not establish real Zeffy/Benevity export formats.
 
-All supplied samples lack required gift dates (`occurred_at`) and currency, so
-every preview remains `needs_review`. External transaction IDs are optional in
+AZ Gives headers are recognized (`donor first`, `donor last`, `donor email address`,
+`mobile #`, `employer name`, `gift amt`, `board contact`, `designation`,
+`donation date`), but a bare `04/07/2026` is never guessed. A reviewer confirms the
+date interpretation explicitly: `--date-format MM/DD/YYYY|DD/MM/YYYY|YYYY-MM-DD`
+paired with `--utc-offset ±HH:MM`. Only exact matches on real calendar dates
+become `YYYY-MM-DDT00:00:00±HH:MM`; other shapes stay `invalid_occurred_at` review
+issues. The flags may appear anywhere after the source and file, and always
+require both values.
+
+All supplied samples lack currency, and the AZ Gives sample's dates stay unconfirmed
+until a reviewer passes both date flags, so every preview remains `needs_review`.
+External transaction IDs are optional in
 the backend baseline; reimport safety still needs reconciliation logic.
 Phone formatting is normalized without guessing
 a country; contact-person names do not assign owners. XLSX, Jev suggestions,
