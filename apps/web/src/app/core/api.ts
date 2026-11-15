@@ -142,7 +142,7 @@ export class Api {
     return this.request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(id)}/archive`, { method: 'POST' });
   }
 
-  retention(asOf: string) {
-    return this.request<ApiRetention>(`/api/v1/reports/retention?asOf=${encodeURIComponent(asOf)}`);
+  retention(asOf: string, filters: Partial<Record<'from' | 'programId' | 'ownerId' | 'campaignId' | 'cohort', string>> = {}) {
+    return this.request<ApiRetention>(`/api/v1/reports/retention?${new URLSearchParams({ asOf, ...filters })}`);
   }
 }
