@@ -8,6 +8,7 @@ import { Api, ApiDonor, ApiDonorPatch, ApiError, ApiMe, LiveConfig } from './api
 import { money, quarterOf, today } from './format';
 import * as outreach from './outreach-live';
 import * as history from './history-live';
+import type { DebriefSubmission } from './debrief';
 
 const STORE_KEY = 'cadence.dataset';
 const SESSION_KEY = 'cadence.session';
@@ -592,6 +593,19 @@ export class Store {
       if (epoch === this.sessionEpoch()) href = result;
     });
     return saved ? href : null;
+  }
+
+  async saveDebrief(donorId: string, input: DebriefSubmission): Promise<'saved' | 'invalid' | 'retry'> {
+    let invalid = false;
+    const saved = await this.outreachWrite(async request => {
+      try {
+        await request(`/api/v1/donors/${encodeURIComponent(donorId)}/debrief`, { method: 'POST', body: JSON.stringify(input) });
+      } catch (error) {
+        invalid = error instanceof ApiError && [400, 409].includes(error.status);
+        throw error;
+      }
+    });
+    return saved ? 'saved' : invalid ? 'invalid' : 'retry';
   }
 
   private async outreachWrite(run: (request: outreach.Request) => Promise<unknown>): Promise<boolean> {

@@ -3,6 +3,7 @@ import { Router, RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { GiftEntry } from './gift-entry';
+import { Debrief } from './debrief';
 import { Store } from '../core/store';
 import { date, relativeDue, today } from '../core/format';
 import { CommunicationKind, Consent, SOURCE_LABEL } from '../core/models';
@@ -18,7 +19,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
 
 @Component({
   selector: 'app-donor-detail',
-  imports: [RouterLink, NgIcon, HlmButtonImports, GiftEntry],
+  imports: [RouterLink, NgIcon, HlmButtonImports, GiftEntry, Debrief],
   template: `
     @let d = donor();
     @if (!d) {
@@ -60,6 +61,8 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
           <div class="stat"><p class="label">Gifts</p><p class="value">{{ gifts().length }}</p></div>
           <div class="stat"><p class="label">Last contact</p><p class="value small">{{ lastContact() ? date(lastContact()!) : 'Never' }}</p></div>
         </section>
+
+        @if (store.live() && !d.archived_at) { <app-debrief [donorId]="d.id" /> }
 
         <div class="split section">
           <div>
