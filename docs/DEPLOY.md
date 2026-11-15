@@ -114,6 +114,15 @@ person's machine for migrations, provisioning and seeding.
 
 ## 5. Check it works
 
+First run the unauthenticated smoke check against the deployment URL. It needs no keys, and it exits non-zero if
+anything fails. A static-only deploy (no API or `config.json`) fails five of the seven checks.
+
+```powershell
+node deploy/smoke.ts https://<your-deployment>.vercel.app
+```
+
+Then check the signed-in behavior by hand:
+
 | Check | Expected |
 |---|---|
 | `GET /healthz` | `200 {"status":"ok"}` |
