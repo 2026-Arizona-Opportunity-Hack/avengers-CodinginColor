@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { GiftWriteSchema } from '../packages/contracts/index.ts';
 import { previewCsv } from '../tools/import-preview.ts';
 
 const header = 'first name,email,Contribution Value,When Received,Money Code,Receipt,Unused';
@@ -111,4 +112,43 @@ test('mapping CLI applies choices and redacts malformed JSON contents', () => {
     assert.equal(malformed.stderr.trim(), 'Mapping file must contain valid JSON');
     assert.equal(malformed.stdout, '');
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+const dated = (value: string, options: unknown) =>
+  previewCsv(`${header}\n${row.replace('2026-11-14T09:00:00-07:00', value)}`,
+    'spreadsheet', 'mapped.csv', mapping, options);
+
+test('reviewer-confirmed date formats convert only exact matches into offset timestamps', () => {
+  const at = { date_format: 'MM/DD/YYYY', utc_offset: '-07:00' };
+  for (const [value, expected] of [
+    ['04/07/2026', '2026-04-07T00:00:00-07:00'], ['4/7/2026', '2026-04-07T00:00:00-07:00'],
+    ['02/29/2028', '2028-02-29T00:00:00-07:00'],
+    ['2026-04-07T00:00:00-07:00', '2026-04-07T00:00:00-07:00'],
+  ] as const) {
+    assert.equal(dated(value, at).rows[0].values.occurred_at, expected, value);
+  }
+  assert.equal(dated('04/07/2026', { ...at, date_format: 'DD/MM/YYYY' }).rows[0].values.occurred_at,
+    '2026-07-04T00:00:00-07:00');
+  assert.equal(dated('2026-04-07', { ...at, date_format: 'YYYY-MM-DD' }).rows[0].values.occurred_at,
+    '2026-04-07T00:00:00-07:00');
+  for (const value of ['02/30/2026', '02/29/2027', '04/07/26', '13/01/2026',
+    '2026-04-07', '2026-04-07T00:00:00']) {
+    const result = dated(value, at);
+    assert.equal(result.rows[0].values.occurred_at, null, value);
+    assert.ok(result.issues.some(issue => issue.code === 'invalid_occurred_at'), value);
+  }
+  assert.ok(GiftWriteSchema.shape.occurred_at.safeParse(dated('04/07/2026', at).rows[0].values.occurred_at)
+    .success);
+});
+
+test('date options require a known format and offset pair within 14 hours', () => {
+  for (const options of [{ date_format: 'MM/DD/YYYY' }, { utc_offset: '-07:00' },
+    { date_format: 'MM-DD-YYYY', utc_offset: '-07:00' },
+    { date_format: 'MM/DD/YYYY', utc_offset: '-15:00' },
+    { date_format: 'MM/DD/YYYY', utc_offset: '+14:30' },
+    { date_format: 'MM/DD/YYYY', utc_offset: '7:00' },
+    { date_format: 'MM/DD/YYYY', utc_offset: '-07:00', extra: true }]) {
+    assert.throws(() => dated('04/07/2026', options), /date|option|offset/i, JSON.stringify(options));
+  }
+  assert.equal(dated('04/07/2026', { date_format: 'MM/DD/YYYY', utc_offset: '+14:00' }).rows.length, 1);
 });
