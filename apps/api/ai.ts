@@ -19,7 +19,7 @@ export async function proposeJson(request: AiRequest, options: { fetchImpl?: typ
       headers: { Authorization: `Bearer ${config.key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ model: config.model, messages: [
         { role: 'system', content: `${AI_VOICE}\nTask: ${request.purpose}` }, { role: 'user', content: data }],
-      max_completion_tokens: 500, ...(config.model.startsWith('gpt-') ? { reasoning_effort: 'none' } : {}),
+      max_completion_tokens: 500,
       response_format: { type: 'json_schema', json_schema: { name: 'cic_suggestion', strict: true, schema: request.schema } } }),
     });
     if (!response.ok || response.redirected || !response.body) return null;
