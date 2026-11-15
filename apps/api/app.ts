@@ -1,0 +1,37 @@
+import express from 'express';
+import type { ErrorRequestHandler } from 'express';
+import { HttpError, type Env } from './env.ts';
+import { withMember, type Database } from './db.ts';
+import type { Identity } from './auth.ts';
+
+export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
+  const app = express();
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.vary('Origin');
+    const origin = req.get('Origin');
+    if (origin && origin !== env.APP_ORIGIN) return next(new HttpError(403));
+    if (origin) res.set('Access-Control-Allow-Origin', env.APP_ORIGIN);
+    if (req.method === 'OPTIONS') {
+      res.set('Access-Control-Allow-Methods', 'GET');
+      res.set('Access-Control-Allow-Headers', 'Authorization');
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+  app.get('/api/v1/me', async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const member = await withMember(db, env.CIC_ORG_ID, identity, async (_client, membership) => membership);
+    res.json(member);
+  });
+  app.use((_req, _res, next) => next(new HttpError(404)));
+  const errors: ErrorRequestHandler = (error, _req, res, _next) => {
+    const status = error instanceof HttpError ? error.status : 503;
+    res.status(status).json({ error: status === 503 ? 'Service unavailable' : 'Request rejected' });
+  };
+  app.use(errors);
+  return app;
+}
