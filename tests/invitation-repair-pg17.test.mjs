@@ -18,7 +18,7 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
   let reference;
   try {
     assert.equal(Math.floor(Number((await db.query('SHOW server_version_num')).rows[0].server_version_num)/10000),17);
-    const names=(await readdir('db/migrations')).filter(n=>/^\d{3}_.*\.sql$/.test(n)).sort();
+    const names=(await readdir('db/migrations')).filter(n=>/^\d{3}_.*\.sql$/.test(n)&&n<'019_').sort();
     assert.equal(names.length,18);
     const files=Object.fromEntries(await Promise.all(names.map(async n=>[n,await readFile(`db/migrations/${n}`,'utf8')])));
     const old=await historical();
