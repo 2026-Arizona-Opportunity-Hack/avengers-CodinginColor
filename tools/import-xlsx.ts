@@ -16,6 +16,18 @@ const decoder = new TextDecoder('utf-8', { fatal: true });
 function fail(reason: string): never { throw new Error(`XLSX ${reason}`); }
 
 function unzipBounded(bytes: Uint8Array): Map<string, Uint8Array> {
+  // Require a complete ordinary ZIP directory; streaming local headers alone accept truncated archives.
+  let end = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65557); i--) {
+    if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 5 && bytes[i + 3] === 6 &&
+        i + 22 + (bytes[i + 20] | bytes[i + 21] << 8) === bytes.length) { end = i; break; }
+  }
+  if (end < 0) fail('archive is invalid');
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const declaredEntries = view.getUint16(end + 10, true);
+  const directoryEnd = view.getUint32(end + 16, true) + view.getUint32(end + 12, true);
+  if (declaredEntries > MAX_ENTRIES || directoryEnd !== end ||
+      view.getUint16(end + 8, true) !== declaredEntries) fail('archive is invalid');
   const entries = new Map<string, Uint8Array>(), seen = new Set<string>();
   let total = 0, problem: string | null = null;
   const unzip = new Unzip(file => {
@@ -26,6 +38,9 @@ function unzipBounded(bytes: Uint8Array): Map<string, Uint8Array> {
     }
     seen.add(file.name);
     if (seen.size > MAX_ENTRIES) { problem = 'archive exceeds safety limits'; return; }
+    if (file.originalSize !== undefined && file.originalSize > MAX_ENTRY) {
+      problem = 'archive exceeds safety limits'; return;
+    }
     const chunks: Uint8Array[] = [];
     let size = 0;
     file.ondata = (error, chunk, final) => {
@@ -44,8 +59,14 @@ function unzipBounded(bytes: Uint8Array): Map<string, Uint8Array> {
     file.start();
   });
   unzip.register(UnzipInflate);
-  try { unzip.push(bytes, true); } catch { problem ??= 'archive is invalid'; }
+  try {
+    // Small compressed chunks bound fflate's per-push inflated allocation before its ondata limit check.
+    for (let i = 0; i < bytes.length && !problem; i += 512) {
+      unzip.push(bytes.subarray(i, i + 512), i + 512 >= bytes.length);
+    }
+  } catch { problem ??= 'archive is invalid'; }
   if (problem) fail(problem);
+  if (seen.size !== declaredEntries || entries.size !== declaredEntries) fail('archive is invalid');
   return entries;
 }
 
@@ -62,7 +83,7 @@ function parseXml(text: string, onOpen?: (name: string, attrs: Attrs) => void): 
   try { parser.parse(text); } catch (error) {
     failure ??= error instanceof Error ? error : new Error('XLSX contains invalid XML');
   }
-  if (failure) throw failure;
+  if (failure) throw failure.message.startsWith('XLSX ') ? failure : new Error('XLSX contains invalid XML');
 }
 
 function xml(entries: Map<string, Uint8Array>, path: string): string {
@@ -83,6 +104,10 @@ function checkSheet(text: string): void {
   let formula = false;
   parseXml(text, (name, attrs) => {
     if (name === 'f') formula = true;
+    else if (name === 'row') {
+      if (!/^[1-9]\d*$/.test(attrs.r ?? '')) fail('worksheet has an invalid row reference');
+      if (attrs.r.length > String(MAX_ROWS).length || Number(attrs.r) > MAX_ROWS) fail('worksheet exceeds safety limits');
+    }
     else if (name === 'dimension') {
       const refs = String(attrs.ref ?? '').split(':');
       if (!refs.length || refs.length > 2) fail('worksheet has an invalid dimension');
@@ -212,7 +237,7 @@ if (import.meta.main) {
     const preview = await previewXlsx(bytes, source, basename(file), columnMapping, dateOptions);
     const issueCounts: Record<string, number> = {};
     for (const issue of preview.issues) issueCounts[issue.code] = (issueCounts[issue.code] ?? 0) + 1;
-    console.log(JSON.stringify({ source, file: preview.file, status: preview.status,
+    console.log(JSON.stringify({ source, status: preview.status,
       rowCount: preview.rows.length, issueCounts }, null, 2));
   } catch (error) {
     // Filesystem errors may contain private paths; only validation messages are safe to display.

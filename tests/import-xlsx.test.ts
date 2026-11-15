@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { Zip, ZipPassThrough, zipSync } from 'fflate';
 import { previewCsv } from '../tools/import-preview.ts';
 import { previewXlsx } from '../tools/import-xlsx.ts';
+import { buildImportDrafts } from '../tools/import-drafts.ts';
 
 type Cell = string | { n: string } | { raw: string } | null;
 type Sheet = { name: string; state?: string };
@@ -88,6 +89,10 @@ test('preserves physical row gaps without mutating input bytes', async () => {
   assert.equal(result.rows[1].recordNumber, 3);
   assert.deepEqual(result.rows[0].raw, header.map(() => ''));
   assert.deepEqual(bytes, before);
+  const drafts = buildImportDrafts(result, { batch_id: '550e8400-e29b-41d4-a716-446655440003',
+    values: { currency: 'USD', status: 'settled', refund_cents: 0, occurred_at: '2026-11-15T12:00:00Z' } });
+  assert.deepEqual(drafts.excluded.map(row => row.recordNumber), [2]);
+  assert.equal(drafts.gifts[0].source_row.row_key, '3');
 });
 
 test('fails closed on empty, leading-blank, multiple and hidden sheets', async () => {
@@ -99,6 +104,15 @@ test('fails closed on empty, leading-blank, multiple and hidden sheets', async (
 });
 
 test('bounds archive expansion, worksheet coordinates and malformed structures', async () => {
+  await assert.rejects(preview(xlsx([header], {
+    sheet: '<worksheet><sheetData><row r="1e309"><c r="A1"><v>1</v></c></row></sheetData></worksheet>' })), /invalid|limit/i);
+  await assert.rejects(preview(xlsx([header], {
+    sheet: '<worksheet><sheetData><row r="20002"><c r="A1"><v>1</v></c></row></sheetData></worksheet>' })), /limit/i);
+  await assert.rejects(preview(xlsx([header], {
+    sheet: '<worksheet><sheetData><row r="50000"/></sheetData></worksheet>' })), /limit/i);
+  const complete = xlsx([header]);
+  await assert.rejects(preview(complete.slice(0, -10)), /invalid|missing/i);
+  await assert.rejects(preview(xlsx([header], { sheet: '<worksheet><sheetData><row r="1">' })), /XLSX contains invalid XML/i);
   await assert.rejects(preview(xlsx([header], {
     extra: { 'xl/sharedStrings.xml': `<sst>${'A'.repeat(9 * 1024 * 1024)}</sst>` } })), /limit/i);
   await assert.rejects(preview(xlsx([header], {
@@ -126,6 +140,24 @@ test('bounds archive expansion, worksheet coordinates and malformed structures',
     sheet: '<!DOCTYPE x><worksheet><sheetData/></worksheet>' })), /unsupported XML/i);
 });
 
+test('rejects a compressed bomb before a large inflated buffer is allocated', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'cic-xlsx-bomb-'));
+  try {
+    const file = join(directory, 'bomb.xlsx');
+    writeFileSync(file, xlsx([header], { extra: { 'xl/sharedStrings.xml': `<sst>${'A'.repeat(80 * 1024 * 1024)}</sst>` } }));
+    const module = fileURLToPath(new URL('../tools/import-xlsx.ts', import.meta.url));
+    const script = `import { readFileSync } from 'node:fs';
+      const { previewXlsx } = await import(process.argv[1]);
+      try { await previewXlsx(readFileSync(process.argv[2]), 'spreadsheet', 'bomb.xlsx'); process.exitCode = 2; }
+      catch (error) { if (!/safety limits/.test(error.message)) process.exitCode = 3; }
+      console.log(process.resourceUsage().maxRSS);`;
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script, module, file],
+      { encoding: 'utf8', maxBuffer: 1024 * 1024 });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(Number(result.stdout.trim()) < 120_000, `peak RSS exceeded 120 MiB: ${result.stdout.trim()} KiB`);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
 test('reports generic private errors without leaking content', async () => {
   const broken = xlsx([header, ['Avery', 'Smith', 'avery@example.org', '6025551000', 'C', '10', 'D', 'E']]).slice(0, 60);
   await assert.rejects(preview(broken), (error: Error) => {
@@ -145,6 +177,7 @@ test('CLI prints only counts and fails safely on a missing file', () => {
       '--date-format', 'MM/DD/YYYY', '--utc-offset', '-07:00'], { encoding: 'utf8' });
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(JSON.parse(ok.stdout).rowCount, 1);
+    assert.equal('file' in JSON.parse(ok.stdout), false);
     assert.equal(JSON.parse(ok.stdout).issueCounts.invalid_occurred_at, undefined);
     assert.doesNotMatch(ok.stdout, /Avery|avery@|555/);
     const missing = spawnSync(process.execPath, [cli, 'spreadsheet', join(directory, 'secret.xlsx')],

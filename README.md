@@ -154,12 +154,40 @@ multiple columns targeting the same field are rejected.
 
 `node tools/import-xlsx.ts <source> <file.xlsx> [mapping.json] [--date-format FMT --utc-offset ±HH:MM]`
 previews a limited `.xlsx` by converting it to CSV text for the same validation
-(counts only; failures print a constant safe message). Accepted: one visible
+(counts only; errors contain no cell values). Accepted: one visible
 worksheet, at most 5 MiB, 256 entries, 8 MiB per entry / 16 MiB inflated, 20,001
-rows by 200 columns, text/number cells (numbers stay exact text). Rejected:
+rows by 200 columns, ordinary ZIP archives, text/number cells (numbers stay exact text).
+Physical blank rows and row numbers are retained for review/provenance. Rejected:
 formulas, date-formatted cells (enter dates as text and confirm the format),
-hidden/multiple sheets, DOCTYPE/ENTITY XML, duplicate or malformed archive entries.
+hidden/multiple sheets, DOCTYPE/ENTITY XML, duplicate, truncated or malformed archive
+entries, and ZIP64. Text dates require a reviewer-selected format and fixed UTC offset;
+Excel date serials are unsupported because their timezone cannot be inferred.
 This is not full Excel support.
+
+`node tools/import-drafts.ts <source> <file.csv|file.xlsx> --mapping mapping.json
+--currency USD --status settled --refund-cents 0 --occurred-at 2026-11-15T12:00:00Z`
+passes explicit mappings and reviewer facts into the shared draft/review pipeline;
+`--mapping` is optional and confirmed dates use `--date-format` plus `--utc-offset`.
+Its output contains counts only. Missing financial facts stay unresolved. Excluded
+record numbers remain available in the returned drafts for the API's `skip_records`.
+
+For optional TypeSafe Jev suggestions, set `TYPESAFE_API_KEY` and run
+`node tools/import-suggest.ts <source> <file.csv>`. `JEV_API_KEY` is a legacy fallback.
+The client calls only `https://api.typesafe.ai/v1/systemone` with `jev-latest`;
+known mappings are resolved locally, and only unknown header names are sent.
+No donor row or sample value is sent. All suggestions require human approval;
+write approved choices to a mapping JSON file before preview or draft creation.
+This command makes a paid API request for each unknown header, so run it only
+when you choose to use the service.
+
+The five accepted source labels (`spreadsheet`, `zeffy`, `benevity`, `az_gives`,
+`united_way`) identify provenance. They are not verified provider-specific adapters;
+real export schemas, timezones and status/refund meanings remain unverified.
+The live `/api/v1/imports` upload in `apps/api/imports.ts` currently accepts raw
+CSV with `Content-Type: text/csv; charset=utf-8` only. To persist XLSX, core must
+add an authorized XLSX upload path that invokes `previewXlsx` and stores a safe
+canonical representation for the existing layout, two-phase review and atomic
+commit flow. No XLSX upload endpoint is claimed here.
 
 ```json
 {"Contribution Value":"amount_decimal","When Received":"occurred_at","Money Code":"currency","Unused":null}
