@@ -67,8 +67,39 @@ async function setup(t: test.TestContext) {
   assert.ok(address && typeof address !== 'string');
   const get = (path: string, who?: string) => fetch(`http://127.0.0.1:${address.port}${path}`,
     { headers: who ? { Authorization: `Bearer ${who}` } : {} });
-  return { sql, get };
+  const upload = (body: unknown, who = 'admin') => fetch(`http://127.0.0.1:${address.port}/api/v1/reports/outcomes`,
+    { method: 'POST', headers: { Authorization: `Bearer ${who}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  return { sql, get, upload };
 }
+
+test('approved aggregate uploads are scoped, atomic, audited and included in packets', async t => {
+  const { sql, get, upload } = await setup(t);
+  const row = { program_id: AI, from: '2026-01-01', to: '2027-01-01', metric: 'Completed', value: 0,
+    unit: 'students', denominator: 10, source: 'Approved aggregate workbook' };
+  for (const who of ['board-a', 'foreign', '']) assert.notEqual((await upload({ approved: true, outcomes: [row] }, who)).status, 201);
+  for (const changed of [
+    { approved: false, outcomes: [row] }, { approved: true, outcomes: [{ ...row, from: '2026-02-30' }] },
+    { approved: true, outcomes: [{ ...row, denominator: 0 }] }, { approved: true, outcomes: [{ ...row, student: 'private' }] },
+  ]) assert.equal((await upload(changed)).status, 400);
+  assert.equal((await upload({ approved: true, outcomes: [row, { ...row, program_id: id(999) }] })).status, 404);
+  const path = `/api/v1/reports/funder-packet?funderId=${FUNDER}&programId=${AI}&from=2026-01-01&to=2027-01-01`;
+  assert.equal((await (await get(path, 'admin')).json()).outcomes_status, 'unavailable', 'failed batch rolls back');
+  assert.equal((await upload({ approved: true, outcomes: [row, { ...row, metric: 'Survey', value: null, denominator: null }] })).status, 201);
+  assert.equal((await upload({ approved: true, outcomes: [{ ...row, source: 'Corrected aggregate source' }] })).status, 201);
+  const packet = await (await get(path, 'admin')).json();
+  assert.equal(packet.outcomes_status, 'available'); assert.equal(packet.outcomes.length, 2, 'correction does not duplicate');
+  assert.equal(packet.outcomes[0].value, 0); assert.equal(packet.outcomes[0].source, 'Corrected aggregate source');
+  assert.equal(packet.outcomes[0].denominator, 10); assert.ok(packet.outcomes[0].approved_at);
+  assert.equal(packet.outcomes[1].value, null); assert.equal(packet.outcomes[1].status, 'not_reported');
+  const csv = await (await get(path + '&format=csv', 'admin')).text();
+  assert.match(csv, /Completed,0,students,10/); assert.match(csv, /Survey,Not reported/);
+  assert.equal((await (await get(path.replace(`programId=${AI}`, `programId=${CAMP}`), 'admin')).json()).outcomes_status, 'unavailable');
+  assert.equal((await (await get(path.replace('from=2026-01-01&to=2027-01-01', 'from=2027-01-01&to=2028-01-01'), 'admin')).json()).outcomes_status, 'unavailable');
+  await sql.exec('SET SESSION AUTHORIZATION postgres;');
+  assert.equal((await sql.query("SELECT * FROM audit_events WHERE action = 'report.outcome.approve'")).rows.length, 3);
+  await sql.exec(`SET ROLE cic_runtime; SELECT set_config('app.org_id','${ORG}',false),set_config('app.user_id','board-a',false);`);
+  assert.equal((await sql.query('SELECT * FROM program_outcomes')).rows.length, 0, 'RLS hides aggregates from board direct reads');
+});
 
 test('retention report: admins see every CIC donor, board members only their own, never other orgs', async (t) => {
   const { get } = await setup(t);

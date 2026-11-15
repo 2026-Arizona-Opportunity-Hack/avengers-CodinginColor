@@ -1,6 +1,6 @@
 import express from 'express';
 import { z } from 'zod';
-import { buildFunderPacket, packetCsv, type PacketGift } from '../../packages/reporting/funder-packet.ts';
+import { buildFunderPacket, packetCsv, type PacketGift, type PacketOutcome } from '../../packages/reporting/funder-packet.ts';
 import { instant, retentionReport, ytdWindows, type RetentionGift } from '../../packages/reporting/retention.ts';
 import { withMember, type Database } from './db.ts';
 import { HttpError, type Env } from './env.ts';
@@ -13,6 +13,11 @@ const RetentionQuery = z.strictObject({ asOf: day });
 const PacketQuery = z.strictObject({
   funderId: z.uuid(), programId: z.uuid(), from: day, to: day, format: z.enum(['json', 'csv']).default('json'),
 });
+const OutcomeUpload = z.strictObject({ approved: z.literal(true), outcomes: z.array(z.strictObject({
+  program_id: z.uuid(), from: day, to: day, metric: z.string().trim().min(1).max(120),
+  value: z.number().min(0).max(Number.MAX_SAFE_INTEGER).nullable(), unit: z.string().trim().min(1).max(60),
+  denominator: z.number().positive().max(Number.MAX_SAFE_INTEGER).nullable(), source: z.string().trim().min(1).max(500),
+})).min(1).max(100) });
 
 function parse<T>(schema: z.ZodType<T>, query: unknown): T {
   const result = schema.safeParse(query);
@@ -34,6 +39,33 @@ const toGift = (r: Record<string, unknown>): RetentionGift => ({
  */
 export function createReportingRouter(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
   const router = express.Router();
+
+  router.post('/api/v1/reports/outcomes', express.json({ limit: '100kb' }), async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const upload = parse(OutcomeUpload, req.body);
+    const rows = upload.outcomes.map(row => {
+      const from = `${row.from}T00:00:00${OFFSET}`, to = `${row.to}T00:00:00${OFFSET}`;
+      try { if (instant(from) >= instant(to)) throw new Error(); } catch { throw new HttpError(400); }
+      return { ...row, from, to };
+    });
+    await withMember(db, env.CIC_ORG_ID, identity, async (client, member) => {
+      if (member.role !== 'admin') throw new HttpError(403);
+      for (const row of rows) {
+        const program = await client.query('SELECT id FROM programs WHERE id = $1', [row.program_id]);
+        if (!program.rows.length) throw new HttpError(404);
+        const saved = await client.query(`INSERT INTO program_outcomes
+          (org_id, program_id, period_from, period_to, metric, value, unit, denominator, source, approved_by)
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+          ON CONFLICT (org_id, program_id, period_from, period_to, metric) DO UPDATE SET
+            value = EXCLUDED.value, unit = EXCLUDED.unit, denominator = EXCLUDED.denominator,
+            source = EXCLUDED.source, approved_by = EXCLUDED.approved_by, approved_at = now() RETURNING id`,
+        [env.CIC_ORG_ID, row.program_id, row.from, row.to, row.metric, row.value, row.unit, row.denominator, row.source, member.id]);
+        await client.query(`INSERT INTO audit_events (org_id, actor_id, action, target_id, status)
+          VALUES ($1,$2,'report.outcome.approve',$3,'success')`, [env.CIC_ORG_ID, member.id, saved.rows[0].id]);
+      }
+    });
+    res.status(201).json({ approved: rows.length });
+  });
 
   router.get('/api/v1/reports/retention', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
@@ -69,8 +101,18 @@ export function createReportingRouter(env: Env, db: Database, verify: (header: s
         .map((r) => ({ ...toGift(r), id: String(r.id), source: String(r.source),
           external_id: r.external_id === null ? null : String(r.external_id),
           program_id: r.program_id === null ? null : String(r.program_id) }));
+      const outcomes: PacketOutcome[] = (await client.query(`SELECT program_id, metric, value, unit, denominator, source,
+        to_char(period_from AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_from,
+        to_char(period_to AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS period_to,
+        to_char(approved_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS approved_at
+        FROM program_outcomes WHERE program_id = $1 AND period_from < $3::timestamptz AND period_to > $2::timestamptz
+        ORDER BY period_from, metric`, [q.programId, period.from, period.to])).rows.map(row => ({
+          program_id: String(row.program_id), metric: String(row.metric), value: row.value === null ? null : Number(row.value),
+          unit: String(row.unit), denominator: row.denominator === null ? null : Number(row.denominator), source: String(row.source),
+          period: { from: String(row.period_from), to: String(row.period_to) }, approved_at: String(row.approved_at),
+        }));
       const built = buildFunderPacket({ funder: { name: String(funder.name) },
-        program: { id: String(program.id), title: String(program.title) }, period, gifts, outcomes: [] });
+        program: { id: String(program.id), title: String(program.title) }, period, gifts, outcomes });
       // Exports are audited in the same transaction; a failed export records nothing.
       await client.query(`INSERT INTO audit_events (org_id, actor_id, action, target_id, status)
         VALUES ($1, $2, 'report.funder_packet.export', $3, 'success')`, [env.CIC_ORG_ID, member.id, q.funderId]);
