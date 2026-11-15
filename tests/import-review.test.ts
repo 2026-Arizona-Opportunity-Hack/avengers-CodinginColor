@@ -75,14 +75,15 @@ test('gift provenance must belong to the batch under review', () => {
 
 test('automatic rows commit without decisions; exact replays are not written again', () => {
   const p = plan({ donors: [donor, { ...donor, name: 'New Person', email: 'new@example.com' }],
-    gifts: [gift, { ...gift, external_id: 'gift-002', amount_cents: 9007199254740991 }],
+    gifts: [gift, { ...gift, external_id: 'gift-002', amount_cents: 9007199254740991, source_row: { batch_id: batch, row_key: '3' } }],
     existing_donors: [storedDonor], existing_gifts: [{ ...storedGift, source_row: null }] });
   const result = resolveReview(p, []);
   assert.equal(result.status, 'ready');
   assert.deepEqual(result.operations, [
     { kind: 'donor', row: 0, op: 'link', donor_id: donorId, reviewer_id: null },
     { kind: 'donor', row: 1, op: 'create', draft: { ...donor, name: 'New Person', email: 'new@example.com' }, reviewer_id: null },
-    { kind: 'gift', row: 1, op: 'insert', draft: { ...gift, external_id: 'gift-002', amount_cents: 9007199254740991 },
+    { kind: 'gift', row: 1, op: 'insert', draft: { ...gift, external_id: 'gift-002', amount_cents: 9007199254740991,
+      source_row: { batch_id: batch, row_key: '3' } },
       reviewer_id: null },
   ]);
   assert.equal(result.plan_hash, p.plan_hash);
@@ -186,7 +187,7 @@ test('snapshot hashing ignores key order and unrelated stored records', () => {
   const unrelatedDonor = { id: otherDonor, org_id: org, owner_id: null, archived_at: null, name: 'Unrelated Person',
     email: 'unrelated@example.com', phone: null, consent: 'granted', metadata: {} };
   const unrelatedGift = { ...storedGift, id: '550e8400-e29b-41d4-a716-446655440007', external_id: 'gift-999',
-    amount_cents: 7777 };
+    amount_cents: 7777, source_row: { batch_id: priorBatch, row_key: '9' } };
   assert.equal(rebuilt({ existing_donors: [storedDonor, unrelatedDonor],
     existing_gifts: [storedGift, unrelatedGift] }).plan_hash, reviewed.plan_hash);
 });
