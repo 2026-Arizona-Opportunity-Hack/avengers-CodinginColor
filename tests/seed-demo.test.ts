@@ -5,6 +5,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { migrate } from '../db/migrate.ts';
 import { provision } from '../db/provision.ts';
 import { seedDemo } from '../db/seed-demo.ts';
+import { retentionReport, ytdWindows } from '../packages/reporting/retention.ts';
 
 const ORG = '00000000-0000-4000-8000-0000000000c1';
 const migrations = fileURLToPath(new URL('../db/migrations/', import.meta.url));
@@ -100,6 +101,21 @@ test('a non-superuser CREATEROLE migration owner can seed (same guard as provisi
   await migrate(client, migrations);
   await provision(client, ORG, roster);
   assert.ok((await seedDemo(client, ORG)).gifts >= 50);
+});
+
+test('the real retention calculation puts each seeded donor in its designed segment', async (t) => {
+  const { db, client } = await database(t);
+  await seedDemo(client, ORG);
+  const gifts = (await db.query<Record<string, string>>(`SELECT donor_id, amount_cents::text AS amount_cents,
+      refund_cents::text AS refund_cents, currency, status,
+      to_char(occurred_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS occurred_at FROM gifts`)).rows
+    .map((g) => ({ ...g, amount_cents: Number(g.amount_cents), refund_cents: Number(g.refund_cents),
+      status: g.status as 'settled' | 'pending' | 'void' }));
+  const usd = retentionReport(gifts, ytdWindows('2026-11-14', '-07:00')).byCurrency.USD;
+  // 24 individuals cycle through 7 patterns (dormant donors are omitted) plus two foundations.
+  assert.deepEqual(Object.fromEntries(Object.entries(usd.segments).map(([k, v]) => [k, v.donors])),
+    { new: 4, reactivated: 4, increased: 5, flat: 4, decreased: 3, lapsed: 3 });
+  assert.deepEqual(usd.retention, { retained_donors: 12, prior_donors: 15 });
 });
 
 test('refuses to run without provisioning, against real data, or on the runtime login', async (t) => {
