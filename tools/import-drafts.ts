@@ -1,3 +1,5 @@
+// Draft stage turns validated preview rows into canonical donor/gift drafts, with no writes.
+// Missing gift facts stay unresolved; contact-person and campaign labels are not IDs.
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
@@ -18,6 +20,7 @@ type Drafts = { status: 'needs_review'; donors: DonorWrite[]; gifts: GiftDraft[]
   excluded: { recordNumber: number; codes: string[] }[];
   unresolved: { field: string; code: string }[] };
 
+/** Build canonical drafts, row provenance, exclusions, and unresolved batch facts from a preview. */
 export function buildImportDrafts(preview: ReturnType<typeof previewCsv>,
   { batch_id, values = {}, aliases }: { batch_id: string; values?: Record<string, unknown>;
     aliases?: { campaign: Record<string, string | null>; contact_person: Record<string, string | null> } }): Drafts {
@@ -58,6 +61,7 @@ export function buildImportDrafts(preview: ReturnType<typeof previewCsv>,
     const known = key === null ? undefined : donorRows.get(key);
     const donorRow = known ?? donors.length;
     if (known === undefined) { donors.push(donor); if (key !== null) donorRows.set(key, donorRow); }
+    // Row values win over batch-level facts so reviewer defaults cannot overwrite source facts.
     const facts: Partial<Pick<GiftDraft, Field>> = {};
     for (const field of FIELDS) {
       const value = v[field] ?? values[field];
