@@ -18,7 +18,7 @@ export const routes: Routes = [
     canMatch: [signedIn],
     loadComponent: () => import('./shell/shell').then((m) => m.Shell),
     children: [
-      { path: '', pathMatch: 'full', title: 'Overview · Coding in Color', canMatch: [overview], loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
+      { path: '', pathMatch: 'full', title: 'Overview · Coding in Color', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
       { path: 'donors', title: 'Donors · Coding in Color', loadComponent: () => import('./pages/donors').then((m) => m.DonorsPage) },
       { path: 'donors/new', title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
       { path: 'donors/:id', title: 'Donor · Coding in Color', loadComponent: () => import('./pages/donor-detail').then((m) => m.DonorDetailPage) },
