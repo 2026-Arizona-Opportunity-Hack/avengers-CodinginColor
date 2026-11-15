@@ -5,6 +5,9 @@ on:
   pull_request:
     paths:
       - tests/managed-role-pg17.test.mjs
+      - tests/invitation-repair-pg17.test.mjs
+      - tests/fixtures/staff-invitations-historical.sql
+      - tools/repair-invitation-history.mjs
       - .github/workflows/managed-role-pg17.yml
 
 permissions:
@@ -37,6 +40,6 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Rehearse synthetic managed role privileges
-        run: node --test tests/managed-role-pg17.test.mjs
+        run: node --test tests/managed-role-pg17.test.mjs && node --test tests/invitation-repair-pg17.test.mjs
         env:
           CIC_PG17_REHEARSAL_URL: postgresql://postgres@127.0.0.1:5432/cic_rehearsal
