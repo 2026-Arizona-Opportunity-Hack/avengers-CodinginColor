@@ -111,3 +111,5 @@ Gift widgets compare the selected Phoenix calendar range with the matching prior
 year; current follow-ups keep their own due dates while following the donor scope.
 Acquisition year uses first positive settled giving across currencies. Filters
 intersect server authorization and clear private dimensions when the session changes.
+
+Reporting charts, owner giving totals and the funder selector retain authorized archived donor history. Archived donors remain excluded from active assignment counts and follow-up workload.

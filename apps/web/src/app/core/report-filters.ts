@@ -34,10 +34,10 @@ export class ReportFilters {
     }
     return new Map([...first].map(([id, day]) => [id, day.slice(0, 4)]));
   });
-  readonly gifts = computed(() => this.store.gifts().filter(g =>
+  readonly gifts = computed(() => this.store.ledgerGifts().filter(g =>
     (!this.program() || this.store.campaign(g.campaign_id)?.program_id === this.program())
     && (!this.campaign() || g.campaign_id === this.campaign())
-    && (!this.owner() || this.store.donor(g.donor_id)?.owner_id === this.owner())
+    && (!this.owner() || this.store.historicalDonor(g.donor_id)?.owner_id === this.owner())
     && (!this.cohort() || this.firstYears().get(g.donor_id) === this.cohort())));
   readonly donors = computed(() => {
     const ids = new Set(this.gifts().map(g => g.donor_id));
