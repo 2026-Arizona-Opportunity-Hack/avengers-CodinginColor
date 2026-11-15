@@ -15,8 +15,6 @@ import { CommandPalette } from './command-palette';
 import { NAV, NavGroup } from './nav';
 import { BoardGuide } from './board-guide';
 
-const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
-
 @Component({
   selector: 'app-shell',
   imports: [
@@ -60,10 +58,10 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     </ng-template>
 
     <ng-template #demoPersona>
-      @if (store.demoAdmin()) {
-        <label class="demo-persona">Demo admin · synthetic data
-          <select class="select" aria-label="Switch demo person" [value]="store.me().id" (change)="switchTo($any($event.target).value)">
-            @for (m of store.members(); track m.id) { @if (m.active) { <option [value]="m.id">{{ m.name }} · {{ m.role === 'board' ? 'Board member' : 'Admin' }}</option> } }
+      @if (store.demoMode()) {
+        <label class="demo-persona">Workspace
+          <select class="select" aria-label="Switch person" [value]="store.me().id" (change)="switchTo($any($event.target).value)">
+            @for (m of store.members(); track m.id) { @if (m.active) { <option [value]="m.id" [selected]="store.me().id === m.id">{{ m.name }} · {{ m.role === 'board' ? 'Board member' : 'Admin' }}</option> } }
           </select>
         </label>
       }
@@ -133,7 +131,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
             <hlm-avatar size="sm" aria-hidden="true"><span hlmAvatarFallback class="avatar-fallback">{{ store.initials(meName()) }}</span></hlm-avatar>
             <span class="hidden min-w-0 flex-col text-start leading-tight md:flex">
               <span class="truncate text-[13px] font-medium">{{ meName() }}</span>
-              <span class="text-muted-foreground truncate text-xs">{{ store.demoAdmin() ? 'Demo admin' : store.isAdmin() ? 'Admin' : 'Board member' }}</span>
+              <span class="text-muted-foreground truncate text-xs">{{ store.isAdmin() ? 'Admin' : 'Board member' }}</span>
             </span>
             <ng-icon name="lucideChevronDown" size="15" class="text-muted-foreground hidden md:block" aria-hidden="true" />
             <span class="sr-only">Account menu</span>
@@ -149,12 +147,10 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
               </div>
               <hlm-dropdown-menu-separator />
               @if (store.me().role === 'board') { <button hlmDropdownMenuItem (triggered)="guide()?.start()">Restart workspace tour</button> }
-              <button hlmDropdownMenuItem (triggered)="router.navigateByUrl('/account')"><ng-icon name="lucideUser" size="16" /> Account and security</button>
-              @if (store.live()) { <a hlmDropdownMenuItem href="/sign-in?demo=1">Try Now with synthetic data</a> }
-              @if (store.demoAdmin()) { <a hlmDropdownMenuItem href="/sign-in?demo=0">Use live workspace sign-in</a> }
+              <button hlmDropdownMenuItem (triggered)="router.navigateByUrl('/account')"><ng-icon name="lucideUser" size="16" /> Profile</button>
               @if (!store.live()) {
                 <hlm-dropdown-menu-separator />
-                <hlm-dropdown-menu-label>Switch demo account</hlm-dropdown-menu-label>
+                <hlm-dropdown-menu-label>Switch person</hlm-dropdown-menu-label>
                 @for (m of otherMembers(); track m.id) {
                   <button hlmDropdownMenuItem (triggered)="switchTo(m.id)">
                     <span class="grid size-6 place-items-center rounded-full bg-[var(--green-50)] text-[10px] font-semibold text-[var(--green-700)]" aria-hidden="true">{{ store.initials(m.name) }}</span>
@@ -275,11 +271,10 @@ export class Shell {
   }
 
   protected switchTo(id: string) {
+    if (id === this.store.me().id || !this.store.members().some(m => m.active && m.id === id)) return;
     this.store.setSession(id);
     toast.success(`Signed in as ${this.store.me().name}`, { description: this.store.isAdmin() ? 'Admin: the whole organization' : 'Board member: only your donors' });
-    const url = this.router.url;
-    if (!this.store.isAdmin() && ADMIN_PATHS.some((p) => url.startsWith(p))) this.router.navigateByUrl('/');
-    else if (url.startsWith('/donors/') && !url.endsWith('/new')) this.router.navigateByUrl('/donors');
+    this.router.navigateByUrl('/');
   }
 
   protected async signOut() {

@@ -23,9 +23,10 @@
         padding: 32px; border-radius: 28px; background: rgba(255,255,255,.86);
         box-shadow: 0 0 0 1px rgba(15,26,21,.06), 0 2px 4px rgba(15,26,21,.04); }
       #startup-card h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
-      .startup-demo { margin-top: 12px; padding: 12px; border-radius: 12px; color: #005c2e; background: #eef7f1; }
+      .startup-demo { margin-top: 20px; }
       .startup-demo p { margin: 0 0 12px; }
-      .startup-demo a { display: inline-block; padding: 8px 16px; border-radius: 10px; background: #007a3d; color: white; font-weight: 600; text-decoration: none; }
+      .startup-demo a { box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; min-height: 64px; border-radius: 16px; background: #007a3d; color: white; font-size: 20px; font-weight: 600; text-decoration: none; box-shadow: 0 6px 16px rgba(0,92,46,.18); }
+      .startup-demo a:hover { background: #005c2e; }
       .startup-demo a:focus-visible { outline: 3px solid #005c2e; outline-offset: 3px; }
       .startup-status { margin: 24px 0 12px; color: #3c4a43; }
       .startup-lines span { display: block; height: 28px; margin-top: 10px; border-radius: 8px; background: rgba(15,26,21,.06); }
@@ -40,7 +41,7 @@
     </style>
   </head>
   <body>
-      <!-- Public startup content remains visible while configuration and JavaScript load. -->
+      <!-- Public demo entry remains visible while JavaScript loads. -->
       <div class="startup-shell">
         <section class="startup-story" aria-labelledby="startup-title">
           <div class="startup-brand"><img src="branding/coding-in-color-logo.jpg" alt="" width="40" height="40" />Coding in Color</div>
@@ -52,10 +53,9 @@
           </ul>
         </section>
         <main id="startup-card" aria-labelledby="startup-signin">
-          <h2 id="startup-signin">Sign in to Coding in Color</h2>
-          <section class="startup-demo" aria-label="Presentation demo">
-            <p>Explore synthetic data with demo admin access. No account or two-step setup needed.</p>
-            <a href="/sign-in?demo=1">Try Now</a>
+          <h2 id="startup-signin">Explore Coding in Color</h2>
+          <section class="startup-demo" aria-label="Try Now">
+            <a href="/sign-in?demo=1">Try Now <span aria-hidden="true">&#8594;</span></a>
           </section>
           <p class="startup-status" role="status">Opening your workspace…</p>
           <div class="startup-lines" aria-hidden="true"><span></span><span></span><span></span></div>

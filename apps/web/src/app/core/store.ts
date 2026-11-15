@@ -59,13 +59,14 @@ export interface NewDonorInput {
 }
 
 export interface ImportRow {
+  rowKey: number;
   action: 'create' | 'merge' | 'skip';
   matchId: string | null;
   /** Rows in one file with the same key become one donor. */
   key: string;
   donor: NewDonorInput;
   ownerId: string | null;
-  gift: { amount_cents: number; campaign: string | null; occurred_at: string } | null;
+  gift: { amount_cents: number; campaign: string | null; occurred_at: string; external_id: string | null } | null;
 }
 
 /**
@@ -78,7 +79,7 @@ export class Store {
   private readonly api = inject(Api);
   /** True once a config.json points at a real API. Demo data and browser storage are then never used. */
   readonly live = signal(false);
-  readonly demoAdmin = signal(false);
+  readonly demoMode = signal(false);
   /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
   readonly notice = signal<string | null>(null);
   private liveLoadGeneration = 0;
@@ -106,7 +107,7 @@ export class Store {
 
   /** Until live data loads there is no member; fall back to the least-privileged role. */
   readonly me = computed<Member>(() => this.members().find((m) => m.id === this.sessionId()) ?? this.members()[0] ?? NO_MEMBER);
-  readonly isAdmin = computed(() => (!this.live() && this.demoAdmin()) || this.me().role === 'admin');
+  readonly isAdmin = computed(() => this.me().role === 'admin');
   readonly boardMembers = computed(() => this.members().filter((m) => m.role === 'board' && m.active));
 
   /** Donors this session may see: admins see the organization, board members their own. */
@@ -125,7 +126,8 @@ export class Store {
   readonly communications = computed(() => this.data().communications.filter((c) => this.visibleIds().has(c.donor_id)));
   readonly followUps = computed(() => this.data().followUps.filter((f) => this.visibleIds().has(f.donor_id)));
   readonly drafts = computed(() => this.data().drafts.filter((d) =>
-    this.isAdmin() || d.owner_id === this.me().id || d.recipient_member_id === this.me().id));
+    this.isAdmin() || (d.donor_id ? this.historicalIds().has(d.donor_id)
+      : d.owner_id === this.me().id || d.recipient_member_id === this.me().id)));
 
   /** Every donor regardless of session, for import duplicate checks (admin-only screen). */
   readonly allDonors = computed(() => this.data().donors.filter((d) => !d.archived_at));
@@ -170,7 +172,7 @@ export class Store {
 
   enableDemo(entering: boolean) {
     if (this.live()) return;
-    this.demoAdmin.set(true);
+    this.demoMode.set(true);
     if (entering) this.data.set(buildDemoDataset());
     if (entering || !this.members().some(m => m.active && m.id === this.sessionId())) this.sessionId.set('m-ceo');
     if (entering) this.signInDemo('m-ceo');
@@ -204,7 +206,7 @@ export class Store {
 
   /** Switches to live mode and loads the signed-in member's data once Clerk has a session. */
   connect(config: LiveConfig) {
-    if (this.demoAdmin()) return;
+    if (this.demoMode()) return;
     this.liveLoadGeneration++;
     this.live.set(true);
     this.data.set(this.emptyDataset([], []));
@@ -398,7 +400,13 @@ export class Store {
         if (epoch === this.sessionEpoch()) this.putDonor(donor);
       });
     }
-    this.mutate((d) => { d.donors.find((x) => x.id === id)!.owner_id = ownerId; }, 'donor.reassign', id);
+    this.mutate((d) => {
+      d.donors.find((x) => x.id === id)!.owner_id = ownerId;
+      for (const draft of d.drafts)
+        if (draft.donor_id === id && (draft.status === 'pending' || draft.status === 'approved')) draft.owner_id = ownerId;
+      for (const task of d.followUps)
+        if (task.donor_id === id && task.status === 'open') task.owner_id = ownerId;
+    }, 'donor.reassign', id);
     return true;
   }
 
@@ -619,12 +627,34 @@ export class Store {
     });
   }
 
-  importRows(rows: ImportRow[], source: Source, fileName: string): { created: number; merged: number; gifts: number; skipped: number } {
+  importRows(rows: ImportRow[], source: Source, fileName: string, fingerprint: string): { created: number; merged: number; gifts: number; skipped: number } {
+    if (this.live() || !this.isAdmin()) throw new Error('Only a demo admin can import synthetic records.');
+    if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new Error('The file identity could not be verified.');
+    // Older demo gifts have only filename provenance, so require review rather than guessing a match.
+    if (rows.some(r => r.action !== 'skip' && r.gift && !r.gift.external_id) &&
+        this.allGifts().some(g => g.source === source && g.external_id?.startsWith(`${fileName}#`))) {
+      throw new Error('This filename has gifts from an older import without file verification. Nothing was saved; review those gifts and supply source transaction IDs before importing again.');
+    }
     const result = { created: 0, merged: 0, gifts: 0, skipped: 0 };
     const createdByKey = new Map<string, string>();
     this.mutate((d) => {
       for (const row of rows) {
         if (row.action === 'skip') { result.skipped++; continue; }
+        const externalId = row.gift?.external_id || `demo:${fingerprint}#${row.rowKey}`;
+        const previous = row.gift && d.gifts.find(g => g.source === source && g.external_id === externalId);
+        if (previous && row.gift) {
+          const donor = d.donors.find(d => d.id === previous.donor_id)!;
+          const key = donor.email?.toLowerCase() ?? (donor.phone ? `p:${donor.phone}` : `n:${donor.name.toLowerCase()}`);
+          const campaign = d.campaigns.find(c => c.id === previous.campaign_id)?.title ?? '';
+          if ((row.matchId ? row.matchId !== donor.id : row.key !== key) ||
+              previous.amount_cents !== row.gift.amount_cents || previous.refund_cents !== 0 ||
+              previous.currency !== 'USD' || previous.status !== 'settled' ||
+              Date.parse(previous.occurred_at) !== Date.parse(row.gift.occurred_at) ||
+              campaign.toLowerCase() !== (row.gift.campaign ?? '').toLowerCase()) {
+            throw new Error(`Row ${row.rowKey}: this gift identity already has different facts. Nothing was saved; review the source transaction before importing again.`);
+          }
+          result.skipped++; continue;
+        }
         let donorId: string;
         const target = row.action === 'merge' ? row.matchId : createdByKey.get(row.key) ?? null;
         if (target) {
@@ -655,7 +685,7 @@ export class Store {
           d.gifts.push({
             id: uid('g'), donor_id: donorId, campaign_id: campaign?.id ?? null, amount_cents: row.gift.amount_cents,
             refund_cents: 0, currency: 'USD', occurred_at: row.gift.occurred_at, status: 'settled', source,
-            external_id: `${fileName}#${result.created + result.merged}`,
+            external_id: externalId,
           });
           result.gifts++;
         }

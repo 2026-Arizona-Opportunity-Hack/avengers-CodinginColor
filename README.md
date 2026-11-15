@@ -1,11 +1,12 @@
 # avengers — Coding in Color
 
-For a presentation, choose **Try Now** on sign-in, or open `/sign-in?demo=1`.
-It opens a synthetic workspace immediately, with admin access for every demo persona
-and a top-left person switcher. No Clerk, Neon or two-factor setup is needed. This
-mode stays in the current tab; **Use live workspace sign-in** exits it. Demo edits and
+The public app is a synthetic **Try Now** workspace. Open `/` or `/sign-in`, then choose **Try Now**.
+It opens the central dashboard immediately as demo admin. The top-left person switcher
+shows each person's actual role: admins see the organization; board members see their
+assigned donors and related history and tasks. No Clerk, Neon or two-factor setup is needed. This
+public experience never loads live config or authentication, including with `?demo=0`. Demo edits and
 persona preferences are browser-local and survive refresh. Real accounts, roles and
-donor records are unaffected. Settings includes **Reset demo data**.
+donor records are unaffected. Settings includes **Reset records**.
 
 The live **Ask your data** screen finds authorized active donors by retention, gift status,
 currency and net giving threshold. It explains its filters, asks for clarification on unsupported

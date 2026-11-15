@@ -57,6 +57,62 @@ it('clears private questions and discards late results after session loss', asyn
   f.question(); const pending = f.submit(); f.store.signedIn.set(false); f.store.sessionEpoch.update(n => n + 1); f.fixture.detectChanges();
   resolve({ needs_clarification: false, explanation: 'Private result', total: 1, donors: [{ id: 'donor', name: 'Avery' }] }); await pending;
   expect(f.input.value).toBe(''); expect(f.fixture.nativeElement.textContent).not.toContain('Avery');
+  expect(f.fixture.nativeElement.querySelector('.question-bubble')).toBeNull();
+});
+
+it('offers supported prompts without sending until the user submits, then returns focus', async () => {
+  const f = setup(); f.store.live.set(false); f.fixture.detectChanges();
+  const send = f.fixture.nativeElement.querySelector('button[type="submit"]') as HTMLButtonElement;
+  expect(send.disabled).toBe(true);
+  const prompts = [...f.fixture.nativeElement.querySelectorAll('.prompt')] as HTMLButtonElement[];
+  expect(prompts).toHaveLength(3);
+  const focus = vi.spyOn(f.input, 'focus');
+  for (let i = 0; i < prompts.length; i++) {
+    const prompt = f.fixture.nativeElement.querySelectorAll('.prompt')[i] as HTMLButtonElement;
+    prompt.click(); f.fixture.detectChanges();
+    expect(f.input.value).toBe(prompt.textContent!.trim());
+    expect(f.fixture.nativeElement.querySelector('section')).toBeNull();
+    expect(send.disabled).toBe(false);
+    await f.submit();
+    expect(f.fixture.nativeElement.textContent).not.toContain('A little more detail');
+    f.store.sessionEpoch.update(n => n + 1); f.fixture.detectChanges();
+  }
+  expect(focus).toHaveBeenCalledTimes(6);
+  expect(f.api.request).not.toHaveBeenCalled();
+});
+
+it('sends with Enter while preserving Shift+Enter and composition input', async () => {
+  const f = setup(); f.question();
+  const shift = new KeyboardEvent('keydown', { key: 'Enter', shiftKey: true, cancelable: true });
+  f.input.dispatchEvent(shift);
+  const composing = new KeyboardEvent('keydown', { key: 'Enter', isComposing: true, cancelable: true });
+  f.input.dispatchEvent(composing);
+  expect(shift.defaultPrevented).toBe(false); expect(composing.defaultPrevented).toBe(false);
+  expect(f.api.request).not.toHaveBeenCalled();
+  f.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
+  await f.fixture.whenStable(); f.fixture.detectChanges();
+  expect(f.api.request).toHaveBeenCalledTimes(1);
+  expect(f.fixture.nativeElement.querySelector('.question-bubble').textContent).toContain('Show my lapsed donors');
+  expect(f.fixture.nativeElement.querySelector('.examples')).toBeNull();
+  expect(f.input.getAttribute('aria-describedby')).toContain('ask-help');
+});
+
+it('announces loading, prevents duplicate sends and clears displayed identity content', async () => {
+  const f = setup(); let resolve!: (value: Awaited<ReturnType<typeof f.api.request>>) => void;
+  f.api.request.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  f.question(); const pending = f.submit(); f.fixture.detectChanges();
+  expect(f.fixture.nativeElement.querySelector('[role="status"]').textContent).toContain('Finding donors');
+  expect(f.fixture.nativeElement.querySelector('button[type="submit"]').disabled).toBe(true);
+  expect(f.input.readOnly).toBe(true);
+  f.input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', cancelable: true }));
+  expect(f.api.request).toHaveBeenCalledTimes(1);
+  resolve({ needs_clarification: false, explanation: 'Visible results', total: 1, donors: [{ id: 'donor', name: 'Avery' }] }); await pending;
+  expect(f.input.readOnly).toBe(false);
+  f.store.sessionEpoch.update(n => n + 1); f.fixture.detectChanges();
+  expect(f.input.value).toBe('');
+  expect(f.fixture.nativeElement.textContent).not.toContain('Avery');
+  expect(f.fixture.nativeElement.querySelector('.question-bubble')).toBeNull();
+  expect(f.fixture.nativeElement.querySelectorAll('.prompt')).toHaveLength(3);
 });
 it('surfaces authorization failures without inventing a result', async () => {
   const f = setup(); f.api.request.mockRejectedValueOnce(new ApiError(403)); f.question(); await f.submit();
