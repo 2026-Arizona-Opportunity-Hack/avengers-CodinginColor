@@ -125,6 +125,27 @@ test('retention report rejects bad input and unauthorized callers', async (t) =>
   }
 });
 
+test('retention filters intersect scoped owners/programs/campaigns/acquisition cohorts and match periods', async t => {
+  const { get } = await setup(t);
+  const base = '/api/v1/reports/retention?asOf=2026-11-14';
+  const filtered = async (query: string, who = 'admin') => {
+    const response = await get(base + query, who); assert.equal(response.status, 200); return response.json();
+  };
+  const program = await filtered(`&programId=${AI}&ownerId=${BOARD_A}&cohort=2025`);
+  assert.deepEqual(program.byCurrency.USD.totals, { prior_cents: 2505000, current_cents: 3000000 });
+  const campaign = await filtered(`&campaignId=${CAMP_FUND}`);
+  assert.deepEqual(campaign.byCurrency.USD.totals, { prior_cents: 0, current_cents: 1000 });
+  assert.deepEqual((await filtered(`&ownerId=${BOARD_B}`, 'board-a')).byCurrency, {});
+  assert.deepEqual((await filtered(`&programId=${id(999)}`)).byCurrency, {});
+  assert.deepEqual((await filtered(`&ownerId=${BOARD_A}&cohort=2026`)).byCurrency, {});
+  const period = await filtered('&from=2026-04-01');
+  assert.equal(period.windows.current.from, '2026-04-01T00:00:00-07:00');
+  assert.equal(period.windows.prior.from, '2025-04-01T00:00:00-07:00');
+  assert.deepEqual(period.byCurrency.USD.totals, { prior_cents: 5000, current_cents: 1500 });
+  for (const query of ['&from=2026-02-30', '&from=2025-01-01', '&from=2026-12-01', '&cohort=all', '&ownerId=admin'])
+    assert.equal((await get(base + query, 'admin')).status, 400, query);
+});
+
 test('funder packet: admin-only JSON with program vs unattributed totals and unavailable outcomes', async (t) => {
   const { sql, get } = await setup(t);
   const path = `/api/v1/reports/funder-packet?funderId=${FUNDER}&programId=${AI}&from=2026-01-01&to=2027-01-01`;
