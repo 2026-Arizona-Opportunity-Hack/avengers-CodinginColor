@@ -22,6 +22,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
     }
     next();
   });
+  app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
   app.get('/api/v1/me', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
     const member = await withMember(db, env.CIC_ORG_ID, identity, async (_client, membership) => membership);

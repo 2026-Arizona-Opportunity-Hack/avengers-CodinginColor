@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test:contracts": "node --test packages/contracts/*.test.ts",
     "test:api": "node --test apps/api/*.test.ts",
-    "start:api": "node --env-file=.env apps/api/server.ts"
+    "start:api": "node --env-file-if-exists=.env apps/api/server.ts"
   },
   "dependencies": {
     "@clerk/backend": "3.29.0",
