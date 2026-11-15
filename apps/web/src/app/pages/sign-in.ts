@@ -32,7 +32,16 @@ import { Store } from '../core/store';
       </section>
 
       <main id="main" class="card glass" aria-labelledby="signin-h">
-        <h2 id="signin-h" class="text-xl font-semibold tracking-tight">Sign in to Coding in Color</h2>
+        <h2 id="signin-h" class="text-xl font-semibold tracking-tight">{{ store.demoAdmin() ? 'Demo workspace' : 'Sign in to Coding in Color' }}</h2>
+        @if (!store.demoAdmin()) {
+          <section class="status flex-col items-start gap-3" aria-label="Presentation demo">
+            <p>Present with synthetic data. Everyone has demo admin access; no account or two-step setup needed.</p>
+            <a hlmBtn href="/sign-in?demo=1">Try Now</a>
+          </section>
+        } @else {
+          <p class="status">Synthetic demo data · Admin access for every demo account</p>
+          <a class="mt-3 inline-block text-sm underline" href="/sign-in?demo=0">Use live workspace sign-in</a>
+        }
         @if (securitySetup() === 'complete' && !store.signedIn()) {
           <p class="status" role="status">Sign in again and enter your authenticator code to finish.</p>
         }
@@ -73,7 +82,7 @@ import { Store } from '../core/store';
             }
           }
         } @else {
-          <p class="text-muted-foreground mt-1 text-sm">This is the demo workspace with synthetic records. Choose an account to see exactly what that role can do.</p>
+          <p class="text-muted-foreground mt-1 text-sm">Choose a synthetic account. {{ store.demoAdmin() ? 'All demo accounts have admin access.' : 'Each account shows its assigned role.' }}</p>
           <ul class="accounts" aria-label="Demo accounts">
             @for (a of accounts(); track a.id) {
               <li>
@@ -140,7 +149,7 @@ export class SignInPage {
 
   protected readonly accounts = computed(() => this.store.members().filter((m) => m.active).map((m) => {
     const owned = this.store.allDonors().filter((d) => d.owner_id === m.id).length;
-    return { ...m, scope: m.role === 'admin' ? 'whole organization' : `${owned} donors they own` };
+    return { ...m, scope: this.store.demoAdmin() || m.role === 'admin' ? 'whole organization' : `${owned} donors they own` };
   }));
 
   constructor() {
