@@ -31,3 +31,6 @@ Thumbs.db
 
 # Vercel build output (the web app copied for same-origin hosting)
 /public/
+
+# Local Vercel CLI state (project link, pulled env, build output). Never commit.
+.vercel/
