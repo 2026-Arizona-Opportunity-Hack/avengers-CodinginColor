@@ -22,7 +22,7 @@ const ACTIONS: Action[] = [
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <hlm-command-dialog [state]="open() ? 'open' : 'closed'" (stateChange)="openChange.emit($event === 'open')"
-      title="Search Cadence" description="Jump to a page, a donor or an action" dialogContentClass="w-[min(640px,calc(100vw-32px))]">
+      title="Search Coding in Color" description="Jump to a page, a donor or an action" dialogContentClass="w-[min(640px,calc(100vw-32px))]">
       <hlm-command>
         <hlm-command-input placeholder="Search donors, pages and actions" />
         <hlm-command-list class="max-h-[min(420px,60vh)]">

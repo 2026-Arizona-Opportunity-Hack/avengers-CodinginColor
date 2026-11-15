@@ -11,7 +11,8 @@ vi.mock('@clerk/clerk-js', () => ({ Clerk: class {
 it('loads the actual Clerk component configuration before exposing sign-in', async () => {
   const api = new Api();
   await api.start({ apiBase: '', clerkPublishableKey: 'pk_test_synthetic' }, vi.fn(), vi.fn());
-  expect(mock.load).toHaveBeenCalledWith({ ui: mock.ui });
+  expect(mock.load).toHaveBeenCalledWith({ ui: mock.ui,
+    localization: { signIn: { start: { title: 'Sign in to Coding in Color' } } } });
   expect(api.status()).toBe('signed-out');
 });
 

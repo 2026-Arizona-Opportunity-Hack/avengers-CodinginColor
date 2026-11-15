@@ -1,6 +1,10 @@
-# Cadence web app
+# Coding in Color web app
 
 Angular 22 interface for the CIC donor platform. Owner: UI (@ashworks1706).
+
+The interface uses Coding in Color's supplied nonprofit logo and product name on
+sign-in, navigation, browser titles and the favicon. The asset source is documented
+in [public/branding/README.md](public/branding/README.md).
 
 ```bash
 cd apps/web

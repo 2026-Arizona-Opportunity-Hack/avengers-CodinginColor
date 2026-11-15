@@ -20,8 +20,8 @@ import { Store } from '../core/store';
     <div class="wrap">
       <section class="story" aria-labelledby="story-h">
         <div class="flex items-center gap-3">
-          <svg class="size-9" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#007a3d"/><rect x="8" y="8.5" width="16" height="3.5" rx="1.75" fill="#fff"/><rect x="8" y="14.25" width="10" height="3.5" rx="1.75" fill="#8fd3ad"/><rect x="8" y="20" width="16" height="3.5" rx="1.75" fill="#fff"/></svg>
-          <span class="flex flex-col leading-tight"><span class="text-lg font-semibold tracking-tight">Cadence</span><span class="text-muted-foreground text-sm">Coding in Color</span></span>
+          <span class="logo-crop" aria-hidden="true"><img src="branding/coding-in-color-logo.jpg" alt="" width="512" height="512" /></span>
+          <span class="text-lg font-semibold tracking-tight">Coding in Color</span>
         </div>
         <h1 id="story-h" class="story-title">Know every donor. Keep every promise to follow up.</h1>
         <ul class="points">
@@ -32,7 +32,7 @@ import { Store } from '../core/store';
       </section>
 
       <main id="main" class="card glass" aria-labelledby="signin-h">
-        <h2 id="signin-h" class="text-xl font-semibold tracking-tight">Sign in to Cadence</h2>
+        <h2 id="signin-h" class="text-xl font-semibold tracking-tight">Sign in to Coding in Color</h2>
 
         @if (signedOut() && !store.signedIn()) {
           <p class="status" role="status"><ng-icon name="lucideCircleCheck" size="16" aria-hidden="true" /> You're signed out.</p>
@@ -106,7 +106,7 @@ import { Store } from '../core/store';
     .foot { display: flex; gap: 8px; align-items: flex-start; margin-top: 20px; font-size: 12.5px; color: var(--muted-foreground); }
     .foot ng-icon { margin-top: 2px; flex: none; }
     @media (max-width: 900px) {
-      .wrap { grid-template-columns: 1fr; gap: 28px; padding: 24px 16px; align-items: start; }
+      .wrap { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 24px 16px; align-items: start; }
       .card { justify-self: stretch; max-width: none; padding: 22px; }
       .points { display: none; }
       .story { gap: 16px; }

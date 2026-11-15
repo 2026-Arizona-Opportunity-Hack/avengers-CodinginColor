@@ -172,7 +172,7 @@ interface Match { row: Checked; donor: Donor; reason: string; }
         }
 
         @case (3) {
-          <p class="intro">One record per donor. Each incoming row below looks like someone already in Cadence. Merging adds the gift to the existing record and fills only empty contact fields.</p>
+          <p class="intro">One record per donor. Each incoming row below looks like someone already in Coding in Color. Merging adds the gift to the existing record and fills only empty contact fields.</p>
           @if (matches().length === 0) {
             <div class="empty"><h3>No duplicates found</h3><p>Every ready row is a new donor.</p></div>
           } @else {
@@ -183,7 +183,7 @@ interface Match { row: Checked; donor: Donor; reason: string; }
                     <div class="rec"><p class="label">Line {{ m.row.line }} in the file</p><p class="strong">{{ m.row.name }}</p>
                       <p class="hint">{{ m.row.email ?? 'No email' }}</p><p class="hint">{{ m.row.phone ?? 'No phone' }}</p></div>
                     <div class="match" aria-hidden="true"><ng-icon name="lucideRepeat" size="16" /></div>
-                    <div class="rec existing"><p class="label">Already in Cadence</p><p class="strong"><a [routerLink]="['/donors', m.donor.id]" target="_blank">{{ m.donor.name }}</a></p>
+                    <div class="rec existing"><p class="label">Already in Coding in Color</p><p class="strong"><a [routerLink]="['/donors', m.donor.id]" target="_blank">{{ m.donor.name }}</a></p>
                       <p class="hint">{{ m.donor.email ?? 'No email' }}</p><p class="hint">{{ m.donor.phone ?? 'No phone' }}</p></div>
                   </div>
                   <fieldset class="choice">
