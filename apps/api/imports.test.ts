@@ -14,6 +14,8 @@ test('imports stage exact bytes with server identity, resume safely, validate la
   const response=await call('POST','',csv); assert.equal(response.status,201);
   const batch=await response.json() as {batch_id:string;file_sha256:string;status:string};
   assert.match(batch.file_sha256,/^sha256:[0-9a-f]{64}$/); assert.equal(batch.status,'reviewing');
+  const details=await (await call('GET','/'+batch.batch_id)).json() as {preview:{headers:string[]};layout:unknown};
+  assert.equal(details.preview.headers[0],'first name'); assert.deepEqual(details.layout,{});
   const replay=await call('POST','',csv); assert.equal(replay.status,200);
   assert.equal((await replay.json() as typeof batch).batch_id,batch.batch_id);
   assert.equal((await call('POST','',csv,'admin',{'X-Import-Source':'benevity'})).status,409);

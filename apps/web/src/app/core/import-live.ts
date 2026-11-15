@@ -11,6 +11,7 @@ export interface ImportPreview {
 export interface ImportResult {
   batch_id: string; status: 'reviewing' | 'committed' | 'abandoned'; file_sha256?: string; replayed?: boolean;
   preview?: ImportPreview;
+  layout?: ImportLayout;
   counts?: { donors_created: number; donors_linked: number; gifts_inserted: number; gifts_corrected: number; skipped: number };
 }
 export interface ImportLayout {
@@ -51,6 +52,8 @@ export class LiveImports {
     return this.request(`${path(batch)}/layout`, post(layout));
   }
 
+  details(batch: string): Promise<ImportResult> { return this.request(path(batch)); }
+
   async rows<T>(batch: string, kind: 'preview' | 'donor' | 'gift', planned = false): Promise<T[]> {
     const rows: T[] = [];
     for (let offset = 0; ; ) {
@@ -77,4 +80,37 @@ export class LiveImports {
   }
 
   abandon(batch: string): Promise<ImportResult> { return this.request(`${path(batch)}/abandon`, post()); }
+}
+
+/** Exact display totals, split by currency; unknown financial rows never become zero. */
+export function importTotals(rows: PlanRow[], choices: Record<number, string>) {
+  const totals = new Map<string, { source: bigint; delta: bigint }>();
+  let unavailable = 0;
+  const net = (gift: Record<string, unknown>) => {
+    const { amount_cents: amount, refund_cents: refund, currency, status } = gift;
+    if (typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount < 0 ||
+        typeof refund !== 'number' || !Number.isSafeInteger(refund) || refund < 0 || refund > amount ||
+        typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency) || !['settled', 'pending', 'void'].includes(String(status))) return null;
+    return { currency, cents: status === 'settled' ? BigInt(amount) - BigInt(refund) : 0n };
+  };
+  const add = (currency: string, field: 'source' | 'delta', cents: bigint) => {
+    const bucket = totals.get(currency) ?? { source: 0n, delta: 0n };
+    bucket[field] += cents; totals.set(currency, bucket);
+  };
+  for (const row of rows) {
+    const gift = net(row.draft);
+    if (!gift) { unavailable++; continue; }
+    add(gift.currency, 'source', gift.cents);
+    const [action, id] = (choices[row.row] ?? row.action).split(':');
+    if (action === 'insert' || action === 'correct') {
+      add(gift.currency, 'delta', gift.cents);
+      if (action === 'correct') {
+        const existing = row.candidates.find(candidate => candidate['id'] === id);
+        const prior = existing && net(existing);
+        if (prior) add(prior.currency, 'delta', -prior.cents); else unavailable++;
+      }
+    }
+  }
+  return { currencies: [...totals].map(([currency, values]) => ({ currency,
+    source_cents: String(values.source), delta_cents: String(values.delta) })), unavailable };
 }

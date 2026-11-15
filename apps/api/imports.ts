@@ -44,8 +44,10 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
     });
     res.status(result.created?201:200).json(result.body);
   });
-  router.get('/:id',async(req,res)=>res.json(await admin(req.get('Authorization'),async c=>
-    summary(await batchOf(c,req.params.id,env.CIC_ORG_ID)))));
+  router.get('/:id',async(req,res)=>res.json(await admin(req.get('Authorization'),async c=>{
+    const b=await batchOf(c,req.params.id,env.CIC_ORG_ID);
+    return {...summary(b),...(b.status==='reviewing'?{layout:b.layout,preview:countsOf(b)}:{})};
+  })));
   router.post('/:id/layout',async(req,res)=>res.json(await admin(req.get('Authorization'),async(c,m)=>{
     const b=await batchOf(c,req.params.id,env.CIC_ORG_ID);
     draftsOf(b,req.body);

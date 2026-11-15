@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { LiveImports, XLSX_MIME } from '../apps/web/src/app/core/import-live.ts';
+import { LiveImports, XLSX_MIME, importTotals } from '../apps/web/src/app/core/import-live.ts';
 import type { Request } from '../apps/web/src/app/core/outreach-live.ts';
 
 test('live import uploads original bytes with required source and MIME headers', async () => {
@@ -54,4 +54,16 @@ test('live review and commit send only human decisions and current plan hashes',
     { path: '/api/v1/imports/batch/commit', body: { donor_plan_hash: 'donor-hash', plan_hash: 'gift-hash' } },
     { path: '/api/v1/imports/batch/abandon', body: undefined },
   ]);
+});
+
+test('import reconciliation separates source totals and canonical deltas by currency', () => {
+  const gift = { amount_cents: 1000, refund_cents: 200, currency: 'USD', status: 'settled' };
+  const row = { row: 0, action: 'insert', reason: '', existingIds: [], matchingRows: [], draft: gift, candidates: [] };
+  const totals = importTotals([row, { ...row, row: 1, action: 'skip' }, { ...row, row: 2,
+    action: 'review', candidates: [{ ...gift, id: 'prior', amount_cents: 500, refund_cents: 0, currency: 'EUR' }] },
+    { ...row, row: 3, draft: {} }], { 2: 'correct:prior' });
+  assert.deepEqual(totals, { currencies: [
+    { currency: 'USD', source_cents: '2400', delta_cents: '1600' },
+    { currency: 'EUR', source_cents: '0', delta_cents: '-500' },
+  ], unavailable: 1 });
 });
