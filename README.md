@@ -81,10 +81,16 @@ demo data in the browser.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
+The live admin Import screen uses the API for upload, mapping, donor/gift review
+and atomic commit. It requires explicit status/refund and missing date/currency
+facts, acknowledges invalid records, and separates source totals from canonical
+changes by currency. [Local synthetic UI preview](docs/screenshots/live-import-review.png)
+uses synthetic review state; deployed signed-in acceptance remains pending.
+
 ## Tech stack
 
 - Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
-- Backend: Node.js 24.2+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
+- Backend: Node.js 24.15+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
 - Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.
 - APIs / services: Clerk for invite-only sign-in. Tests run real migrations on in-memory PostgreSQL (PGlite); no live service or credentials are needed.
 
@@ -101,6 +107,10 @@ Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
 matched Phoenix calendar windows within one year. Cohort is the donor's first
 positive settled gift year across their visible history, before campaign/program
 narrowing. Every filter intersects the caller's existing organization/owner scope.
+
+Live administrators can reassign a donor to any active same-organization board
+member, including members without donors. Assignment and open-task transfer remain
+server-controlled and audited; board members cannot list other eligible owners.
 
 Live donor views load their scoped gift and contact history from the API. Logging
 a call, text, email or meeting persists a real communication and refreshes the queue;
@@ -139,13 +149,14 @@ are covered step by step in the deploy runbook, `docs/DEPLOY.md` (#42).
 
 ## Links
 
+- Deployment setup: [Vercel runbook](docs/DEPLOY.md). The repository pins Express and Node 24, validates runtime settings before building, and generates same-origin frontend configuration.
 - Live demo: [cadence-cic.vercel.app](https://cadence-cic.vercel.app). This is the web app on sample data only, with no backend. The full-stack deploy is tracked in #30.
 - Demo video:
 - Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md), [outreach](packages/outreach/README.md), [web app](apps/web/README.md), [deploy runbook](docs/DEPLOY.md)
 
 ## CSV import preflight
 
-Requires Node.js 24.2 or newer. Install the shared contract's locked dependencies;
+Requires Node.js 24.15 or newer. Install the shared contract's locked dependencies;
 no credentials are needed.
 
 ```bash
@@ -187,7 +198,8 @@ For ambiguous headers, pass an optional JSON mapping file as the final argument:
 `node tools/import-preview.ts spreadsheet export.csv mapping.json`.
 Keys must exactly match source headers. Targets are `first_name`, `last_name`,
 `email`, `phone`, `company`, `contact_person`, `campaign`, `occurred_at`,
-`currency`, `external_id`, `amount_decimal`, or `amount_cents`; null explicitly
+`currency`, `external_id`, `amount_decimal`, `amount_cents`, `status`,
+`refund_decimal`, or `refund_cents`; null explicitly
 ignores a column while retaining its raw cells. Unknown targets/headers and
 multiple columns targeting the same field are rejected.
 
@@ -244,6 +256,13 @@ then validated, together with timestamps and optional external IDs, using the
 shared schemas from contract PR #8. Missing/invalid facts remain review issues.
 Mappings are explicit input choices, not final approval: previews still report
 `needs_review`, and donor IDs, refunds, gift status and persistence are not inferred.
+
+Refund mappings follow the same unit rule: `refund_decimal` and the known
+`refunded amount` header consume major units, while `refund_cents` consumes integer
+cents. Mapped statuses must be `settled`, `pending` or `void` (case-insensitive).
+Invalid/missing mapped facts and refunds exceeding gift amounts require review.
+Batch status/refund values are only requested when those columns are unmapped;
+they never replace the financial facts in a mapped row.
 
 ## Reconciliation planning (Data)
 

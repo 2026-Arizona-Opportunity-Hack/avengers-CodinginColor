@@ -13,8 +13,10 @@ const aliases = new Map([
   ['donor email address', 'email'], ['mobile #', 'phone'], ['employer name', 'company'],
   ['gift amt', 'amount_cents'], ['board contact', 'contact_person'],
   ['designation', 'campaign'], ['donation date', 'occurred_at'],
+  ['status', 'status'], ['payment status', 'status'],
+  ['refund amount', 'refund_cents'], ['refunded amount', 'refund_cents'], ['refund cents', 'refund_cents'],
 ]);
-const mappingTargets = new Set([...aliases.values(), 'amount_decimal']);
+const mappingTargets = new Set([...aliases.values(), 'amount_decimal', 'refund_decimal']);
 const sources = ['spreadsheet', 'zeffy', 'benevity', 'az_gives', 'united_way'];
 const MAX_BYTES = 5 * 1024 * 1024;
 const dateFormats = {
@@ -116,7 +118,7 @@ export function previewCsv(text: string, source: string, file: string, columnMap
   }
   const mapping = normalized.map((header, i) => {
     const target = chosen.has(headers[i]) ? chosen.get(headers[i]) : aliases.get(header);
-    return target === 'amount_decimal' ? 'amount_cents' : target ?? null;
+    return target === 'amount_decimal' ? 'amount_cents' : target === 'refund_decimal' ? 'refund_cents' : target ?? null;
   });
   const mapped = mapping.filter(field => field !== null);
   if (new Set(mapped).size !== mapped.length) throw new Error('Multiple columns map to the same field');
@@ -145,18 +147,19 @@ export function previewCsv(text: string, source: string, file: string, columnMap
       if (field !== 'phone' && field !== 'amount_cents' && /^[=+@-]/.test(value)) {
         issue(field, 'spreadsheet_formula');
       }
-      if (field === 'amount_cents') {
+      if (field === 'amount_cents' || field === 'refund_cents') {
         const alreadyCents = chosen.has(headers[i])
-          ? chosen.get(headers[i]) === 'amount_cents' : normalized[i] === 'amount cents';
+          ? chosen.get(headers[i]) === field : normalized[i] === field.replace('_', ' ');
         if (alreadyCents) {
           const cents = /^\d+$/.test(value) ? Number(value) : NaN;
-          values[field] = GiftWriteSchema.shape.amount_cents.safeParse(cents).success ? cents : null;
+          values[field] = GiftWriteSchema.shape[field].safeParse(cents).success ? cents : null;
         } else values[field] = parseAmountCents(value);
-        if (values[field] === null) issue(field, value ? 'invalid_amount' : 'missing_amount');
-        else if (values[field] === 0) issue(field, 'non_positive_amount');
+        if (values[field] === null) issue(field, value ? `invalid_${field === 'amount_cents' ? 'amount' : 'refund'}` : `missing_${field === 'amount_cents' ? 'amount' : 'refund'}`);
+        else if (field === 'amount_cents' && values[field] === 0) issue(field, 'non_positive_amount');
       }
-      if (field === 'occurred_at' || field === 'currency' || field === 'external_id') {
+      if (field === 'occurred_at' || field === 'currency' || field === 'external_id' || field === 'status') {
         const input = field === 'currency' ? value.toUpperCase()
+          : field === 'status' ? value.toLowerCase()
           : field === 'occurred_at' && dateOptions
             ? confirmedDate(value, dateOptions) ?? (value || null) : value || null;
         const parsed = GiftWriteSchema.shape[field].safeParse(input);
@@ -177,6 +180,8 @@ export function previewCsv(text: string, source: string, file: string, columnMap
         } else values[field] = (value.startsWith('+') ? '+' : '') + digits;
       }
     });
+    if (typeof values.refund_cents === 'number' && typeof values.amount_cents === 'number' && values.refund_cents > values.amount_cents)
+      issue('refund_cents', 'refund_exceeds_amount');
     if (!values.first_name && !values.last_name && !values.company) issue('name', 'missing_donor_name');
     if (!values.email && !values.phone) issue('contact', 'missing_contact');
     return { recordNumber, raw, values };
