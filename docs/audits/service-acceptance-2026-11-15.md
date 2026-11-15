@@ -24,9 +24,9 @@ At 17:53 UTC, eight labeled synthetic questions ran against the actual Neon conn
 | --- | --- |
 | Labeled intent/clarification cases | 8/8 correct |
 | Provider exact structured output | 4/4 correct |
-| Answered request median | 1,594 ms |
+| Answered request p50 (nearest rank) | 1,594 ms |
 | Answered request p95 | 2,966 ms |
-| Clarification median | 380 ms |
+| Clarification p50 (nearest rank) | 380 ms |
 | Provider request duration | 585–927 ms |
 
 With only four answered requests, p95 is the sample maximum. This is one small functional benchmark, not a general accuracy estimate, load test, production latency guarantee, or a claim that the free tier will always cover usage. The model received only validated, nonpersonal filter objects; the raw questions and donor records were not sent. Raw sanitized results and expected filters are in [the benchmark artifact](ask-data-benchmark-2026-11-15.json).
