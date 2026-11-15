@@ -3,6 +3,8 @@
 This is the runbook for a person, not an agent: **only people create accounts, generate
 passwords and paste keys**. Nothing in this file is a real credential. Tracked in #30.
 
+The current public frontend is **Try Now only**: fictional browser-local records, without Clerk/config/API requests. Procedures below configure the separate protected API; they do not enable a public live-login toggle. Historical signed-in walkthrough instructions require a separately supported authenticated client. Default deployment still validates backend settings; runtime API authentication remains enforced.
+
 ## What runs where
 
 | Piece | Service | Notes |

@@ -1,60 +1,30 @@
-# avengers — Coding in Color
+# Cadence for Coding in Color
 
-The public app is a synthetic **Try Now** workspace. Open `/` or `/sign-in`, then choose **Try Now**.
-It opens the central dashboard immediately as demo admin. The top-left person switcher
-shows each person's actual role: admins see the organization; board members see their
-assigned donors and related history and tasks. No Clerk, Neon or two-factor setup is needed. This
-public experience never loads live config or authentication, including with `?demo=0`. Demo edits and
-persona preferences are browser-local and survive refresh. Real accounts, roles and
-donor records are unaffected. Settings includes **Reset records**. Fresh demo drafts use fictional conversation records and structured program interests, plus the selected donor's latest settled net gift. Existing saved drafts stay unchanged until you choose **Regenerate draft** in Follow-ups. Regeneration uses current local donor facts and clears approval; review and approve again before composing. Sent history is retained.
+Cadence is an open-source donor and funder relationship platform built for Coding in Color at the ASU Fall Hackathon 2026. It brings donor and gift records, human-reviewed follow-ups, import review, and funder reporting into one workspace. Open [cadence-cic.vercel.app](https://cadence-cic.vercel.app), choose **Try Now**, and explore fictional records stored in your browser. No account is required. Admins see the organization; board personas see their assigned records. Switching people returns to Overview; edits and persona selection survive refresh.
 
-The live **Ask your data** screen finds authorized active donors by retention, gift status,
-currency and net giving threshold. It explains its filters, asks for clarification on unsupported
-wording, and works without model keys. Questions and donor records never go to the optional model.
-In the demo workspace, the same search rules run locally on synthetic records without API or model requests.
-The [synthetic provider benchmark](docs/audits/search-provider-benchmark-2026-11-15.md)
-records measured accuracy, latency and the optional-advice ordering correction.
+Fresh drafts use fictional conversation records and structured program interests plus the selected donor's latest settled net gift. Existing saved drafts stay unchanged until **Regenerate draft** in Follow-ups. Regeneration uses current local facts and clears approval; review and approve again before composing. Sent history is retained. Settings includes **Reset records**.
 
-Built at [ASU Fall Hackathon 2026 | Phoenix Hackathon for Nonprofits: Nov 14-15](https://www.ohack.dev/hack/fall-2026) for the public good (MIT license).
-
-> **⚠️ This is your team's ONE repository — all code goes here.** Please don't create
-> another repo (personal or org). Judges, the Team Dashboard's code-activity card,
-> the public project page and the nonprofit all read **this** repo; work pushed
-> anywhere else is invisible to them and won't count. Everyone on the team should be
-> a collaborator here — ask an organizer in Slack if someone can't push.
+The public frontend never loads Clerk, `config.json` or protected API routes, even with `?demo=0`. Browser data does not prove server persistence, authorization or delivery. The separate backend retains Clerk verification, admin MFA and database row-level security. Source implementation, recorded tests and deployment acceptance are distinct; see [requirements](docs/REQUIREMENTS.md) and [the live acceptance gate](docs/P0-LIVE-PLAN.md). No new deployment check was performed for this documentation repair.
 
 | | |
 |---|---|
 | **Nonprofit** | [Coding in Color](https://www.ohack.dev/nonprofit/YIXYdYCoxIZC08uQ5DL3) |
-| **Problem statement** | [Donor & Funder Relationship Platform (CIC Problem 2)](https://www.ohack.dev/project/e26932c0df1b11f189a8dead68f07eb5) |
-| **Team page** | [avengers](https://www.ohack.dev/hack/fall-2026/team/959f5c24e05811f1adacdeadb145c312) · [Team Dashboard](https://www.ohack.dev/hack/fall-2026/manageteam) (story, demo video, submit) |
-| **Slack** | team: [#avengers](https://opportunity-hack.slack.com/app_redirect?channel=avengers) · nonprofit: [#npo-coding-in-color](https://opportunity-hack.slack.com/app_redirect?channel=npo-coding-in-color) · help: [#ask-a-mentor](https://opportunity-hack.slack.com/archives/C01E5CGDQ74) |
-| **Created by** | Greg V [Staff/Mentor] |
+| **Problem** | [Donor & Funder Relationship Platform (CIC Problem 2)](https://www.ohack.dev/project/e26932c0df1b11f189a8dead68f07eb5) |
+| **Team** | [avengers](https://www.ohack.dev/hack/fall-2026/team/959f5c24e05811f1adacdeadb145c312) · [Team Dashboard](https://www.ohack.dev/hack/fall-2026/manageteam) |
+| **Slack** | [#avengers](https://opportunity-hack.slack.com/app_redirect?channel=avengers) · [#npo-coding-in-color](https://opportunity-hack.slack.com/app_redirect?channel=npo-coding-in-color) · [#ask-a-mentor](https://opportunity-hack.slack.com/archives/C01E5CGDQ74) |
 
-## Final day
+> This is the team's one repository. Judges, the Team Dashboard and the nonprofit use this repo. Do not create a second project repo.
 
-Start recording your demo video by **Sun Nov 15, 12:00 PM MST** — hacking ends at **Sun Nov 15, 2:00 PM MST**, and a demo you recorded with time to spare beats a feature you finished at 1:59.
+## Final day and submission
 
-- Sun Nov 15, 11:00 AM MST — Presentation Feedback Hour
-- **Sun Nov 15, 12:00 PM MST — Start recording your demo video**
-- Sun Nov 15, 12:30 PM MST — Judges Arrive
-- **Sun Nov 15, 2:00 PM MST — 🛑 Submission Deadline: Hacking ends**
-- Sun Nov 15, 2:05 PM MST — Judging Round 1
-- Sun Nov 15, 3:40 PM MST — Judging Final Round
-- Sun Nov 15, 4:30 PM MST — Closing Ceremony: Winners Announced
+Hackathon schedule for Sun Nov 15: recording starts at **12:00 PM MST**; hacking ends at **2:00 PM MST**. Submission is through the [Team Dashboard](https://www.ohack.dev/hack/fall-2026/manageteam).
 
-## Before hacking ends — the submission checklist
-
-Everything is submitted from your [Team Dashboard](https://www.ohack.dev/hack/fall-2026/manageteam); judges read the dashboard, this README and your demo video.
-
-- [ ] **Code pushed** to this repo, in small PRs (see `AGENTS.md`) — judges and future recruiters read the history
-- [ ] **Project story** written on the dashboard (`#project`): the problem, who it helps, what you built, what's next
-- [ ] **Demo video** (4 minutes or less) on YouTube, Vimeo, Loom or Google Drive, linked on the dashboard (`#demo`) — show it working, not slides
-- [ ] **Submit** on the dashboard (you can keep editing until the close)
-- [ ] This README filled in below: team, tech stack, how to run it, live link if you have one
-- Optional: a [DevPost entry](https://opportunity-hack-2026-arizona.devpost.com/) — the dashboard is the submission of record.
-
-Judges score **Scope, Documentation, Polish and Security**, plus a separate **Accessibility** prize — the rubric is at [ohack.dev/hackathon-judging-criteria](https://www.ohack.dev/hackathon-judging-criteria). Document your work as GitHub Issues as you go: that's how you get public credit for it.
+- [ ] Push code to this repository in small pull requests.
+- [ ] Add the project story to the dashboard: problem, who it helps, what is built, and what's next.
+- [ ] Add a demo video of four minutes or less. Show the product, not slides. Link it on the dashboard.
+- [ ] Submit through the dashboard.
+- [ ] Keep this README current with setup, deployment, team and live/demo links.
+- Optional: [DevPost entry](https://opportunity-hack-2026-arizona.devpost.com/). The dashboard is the submission of record.
 
 ## Team
 
@@ -64,437 +34,215 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 - [Soumya Mejari](https://github.com/smejari1) — outreach and follow-ups (Person 4)
 - [Nathan Narrik](https://github.com/nathannarik) — reporting, deployment and integration QA (Person 5)
 
-## What we built
+## What it does
 
-Coding in Color keeps its donors in spreadsheets and platform exports (Zeffy, Benevity, AZ Gives), and
-follow-ups live in people's heads. **Coding in Color** gives the CEO and the board one place to see every
-donor and gift, know who owns each relationship, and keep the next touch from slipping. It also
-produces the funder report CIC needs, without re-keying anything.
+- **Donors and gifts:** scoped donor records, ownership, gift ledger, contact history and follow-up queue. Currency totals stay separate.
+- **Import:** CSV and XLSX upload, mapping, validation, explicit review of donor/gift matches and atomic commit. Missing dates or financial facts are never guessed. Re-imports are fingerprinted.
+- **Follow-ups:** tasks, quarterly touches and message drafts. People approve exact content and send through their own email or phone. Nothing sends automatically.
+- **Reporting:** retention views and audited funder packets. A read-only aggregate API suppresses small groups.
+- **Public workspace:** one-click Try Now, actual admin/board persona scope, potential donors, Ask your data and Bar/Line/Area donation charts.
+- **Separate backend:** Clerk-verified sessions, admin MFA and organization/member-scoped database access; this is not the public frontend login flow.
 
-What's built on `main` (API, database and rules):
-- **Import:** CSV exports are uploaded privately, mapped and validated. Dates are confirmed, never
-  guessed, and cents are exact. An admin reviews each import before an atomic commit, and
-  re-importing the same file adds no duplicate gifts (`apps/api/imports.ts`). XLSX uploads use the
-  same reviewed API flow, with bounded workbook parsing and original-file fingerprints (#105).
-- **Donors and gifts:** one record per donor with an owner, a gift ledger with audited corrections,
-  and admin reassignment that moves open follow-ups along with the donor.
-  The live Donations screen keeps currencies separate and limits CSV download to admins.
-  Archived donors retain their gift/contact history; donor records show separate donation history,
-  communications and future-task sections.
-- **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
-  donor. Messages are drafted from templates and need human approval, then go out from the
-  person's own email or phone and are logged once. Nothing is sent automatically.
-  Live donor records also offer **Review meeting notes**: paste notes locally, edit the proposed
-  contact note, optional action and draft, enter explicit Phoenix dates, then review before saving.
-  `Action:`, `Due: YYYY-MM-DDTHH:mm`, `Subject:` and `Draft:` lines prefill optional fields; dates or
-  times in ordinary prose are never inferred. Saves are atomic and uncertain retries reuse the same request
-  identity. Raw pasted notes never go to a model; drafts still require separate approval/send.
-- **Reporting:** a retention breakdown (new, reactivated, increased, flat, decreased, lapsed), scoped
-  to each member's own donors, and an admin-only, audited funder packet CSV from the API. A
-  read-only, hashed API key gives CIC's dashboard aggregate totals, and that summary API hides any
-  group smaller than three donors. `GET /api/v1/summary?from=2026-01-01&to=2027-01-01`
-  also returns `retention: { windows, byCurrency }`: the selected half-open Phoenix window versus
-  the matching calendar window one year earlier. Each currency returns `retained_donors`
-  (positive settled net giving in both windows) and `prior_donors`, or `{ suppressed: true }`.
-  Prior cohorts below three, and nonzero retained, lapsed or current-only cohorts below three, are suppressed;
-  no donor identities or individual retention segments are returned. Retention covers the whole
-  authorized organization independently of `groupBy`; currencies are never combined.
-- **Security:** invite-only Clerk sign-in, MFA required for admins, PostgreSQL row-level security
-  (board members see only their own donors), and audit events for changes, sends and exports.
+These describe implemented code, not a claim that each signed-in flow has passed deployed acceptance. See [requirements and acceptance evidence](docs/REQUIREMENTS.md) and [the live gate](docs/P0-LIVE-PLAN.md).
 
-The live web screens now connect imports, donor/gift history and entry, follow-ups,
-retention, audited funder exports and staff settings to these APIs. Automated tests
-cover the integrated workflows; a deployed signed-in rehearsal remains the release
-gate in #30. Demo mode uses synthetic browser data and does not prove persistence
-or deployed authorization.
+## Architecture
 
-Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
+```mermaid
+flowchart LR
+  Browser[Public Angular Try Now] --> Local[Synthetic browser storage]
+  Client[Separately authenticated API client] --> Vercel[Vercel Function: src/index.ts]
+  Vercel -->|static app from public/| Browser
+  Vercel -->|Express API: apps/api| Neon[(Neon PostgreSQL with RLS)]
+  Clerk[Clerk: invite-only auth] -->|verified identity| Vercel
+  Vercel -. optional, bounded AI advice .-> AI[Configured AI provider]
+```
 
-Campaign and contact-person values require explicit alias choices in live import review. Choose
-a stored campaign or leave the gift unattributed; choose an active board member for new donors
-or automatic assignment. Linked existing donors retain their owner. Unresolved aliases remain
-excluded for explicit review, and stale/foreign alias IDs are rejected before persistence.
+The app and API share one Vercel project and origin. `src/index.ts` serves the built Angular app from `public/` and routes API requests to Express. Public startup uses local fixtures and does not connect to that API. Separately authenticated API requests require Clerk verification; PostgreSQL row-level security (RLS) enforces organization and donor visibility. Optional backend AI calls are not required for Try Now.
 
-Unmapped headers can request optional Jev suggestions. Only the selected header leaves the server;
-the reviewer must explicitly accept a suggestion and apply the mapping. Without a configured key
-or when the provider is unavailable, deterministic aliases and manual mapping continue to work.
+**Key decisions**
 
-Zeffy XLSX exports with repeated labels now reach review with distinct names, such as
-`Notes` and `Notes (2)`, retaining both source columns. `Amount` is read in major currency
-units and `Company name` maps to company. For Phoenix text timestamps, explicitly choose
-the appropriate payment-date column, `MM/DD/YYYY, h:mm A`, and UTC offset `-07:00`.
-Review or ignore unsupported columns individually. Currency, status and refunds still
-require confirmation. A donor-summary Amount is not proof of an individual transaction;
-confirm its meaning before committing gifts. Parsing and Jev suggestions never save gifts.
+- One same-origin service keeps browser/API routing and CORS configuration simple.
+- RLS plus a restricted runtime database role limits data access; the API does not connect as the migration owner.
+- Only a migration owner runs schema changes and trusted organization provisioning.
+- Public startup selects browser data before config/auth access; `config.json` cannot enable live frontend access. Retained live-client source is not an exposed login option.
+- People review every outbound message; there is no automatic send.
+- Money uses integer cents; ambiguous dates and missing facts are not guessed.
+- The aggregate read API returns no donor identities and suppresses groups smaller than three.
 
-The live admin Import screen uses the API for upload, mapping, donor/gift review
-and atomic commit. It requires explicit status/refund and missing date/currency
-facts, acknowledges invalid records, and separates source totals from canonical
-changes by currency. [Local synthetic UI preview](docs/screenshots/live-import-review.png)
-uses synthetic review state; deployed signed-in acceptance remains pending.
+Architecture and delivery decisions are recorded in [`docs/`](docs/), GitHub issues and pull requests. See [deployment](docs/DEPLOY.md), [requirements](docs/REQUIREMENTS.md), [demo guidance](docs/DEMO.md), and [P0 acceptance plan](docs/P0-LIVE-PLAN.md).
 
-## Tech stack
+| Path | Contents |
+|---|---|
+| `apps/api/` | Express API, auth and server-side workflows |
+| `apps/web/` | Angular application |
+| `packages/*` | Shared contracts, import, outreach and reporting logic |
+| `db/` | PostgreSQL migrations and trusted database tools |
+| `deploy/` | Vercel build/config checks and smoke test |
+| `src/` | Vercel function entry point and web serving |
+| `tools/` | Local import and maintenance tools |
+| `tests/` | Integration and feature tests |
+| `data/` | Synthetic import fixtures |
+| `docs/` | Deployment, demo, requirements and audit notes |
 
-The [current mobile accessibility audit](docs/audits/mobile-accessibility-2026-11-15.md)
-records 18 demo routes at 390px, Lighthouse scores, keyboard checks and remaining live acceptance gaps.
+## Quick start
 
-- Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
-- Backend: Node.js 24.15+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
-- Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.
-- APIs / services: Clerk for invite-only sign-in. Tests run real migrations on in-memory PostgreSQL (PGlite); no live service or credentials are needed.
+### Requirements
 
-## Run it locally
+- Node.js **24.15 or newer within 24.x** (`package.json` requires `>=24.15.0 <25`).
+- PostgreSQL 16 or newer for a full local API/database stack. The web demo alone needs no database or Clerk account.
 
-Administrators can use the live Funder reports screen to select a donor, program
-and inclusive calendar range, inspect the server packet, then download its audited
-CSV or print it. Gift totals stay separated by currency and attribution. Until
-approved outcomes are uploaded, reports explicitly show that outcome data is
-unavailable.
-
-Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
-`cohort` (acquisition year) filters alongside inclusive `asOf`. Dates compare
-matched Phoenix calendar windows within one year. Cohort is the donor's first
-positive settled gift year across their visible history, before campaign/program
-narrowing. Every filter intersects the caller's existing organization/owner scope.
-
-Live administrators can reassign a donor to any active same-organization board
-member, including members without donors. Assignment and open-task transfer remain
-server-controlled and audited; board members cannot list other eligible owners.
-
-Live donor views load their scoped gift and contact history from the API. Logging
-a call, text, email or meeting persists a real communication and refreshes the queue;
-giving summaries separate currencies using the workspace currency selector.
-
-Connected sessions load the server-scoped follow-up queue and drafts. Administrators
-can issue and revoke real aggregate API keys from **Read API**; the secret is shown
-once and is never stored in the browser dataset. Other live workflows remain
-tracked separately; demo actions do not persist to the server.
-**Follow-ups** now saves tasks and drafts to the API, checks exact-message approval
-and consent before opening email/SMS, and records a manual send only after the
-person selects **I sent it**. A logged contact closes the matching quarterly touch.
-
-Tests and checks need no accounts or keys:
+### Clone and install
 
 ```bash
 git clone https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor.git
 cd avengers-CodinginColor
 npm ci
+npm ci --prefix apps/web
+```
+
+### Run the browser demo only
+
+No `.env`, database, Clerk account or `config.json` is needed. From the repository root:
+
+```bash
+npm start --prefix apps/web
+```
+
+Open the URL printed by Angular, normally `http://localhost:4200`. The app uses synthetic data in the browser. It does not call the API or prove server persistence or authorization.
+
+### Run the protected backend separately (optional)
+
+Create a local `.env` from the example and supply your own values. Never commit `.env`:
+
+```bash
+cp .env.example .env
+```
+
+Set up PostgreSQL 16+, configure a privileged `MIGRATION_DATABASE_URL` and a separate restricted runtime `DATABASE_URL`, then apply migrations and provision the organization/members. The roster JSON must be stored outside the repository and contain Clerk user IDs and roles. See [`db/README.md`](db/README.md) and [`docs/DEPLOY.md`](docs/DEPLOY.md) for role and Clerk setup.
+
+```bash
+node --env-file-if-exists=.env db/migrate.ts
+node --env-file-if-exists=.env db/provision.ts /path/to/roster.json
+```
+
+For fictional local demo records only, after provisioning an active admin and board member:
+
+```bash
+node --env-file-if-exists=.env db/seed-demo.ts --yes-demo-data
+```
+
+The seed refuses an organization with real/non-demo donors. These are operator actions for an authorized local database, not prerequisites for Try Now. Start the API from the repository root:
+
+```bash
+npm run start:api
+```
+
+The API listens on port 3000 by default. Use separately authenticated API clients and the contracts in [`apps/api/README.md`](apps/api/README.md) for backend development; starting it does not connect the public frontend. The Angular server retains its `/api` proxy, but public startup makes no API requests. Adding a public config file cannot enable a live sign-in screen. Keep Clerk secrets, session credentials and database URLs out of frontend configuration.
+
+## Environment variables
+
+The API validates required settings at startup. Deployment validation checks variable names without printing values. Set local values in `.env`; set deployment values in Vercel project environment settings. Never put secrets in the web build or commit them.
+
+| Variable | Required? | Used by | Where set | Secret? | Purpose / validation |
+|---|---|---|---|---|---|
+| `DATABASE_URL` | Yes for live API | `apps/api/env.ts`, `src/index.ts`, `apps/api/server.ts` | Local `.env`; Vercel runtime | Yes | PostgreSQL URL for restricted runtime login. Use pooled Neon URL in deployment; never use migration owner. |
+| `CIC_ORG_ID` | Yes for API and DB tools | `apps/api/env.ts`; `db/provision.ts`, `db/seed-demo.ts`, `db/api-key.ts` | Local `.env`; Vercel runtime | No | Deployment organization UUID. Must be a UUID. |
+| `CLERK_SECRET_KEY` | Yes for live API | `apps/api/env.ts`, `apps/api/auth.ts` | Local `.env`; Vercel runtime | Yes | Server-only Clerk secret. Must start `sk_test_` or `sk_live_`. |
+| `CLERK_JWT_ISSUER` | Yes for live API | `apps/api/env.ts`, `apps/api/auth.ts` | Local `.env`; Vercel runtime | No | Clerk issuer URL; must use HTTPS. |
+| `APP_ORIGIN` | Yes for live API | `apps/api/env.ts`, `apps/api/app.ts`, `deploy/check-env.ts` | Local `.env`; Vercel runtime | No | Exact allowed origin, without a path or trailing slash. HTTPS in Vercel; local HTTP allowed only for localhost/127.0.0.1. |
+| `PORT` | No; defaults to `3000` | `apps/api/env.ts`, `apps/api/server.ts` | Local `.env` or host runtime | No | API listen port, integer 1–65535. Vercel function does not call `listen()`. |
+| `MIGRATION_DATABASE_URL` | Required for migration/provision/seed tools | `db/migrate.ts`, `db/provision.ts`, `db/seed-demo.ts`, `db/api-key.ts` | Local `.env` only; never Vercel | Yes | Privileged direct PostgreSQL URL for operator tools. Do not use as API runtime credential. |
+| `CLERK_PUBLISHABLE_KEY` | Required by default deployment builder | `deploy/vercel-build.ts`, `deploy/check-env.ts` | Local build environment or Vercel build settings | No; public | Public Clerk key written into generated `public/config.json`. Must match test/live mode of secret key. |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Alias for above | `deploy/vercel-build.ts` | Build environment | No; public | Fallback alias if `CLERK_PUBLISHABLE_KEY` is unset. |
+| `CIC_WEB_DEMO_MODE` | Optional | `deploy/check-env.ts`, `deploy/vercel-build.ts` | Build environment, usually Vercel | No | Set exactly to `1` to omit generated config and skip build-time validation. Runtime API validation/authentication still applies; this flag is not needed for public Try Now. |
+| `OPENAI_BASE_URL` | Optional | `apps/api/ai.ts`, `tools/benchmark-search.ts` | Local `.env`; Vercel runtime if enabling AI | No | Optional AI-compatible API base URL; defaults to `https://api.openai.com/v1`. |
+| `OPENAI_API_KEY` | Optional | `apps/api/ai.ts`, `tools/benchmark-search.ts` | Local `.env`; Vercel runtime if enabling AI | Yes | Optional model-provider credential. Missing key uses deterministic fallback where supported. |
+| `OPENAI_MODEL` | Optional | `apps/api/ai.ts`, `tools/benchmark-search.ts` | Local `.env`; Vercel runtime if enabling AI | No | Optional configured model name. |
+| `TYPESAFE_API_KEY` | Optional | `tools/import-suggest.ts` via `apps/api/import-suggestions.ts` | Local `.env`; Vercel runtime if enabling suggestions | Yes | Optional TypeSafe Jev/System One credential for unknown column-header suggestions. Only the header is sent; suggestions require human approval. |
+| `JEV_API_KEY` | Legacy optional alias | `tools/import-suggest.ts` | Local `.env`; Vercel runtime if enabling suggestions | Yes | Fallback when `TYPESAFE_API_KEY` is not set. |
+| `VERCEL` | Set by Vercel | `deploy/check-env.ts` | Vercel platform | No | When `1`, requires `APP_ORIGIN` to start with HTTPS. Do not set manually for local work. |
+| `CIC_NATIVE_TEST_URL` | Optional; native DB test only | `tests/import-native.test.ts` | Test environment/CI only | Yes | Enables the optional native PostgreSQL concurrency test. Use only the empty disposable loopback database described in `apps/api/README.md`; never point it at live data. |
+| `CORE_TEST_DATABASE_URL` | Optional; assignment PostgreSQL test | `tests/assignment-postgres.test.mjs`, `.github/workflows/ci.yml` | Test environment/CI only | Yes | Disposable PostgreSQL database for the assignment integration test. |
+| `API_BASE_URL` | Not used by code | `.env.example` only | Not needed | No | Example-file setting only. Retained live-client code understands config; public startup ignores it. |
+
+On Vercel, `deploy/check-env.ts` also validates the API variables during the build, so a missing or malformed value fails the deploy before it goes live.
+
+The default builder still writes public `apiBase` and `clerkPublishableKey` into `public/config.json` for retained integration code and the smoke contract. Public startup does not request it; its presence cannot enable live sign-in. Never put secrets in it. `CIC_WEB_DEMO_MODE=1` omits the file, but `src/index.ts` still validates backend settings at runtime.
+
+## Deploy
+
+The Vercel project must use the **repository root**. `vercel.json` selects the Express framework, installs root and web dependencies, validates settings, builds Angular, then runs `deploy/vercel-build.ts`. `src/index.ts` serves `public/` and the API from one function. Do not configure Vercel to use `apps/web` as its root; that can deploy a static demo without the API.
+
+Production uses Neon PostgreSQL with two logins: a privileged migration owner and a restricted pooled runtime login. Apply migrations, provision the organization/members, and optionally seed fictional demo data from a person's machine with `MIGRATION_DATABASE_URL`; never run privileged migrations in the Vercel build. Configure Clerk for invite-only access and require admin MFA. Then deploy and run the unauthenticated smoke check:
+
+```bash
+node deploy/smoke.ts https://cadence-cic.vercel.app
+```
+
+This checks health, config, page/deep-link routing, API auth/origin behavior and API 404 handling. It does not prove signed-in flows. Follow [`docs/DEPLOY.md`](docs/DEPLOY.md) for full setup, database-role safety, and manual signed-in acceptance. See [`docs/DEMO.md`](docs/DEMO.md) for what the demo can and cannot claim.
+
+## Tests
+
+From the repository root:
+
+```bash
 npm run typecheck
 npm run test:contracts
 npm run test:api
 node --test tests/*.test.ts tests/*.test.mjs packages/reporting/*.test.ts packages/outreach/*.test.ts
 ```
 
-Running the API against a real database and Clerk instance:
+The CI backend command also runs migration, import and related package tests with concurrency 2:
 
 ```bash
-cp .env.example .env   # fill in your own values — never commit .env
-node --env-file-if-exists=.env db/migrate.ts   # uses MIGRATION_DATABASE_URL
-npm run start:api                             # GET /healthz should return {"status":"ok"}
+node --test --test-concurrency=2 apps/api/*.test.ts tests/*.test.ts tests/*.test.mjs packages/contracts/*.test.ts packages/imports/*.test.ts packages/outreach/*.test.ts packages/reporting/*.test.ts
 ```
 
-Database setup (the two logins, provisioning the organization and members) and hosting
-are covered step by step in the deploy runbook, `docs/DEPLOY.md` (#42).
-
-## Links
-
-- Deployment setup: [Vercel runbook](docs/DEPLOY.md). The repository pins Express and Node 24, validates runtime settings before building, and generates same-origin frontend configuration.
-- Live demo: [cadence-cic.vercel.app](https://cadence-cic.vercel.app). This is the web app on sample data only, with no backend. The full-stack deploy is tracked in #30.
-- Demo video:
-- Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md), [outreach](packages/outreach/README.md), [web app](apps/web/README.md), [deploy runbook](docs/DEPLOY.md)
-
-## CSV import preflight
-
-Requires Node.js 24.15 or newer. Install the shared contract's locked dependencies;
-no credentials are needed.
+CI installs root dependencies, runs typecheck and backend tests, then installs `apps/web` dependencies and runs:
 
 ```bash
-npm ci
-node tools/import-preview.ts spreadsheet data/cic_donor_spreadsheet.csv
+npm run test --prefix apps/web -- --watch=false
+npm run build --prefix apps/web
+```
+
+## Import pipeline (Data)
+
+Local CSV preflight validates UTF-8 CSV up to 5 MiB, preserves raw cells and record numbers, and prints counts/issues rather than donor contact details. It does not write to the database. Example:
+
+```bash
 node tools/import-preview.ts zeffy data/zeffy_export.csv
-node tools/import-preview.ts benevity data/benevity_export.csv
-node tools/import-preview.ts az_gives apps/web/public/samples/az_gives_export.csv \
-  --date-format MM/DD/YYYY --utc-offset -07:00
-node --test tests/import-preview.test.ts tests/import-mapping.test.ts
+node tools/import-preview.ts az_gives apps/web/public/samples/az_gives_export.csv --date-format MM/DD/YYYY --utc-offset -07:00
+node tools/import-suggest.ts zeffy data/zeffy_export.csv
 ```
 
-The CLI prints row counts and issue categories without donor contact details.
-Exit code 0 means the preview ran, not that rows are approved; unreadable or
-malformed files exit 1. Input must be UTF-8 CSV, at most 5 MiB. Unknown headers,
-invalid amounts/contacts, formulas and uneven rows require human review.
-Blank data records are retained and flagged. Source labels identify provenance
-(`spreadsheet`, `zeffy`, `benevity`, `az_gives`, `united_way`); these illustrative
-CSVs do not establish real Zeffy/Benevity export formats.
+The supported source labels (`spreadsheet`, `zeffy`, `benevity`, `az_gives`, `united_way`) are provenance labels, not verified provider adapters. Ambiguous dates require explicit format and UTC offset; money is converted to exact integer cents. Missing currency, dates, status/refund facts or uncertain matches stay in human review. Jev suggestions are optional, send only unknown headers, and are never applied without reviewer approval.
 
-AZ Gives headers are recognized (`donor first`, `donor last`, `donor email address`,
-`mobile #`, `employer name`, `gift amt`, `board contact`, `designation`,
-`donation date`), but a bare `04/07/2026` is never guessed. A reviewer confirms the
-date interpretation explicitly: `--date-format MM/DD/YYYY|DD/MM/YYYY|YYYY-MM-DD`
-paired with `--utc-offset ±HH:MM`. Only exact matches on real calendar dates
-become `YYYY-MM-DDT00:00:00±HH:MM`; other shapes stay `invalid_occurred_at` review
-issues. The flags may appear anywhere after the source and file, and always
-require both values.
+Reconciliation separates donor identity from gift identity. A donor link needs a unique corroborated email; gift replay checks source/external ID and provenance independently. Same-source no-ID matches from earlier files require review. Review plans do not authorize or persist writes: the server rebuilds them against fresh scoped facts and commits reviewed changes atomically. See [API import flow](apps/api/README.md), [database notes](db/README.md), and the [local import/review tools](tools/).
 
-All supplied samples lack currency, and the AZ Gives sample's dates stay unconfirmed
-until a reviewer passes both date flags, so every preview remains `needs_review`.
-External transaction IDs are optional in
-the backend baseline; reimport safety still needs reconciliation logic.
-Phone formatting is normalized without guessing a country; contact-person names
-do not assign owners. Local review helpers and the CSV import API are described
-below; XLSX upload still needs a backend integration.
+Saved review fingerprints exact file bytes and binds decisions to a plan hash; that hash detects stale edits, not forgery. Gift persistence accepts reviewed inserts and financial corrections inside the caller's transaction, refuses identity rewrites, uses RLS and records audit events. The server must authorize the reviewer, rebuild against fresh facts and apply atomically.
 
-For ambiguous headers, pass an optional JSON mapping file as the final argument:
-`node tools/import-preview.ts spreadsheet export.csv mapping.json`.
-Keys must exactly match source headers. Targets are `first_name`, `last_name`,
-`email`, `phone`, `company`, `contact_person`, `campaign`, `occurred_at`,
-`currency`, `external_id`, `amount_decimal`, `amount_cents`, `status`,
-`refund_decimal`, or `refund_cents`; null explicitly
-ignores a column while retaining its raw cells. Unknown targets/headers and
-multiple columns targeting the same field are rejected.
+## Security, privacy and accessibility
 
-`node tools/import-xlsx.ts <source> <file.xlsx> [mapping.json] [--date-format FMT --utc-offset ±HH:MM]`
-previews a limited `.xlsx` by converting it to CSV text for the same validation
-(counts only; errors contain no cell values). Accepted: one visible
-worksheet, at most 5 MiB, 256 entries, 8 MiB per entry / 16 MiB inflated, 20,001
-rows by 200 columns, ordinary ZIP archives, text/number cells (numbers stay exact text).
-Physical blank rows and row numbers are retained for review/provenance. Rejected:
-formulas, date-formatted cells (enter dates as text and confirm the format),
-hidden/multiple sheets, DOCTYPE/ENTITY XML, duplicate, truncated or malformed archive
-entries, and ZIP64. Text dates require a reviewer-selected format and fixed UTC offset;
-Excel date serials are unsupported because their timezone cannot be inferred.
-This is not full Excel support.
+- Never commit `.env`, credentials, donor records or real donor data in demo materials. Use synthetic records.
+- The API uses a restricted database role and RLS. Clerk identity, active membership, organization and donor scope are checked server-side. Admin actions require verified MFA.
+- Import suggestions send a header only, not donor rows or sample values. Optional model adapters receive bounded/structured inputs; they are not required for core operation.
+- Messages require human approval and manual sending. Aggregate reporting exposes no donor identities and suppresses small groups.
+- Read [mobile accessibility audit](docs/audits/mobile-accessibility-2026-11-15.md) and [requirements/audit evidence](docs/REQUIREMENTS.md). Audit scores are snapshots, not a site-wide conformance claim.
 
-`node tools/import-drafts.ts <source> <file.csv|file.xlsx> --mapping mapping.json
---currency USD --status settled --refund-cents 0 --occurred-at 2026-11-15T12:00:00Z`
-passes explicit mappings and reviewer facts into the shared draft/review pipeline;
-`--mapping` is optional and confirmed dates use `--date-format` plus `--utc-offset`.
-Its output contains counts only. Missing financial facts stay unresolved. Excluded
-record numbers remain available in the returned drafts for the API's `skip_records`.
+## Demo video
 
-For optional TypeSafe Jev suggestions, set `TYPESAFE_API_KEY` and run
-`node tools/import-suggest.ts <source> <file.csv>`. `JEV_API_KEY` is a legacy fallback.
-The client calls only `https://api.typesafe.ai/v1/systemone` with `jev-latest`;
-known mappings are resolved locally, and only unknown header names are sent.
-No donor row or sample value is sent. All suggestions require human approval;
-write approved choices to a mapping JSON file before preview or draft creation.
-This command makes a paid API request for each unknown header, so run it only
-when you choose to use the service.
+Demo video: not yet supplied. Add the final link here and on the Team Dashboard before submission.
 
-The five accepted source labels (`spreadsheet`, `zeffy`, `benevity`, `az_gives`,
-`united_way`) identify provenance. They are not verified provider-specific adapters;
-real export schemas, timezones and status/refund meanings remain unverified.
-The live `/api/v1/imports` upload accepts raw CSV with
-`Content-Type: text/csv; charset=utf-8` and original `.xlsx` bytes with
-`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Both require
-an admin with MFA, `X-Import-Source`, `X-Import-Filename` and a file up to 4 MiB.
-XLSX uses the reviewed parser, stages validated cells for the existing two-phase
-review and atomic commit, and retains the original workbook fingerprint for safe
-reimport. Only one visible worksheet is supported; macros, formulas, unsafe ZIPs
-and numeric date cells are rejected. Converted staging data must also fit 4 MiB.
-The live import screen remains a separate integration task.
-
-```json
-{"Contribution Value":"amount_decimal","When Received":"occurred_at","Money Code":"currency","Unused":null}
-```
-
-`amount_decimal` consumes major units (12.34 becomes 1234 cents); `amount_cents`
-consumes integers already in cents (1234 stays 1234). The known `donation amount`
-header uses decimal units; `amount_cents` uses integer cents. Gift timestamps
-require real calendar dates and explicit timezones. Currency codes are uppercased
-then validated, together with timestamps and optional external IDs, using the
-shared schemas from contract PR #8. Missing/invalid facts remain review issues.
-Mappings are explicit input choices, not final approval: previews still report
-`needs_review`, and donor IDs, refunds, gift status and persistence are not inferred.
-
-Refund mappings follow the same unit rule: `refund_decimal` and the known
-`refunded amount` header consume major units, while `refund_cents` consumes integer
-cents. Mapped statuses must be `settled`, `pending` or `void` (case-insensitive).
-Invalid/missing mapped facts and refunds exceeding gift amounts require review.
-Batch status/refund values are only requested when those columns are unmapped;
-they never replace the financial facts in a mapped row.
-
-## Reconciliation planning (Data)
-
-`tools/import-reconcile.ts` exports `planDonorMatches(orgId, drafts, existing)` and
-`planGiftChanges(orgId, drafts, existing)` for reviewed canonical drafts. They
-validate with shared schemas and return one decision per input row (zero-based),
-including candidate IDs/row references and a reason. All plans remain
-`needs_review`; they do not write, authorize, assign owners or create IDs.
-
-Donor links require a unique email with matching name and no contact conflicts.
-Shared contacts, archived donors, phone/name-only matches and repeated new-donor
-drafts require review. Gifts match source/external ID and batch/row provenance
-independently; disagreement requires review. Exact replays are distinguished from changed facts;
-different same-source IDs preserve legitimate repeated gifts. Cross-source
-overlaps and gifts without transaction identity require review, never silent
-deduplication by amount/date/name. A no-ID gift matching an earlier batch's
-same-source gift is reviewed as `possible_file_replay`, because a re-saved export
-gets a new batch. Snapshot records must be valid, unique and from the selected
-organization. Callers still enforce user scope, donor/campaign and batch ownership.
-
-## Saved review and file replay (Data)
-
-`tools/import-review.ts` is pure and in-memory:
-
-- `fingerprintFile(bytes)` returns `sha256:<hex>` of the exact uploaded bytes.
-- `checkFileReplay(orgId, hash, priorImports)` returns `replay` for an already
-  committed file, `resume` for an open review and `new` otherwise. Prior imports
-  from another organization are rejected, not filtered.
-- `createReviewPlan(...)` runs both planners and hashes the org, batch, file and
-  drafts together with every planned row and referenced stored record. Gift
-  provenance must name this batch.
-- `resolveReview(plan, decisions)` returns `needs_review` with pending rows, or
-  `ready` with operations (`create`, `link`, `insert`, `correct`). Each decision
-  carries the plan hash and reviewer ID. Links must target a listed candidate,
-  invalid or conflicting-identity rows can only be skipped, changed transactions need `correct` on the
-  matched gift, and one transaction identity yields at most one write.
-
-`ready` means ready to submit, not committed. The hash detects stale or edited
-plans but is not a signature: the server must rebuild the plan from stored drafts
-and a fresh in-transaction snapshot, compare hashes, authorize the reviewer and
-apply all operations atomically. Import records and that transaction are core
-backend work (#19).
-
-### Gifts for donors created in the same import
-
-Resolve donors first with no gift drafts. Pass that `ready` result as
-`donor_resolution` to a second `createReviewPlan` call, with `donors: []`.
-Each phase-two gift uses a zero-based `donor_row` instead of `donor_id`.
-Both phases must describe the same organization, batch and file hash.
-
-- Linked donors substitute their stored ID before gift matching.
-- Newly created donors produce gift operations with `donor_row`; their gift
-  drafts omit `donor_id`. No temporary ID escapes in an operation.
-- Skipped or missing donor rows produce `donor_unresolved` review rows that can
-  only be skipped. Transaction conflicts still require review.
-- Phase-two hashes also bind the donor resolution. Ordinary gifts with
-  `donor_id` and no resolution retain the single-phase workflow.
-
-The server must rebuild both phases with fresh authorized data in one transaction,
-apply phase-one donor operations first, map each created donor row to its stored ID,
-then substitute those IDs into phase-two gift operations. Neither phase writes data.
-
-### Drafts from a preview
-
-`tools/import-drafts.ts` turns a `needs_review` preview into donor and gift drafts
-for schema validation by the review planners. Rows with any row-level preview issue are listed in `excluded` by
-record number and code, never dropped or echoed. Rows whose donor drafts are
-exactly identical and share an email become one donor; contact person and
-campaign columns are never used to infer owners or campaigns. Gift facts come
-from the row first and then from reviewer `values` (`currency`, `occurred_at`,
-`status`, `refund_cents`), which are validated and rejected for any field the
-column mapping already supplies. Missing facts are omitted and reported in
-`unresolved`, never defaulted.
-
-```bash
-node tools/import-drafts.ts zeffy data/zeffy_export.csv \
-  --currency USD --status settled --refund-cents 0 --occurred-at 2026-11-14T00:00:00-07:00
-```
-
-Sources are `spreadsheet`, `zeffy`, `benevity`, `az_gives` and `united_way`.
-When the sheet's dates are in a known format but carry no zone, confirm both
-`--date-format MM/DD/YYYY|DD/MM/YYYY|YYYY-MM-DD` and `--utc-offset ±HH:MM`
-(within ±14:00) together; dates are then resolved, never guessed. A partial pair,
-an unsupported format, a repeated flag or an out-of-range offset is rejected
-without producing a draft plan.
-
-The CLI is a dry run: it prints plan counts only (no names, emails, phones or
-paths), runs phase one and, when that is `ready`, phase two.
-
-Run `node --test tests/*.test.ts packages/contracts/*.test.ts` for Data and
-shared-contract tests. The live API/database integration is still pending.
-
-Typecheck Data explicitly; `npm run typecheck` currently covers contracts only:
-
-```bash
-node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module NodeNext \
-  --strict --types node --allowImportingTsExtensions --skipLibCheck \
-  tools/import-*.ts tests/import-*.test.ts
-```
-
-## Reviewed gift persistence
-
-`tools/import-apply.ts` applies approved gift rows inside the caller's existing
-`cic_runtime` transaction. It never begins, commits or rolls back that transaction
-and sets no role: every call is wrapped in a savepoint, so a rejected operation
-leaves earlier applies intact and the caller's transaction usable.
-
-Each call must pass the session organization; the actor is always the session
-member, and a supplied `reviewer_id` must match it. Only gift insert and gift
-correct operations are accepted, so donor creation and unresolved `donor_row`
-references are rejected. Drafts are validated with the shared `GiftWriteSchema`
-and every value is parameterized. Inserts store exact integer cents, literal
-source text, the original instant and the database-generated id. Corrections
-change financial columns only; changes to `donor_id`, `source`, `external_id` or
-`source_row` are identity changes and are refused. Duplicate external ids rely on
-the existing unique index, and duplicate or already stored `source_row`
-provenance is checked inside the transaction. Row-level security still governs
-which donors and gifts the session may touch. Successful inserts and corrections
-add `gift.insert` / `gift.correct` audit events for the session member. It does not
-create donors, map `donor_row` values, or store the file fingerprint. Those remain
-core #19.
+See the [demo script](docs/DEMO.md). Narrate once that Try Now uses fictional browser data; no on-screen synthetic badge is required. A 7/7 smoke result only proves public routes/config behavior; include signed-in server proofs only after rehearsing them on the deployed site.
 
 ## Agent message board
 
-Coordination follows the [Hackathon Agent Board guide](https://marvelous-relative-5de.notion.site/hack).
-This repository has an original Python implementation; no extra Python packages
-are required. Install Python 3 and GitHub CLI, then run `gh auth login`.
-
-Use the pinned [Agent Message Board #3](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/3)
-for all teammates and their agents. Do not create another board.
-Never close or unpin the board; close separate task issues instead.
-The CLI discovers an open issue titled exactly **Agent Message Board**. To select
-a different issue, set `BOARD_ISSUE` (PowerShell: `$env:BOARD_ISSUE = '7'`).
-
-```text
-python tools/board.py whoami
-python tools/board.py read -n 20
-python tools/board.py unread
-python tools/board.py post "[Ibrahim's Codex] @all board tooling is ready for review"
-python tools/board.py wait --interval 30 --timeout 60
-python -m unittest discover -s tests
-```
-
-`unread` and `wait` mark displayed comments read. `read` leaves the cursor alone.
-Messages tagging your GitHub login or `@all` are flagged MENTION. Waiting returns
-on a new post from another GitHub account or after the timeout; it does not launch
-an agent automatically. Polls read all comment pages, so increase the interval
-for large boards. Authentication and API errors stop the command visibly.
-
-Local cursors live in ignored `.board-state/`, separately per issue and GitHub
-login. Sessions sharing a checkout and login share a cursor; use separate
-worktrees for independent readers. Delete a cursor to replay existing comments.
-Set teammate ownership in AGENTS.md before parallel edits. Claude reads those
-instructions through CLAUDE.md; Codex and other agents should read AGENTS.md.
-Claude hooks check unread posts at session start and on each prompt. A missing
-board or unavailable GitHub connection is reported without blocking the session.
-Existing Claude clock and secret-guard hooks remain active.
+Team and agents coordinate on the pinned [GitHub issue #3](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/3). The board is not an agent launcher. See the [board guide](https://marvelous-relative-5de.notion.site/hack) and `tools/board.py` for commands.
 
 ## After the hackathon
 
-Winning teams finish the project with the nonprofit — the [Definition of Done](https://www.ohack.dev/about/completion) (deployed, nonprofit sign-off, docs, open source) is tracked on your team page. Keep the repo public and the README honest; recruiters do read these.
+The team should finish with Coding in Color, transfer service ownership, confirm nonprofit acceptance, and keep this repository and its documentation current. See the [Definition of Done](https://www.ohack.dev/about/completion) and [`docs/DEPLOY.md`](docs/DEPLOY.md) for handoff and operations notes.
 
-Need a hand this weekend? [#ask-a-mentor](https://opportunity-hack.slack.com/archives/C01E5CGDQ74) on Slack, or ask in [#avengers](https://opportunity-hack.slack.com/app_redirect?channel=avengers) and a mentor will drop in.
+## License
 
-Manual donor entry saves through the authenticated API with server-selected ownership.
-The optional first gift records a settled USD gift; a partial gift failure stays
-on the form for a same-key retry. Donors assigned to another board member remain
-visible only to that owner and admins.
-
-Each visible donor also has a historical gift form with explicit currency, refund,
-status, campaign and date. Failed saves retain the same request identity for retry;
-confirmed gifts update that currency in the timeline.
-
-Live admin Team settings list actual membership roles and activity, add existing
-verified Clerk users and save audited access changes. Reassign a board member's
-active donor portfolio before deactivation.
-
-Admin Team settings send and revoke seven-day staff invitation emails through
-Clerk on explicit submission. The invitation sign-up page links verified primary
-email to stored role intent; failed, expired and revoked invitations grant no access.
-
-The donor impact portal is at `/impact`. Admin Team settings send requested donor
-invitations, then explicitly link a verified Clerk account matching that donor's
-email with opt-in. Donor access and staff membership remain separate. Admins must
-publish approved aggregate outcomes separately; corrections require republishing.
-Donors receive only their own gift facts and published updates for funded programs.
+MIT. See [`LICENSE`](LICENSE).
