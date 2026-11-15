@@ -11,8 +11,9 @@ export interface ApiFollowUp {
   id: string; donor_id: string; owner_id: string; kind: 'quarterly' | 'next_action'; quarter?: string | null;
   title: string; status: 'open' | 'done' | 'cancelled'; due_at: string; donor_name?: string;
 }
+/** owner_id is the donor's current owner (whose queue it is, null if unassigned); author_id is who drafted it. */
 export interface ApiDraft {
-  id: string; donor_id: string; author_id: string; channel: 'email' | 'sms'; recipient: string; subject: string | null;
+  id: string; donor_id: string; owner_id: string | null; author_id: string; channel: 'email' | 'sms'; recipient: string; subject: string | null;
   body: string; status: 'draft' | 'approved' | 'sent' | 'failed' | 'logged'; approved_by: string | null;
   approved_at: string | null; created_at: string;
 }
@@ -52,7 +53,8 @@ const DRAFT_STATUS: Record<ApiDraft['status'], DraftStatus> = {
 export function toDraft(d: ApiDraft): Draft {
   const channel: Channel = d.channel === 'sms' ? 'text' : 'email';
   return {
-    id: d.id, donor_id: d.donor_id, recipient_member_id: null, owner_id: d.author_id, template_id: '', channel,
+    // An unassigned donor's drafts belong to no board member, so only admins see them.
+    id: d.id, donor_id: d.donor_id, recipient_member_id: null, owner_id: d.owner_id ?? '', template_id: '', channel,
     to: d.recipient, subject: d.subject ?? '', body: d.body, reason: '', status: DRAFT_STATUS[d.status],
     created_at: d.created_at, approved_by: d.approved_by, approved_at: d.approved_at, sent_by: null, sent_at: null,
   };
@@ -85,10 +87,9 @@ export async function createLiveDraft(request: Request, donorId: string, templat
   fields: Record<string, string>): Promise<Draft | null> {
   const template = LIVE_TEMPLATES[templateId];
   if (!template) return null;
-  const created = await request<Omit<ApiDraft, 'donor_id' | 'author_id' | 'approved_by' | 'approved_at' | 'created_at'>>(
+  const created = await request<Omit<ApiDraft, 'approved_by' | 'approved_at'>>(
     '/api/v1/drafts', post({ donor_id: donorId, template, fields }));
-  return { ...toDraft({ ...created, donor_id: donorId, author_id: '', approved_by: null, approved_at: null,
-    created_at: new Date().toISOString() }), template_id: UI_TEMPLATE[template] ?? '' };
+  return { ...toDraft({ ...created, approved_by: null, approved_at: null }), template_id: UI_TEMPLATE[template] ?? '' };
 }
 /** Any edit drops the approval on the server; the draft must be approved again. */
 export const editLiveDraft = (request: Request, draftId: string, patch: { subject?: string; body?: string }) =>

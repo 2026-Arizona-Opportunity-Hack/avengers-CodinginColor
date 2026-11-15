@@ -13,6 +13,10 @@ function fake(responses: Record<string, unknown>) {
   return { request, calls };
 }
 const A = '00000000-0000-4000-8000-000000000001', D = '00000000-0000-4000-8000-000000000040';
+const B = '00000000-0000-4000-8000-000000000002', ADMIN = '00000000-0000-4000-8000-000000000003';
+/** The rule store.ts applies to `drafts` (apps/web/src/app/core/store.ts, `readonly drafts`). */
+const shownTo = (d: { owner_id: string; recipient_member_id: string | null }, me: string, isAdmin: boolean) =>
+  isAdmin || d.owner_id === me || d.recipient_member_id === me;
 
 test('local dates use the Phoenix offset, so an evening task is not shown as tomorrow', () => {
   assert.equal(live.localDate('2026-11-16T03:00:00.000000Z'), '2026-11-15');
@@ -36,7 +40,7 @@ test('follow-ups load most urgent first and map to the page model', async () => 
 });
 
 test('drafts map server states and channels onto the page model', async () => {
-  const row = { id: 'd1', donor_id: D, author_id: A, channel: 'sms' as const, recipient: '+16025550100', subject: null,
+  const row = { id: 'd1', donor_id: D, owner_id: A, author_id: A, channel: 'sms' as const, recipient: '+16025550100', subject: null,
     body: 'Hi', status: 'failed' as const, approved_by: null, approved_at: null, created_at: '2026-11-15T16:00:00.000000Z' };
   const { request } = fake({ '/api/v1/drafts': { items: [row, { ...row, id: 'd2', channel: 'email', subject: 'S', status: 'logged' }] } });
   const drafts = await live.loadDrafts(request);
@@ -46,13 +50,15 @@ test('drafts map server states and channels onto the page model', async () => {
 
 test('draft writes call the reviewed routes; unsupported templates never draft', async () => {
   const { request, calls } = fake({
-    '/api/v1/drafts': { id: 'd1', channel: 'email', recipient: 'a@example.org', subject: 'Thanks', body: 'Hi', status: 'draft' },
+    '/api/v1/drafts': { id: 'd1', donor_id: D, owner_id: B, author_id: ADMIN, channel: 'email', recipient: 'a@example.org',
+      subject: 'Thanks', body: 'Hi', status: 'draft', created_at: '2026-11-15T16:00:00.000000Z' },
     '/api/v1/drafts/d1': { id: 'd1', status: 'draft' }, '/api/v1/drafts/d1/approve': { id: 'd1', status: 'approved' },
     '/api/v1/drafts/d1/compose': { href: 'mailto:a%40example.org?subject=Thanks&body=Hi' },
     '/api/v1/drafts/d1/manual-send': { status: 'logged', closed_follow_ups: 1, already_logged: false } });
   const fields = { first_name: 'Avery', amount: '$50.00', program: 'AI Academy' };
   const draft = await live.createLiveDraft(request, D, 't-thanks-email', fields);
-  assert.deepEqual([draft?.id, draft?.status, draft?.template_id, draft?.donor_id], ['d1', 'pending', 't-thanks-email', D]);
+  assert.deepEqual([draft?.id, draft?.status, draft?.template_id, draft?.donor_id, draft?.owner_id, draft?.created_at],
+    ['d1', 'pending', 't-thanks-email', D, B, '2026-11-15T16:00:00.000000Z']);
   assert.equal(await live.createLiveDraft(request, D, 't-nudge', {}), null);
   await live.editLiveDraft(request, 'd1', { body: 'Hi again' });
   await live.approveLiveDraft(request, 'd1');
@@ -86,4 +92,25 @@ test('follow-up writes and API keys use the server; the raw key is returned once
     ['POST', '/api/v1/follow-ups/f%2F9/complete'], ['POST', '/api/v1/follow-ups/quarterly'],
     ['POST', '/api/v1/api-keys'], ['POST', '/api/v1/api-keys/k1/revoke']]);
   assert.deepEqual(calls[0].body, { donor_id: D, title: 'Call', due_at: '2026-11-18T09:00:00-07:00' });
+});
+
+test('the queue follows the current donor owner, not who wrote the draft', async () => {
+  const base = { donor_id: D, channel: 'email' as const, recipient: 'a@example.org', subject: 'S', body: 'Hi',
+    status: 'draft' as const, approved_by: null, approved_at: null, created_at: '2026-11-15T16:00:00.000000Z' };
+  const { request } = fake({ '/api/v1/drafts': { items: [
+    { ...base, id: 'admin-wrote', owner_id: B, author_id: ADMIN },   // admin drafted for B's donor
+    { ...base, id: 'reassigned', owner_id: B, author_id: A },        // A drafted, donor since moved to B
+    { ...base, id: 'unassigned', owner_id: null, author_id: ADMIN },  // donor has no owner yet
+  ] } });
+  const drafts = await live.loadDrafts(request);
+  assert.deepEqual(drafts.filter((d) => shownTo(d, B, false)).map((d) => d.id), ['admin-wrote', 'reassigned']);
+  assert.deepEqual(drafts.filter((d) => shownTo(d, A, false)).map((d) => d.id), []);
+  assert.deepEqual(drafts.filter((d) => shownTo(d, ADMIN, true)).map((d) => d.id), ['admin-wrote', 'reassigned', 'unassigned']);
+});
+
+test('a new board draft shows in the queue of the board member who owns the donor', async () => {
+  const { request } = fake({ '/api/v1/drafts': { id: 'n1', donor_id: D, owner_id: B, author_id: B, channel: 'sms',
+    recipient: '+16025550100', subject: null, body: 'Hi', status: 'draft', created_at: '2026-11-15T16:00:00.000000Z' } });
+  const draft = await live.createLiveDraft(request, D, 't-thanks-text', { first_name: 'Avery', program: 'AI Academy' });
+  assert.ok(draft && shownTo(draft, B, false));
 });
