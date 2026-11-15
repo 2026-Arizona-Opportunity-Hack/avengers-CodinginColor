@@ -17,6 +17,9 @@ it('walks through essential actions and can be dismissed and reopened without sa
   expect(button('Open guide').getAttribute('aria-expanded')).toBe('false');
   click('Open guide'); expect(fixture.nativeElement.textContent).toContain('Step 2 of 3');
   click('Next'); expect(fixture.nativeElement.querySelector('a').getAttribute('href')).toBe('/outreach');
-  click('Finish guide'); click('Open guide');
+  button('Finish guide').focus();
+  click('Finish guide');
+  expect(document.activeElement).toBe(button('Open guide'));
+  click('Open guide');
   expect(fixture.nativeElement.textContent).toContain('Step 1 of 3');
 });
