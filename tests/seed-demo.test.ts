@@ -46,6 +46,25 @@ test('seeds fictional donors, gifts, programs and campaigns, and is idempotent',
   }
 });
 
+test('two organizations each get their own full demo dataset (IDs are scoped per org)', async (t) => {
+  // Review on #36: global fixed IDs made a second org's seed "succeed" with zero rows.
+  const OTHER = '00000000-0000-4000-8000-0000000000c2';
+  const { db, client } = await database(t);
+  await provision(client, OTHER, roster);
+  const a = await seedDemo(client, ORG);
+  const b = await seedDemo(client, OTHER);
+  assert.deepEqual(b, a);
+  assert.ok(b.donors >= 20 && b.gifts >= 50, JSON.stringify(b));
+  const counts = (await db.query<{ org_id: string; donors: number; gifts: number }>(`
+    SELECT o.id AS org_id, (SELECT count(*) FROM donors d WHERE d.org_id = o.id)::int AS donors,
+      (SELECT count(*) FROM gifts g WHERE g.org_id = o.id)::int AS gifts FROM organizations o ORDER BY o.id`)).rows;
+  assert.deepEqual(counts, [{ org_id: ORG, donors: a.donors, gifts: a.gifts }, { org_id: OTHER, donors: a.donors, gifts: a.gifts }]);
+  // Every donor's owner belongs to the donor's own organization.
+  assert.equal((await db.query(`SELECT 1 FROM donors d JOIN memberships m ON m.id = d.owner_id
+    WHERE m.org_id <> d.org_id`)).rows.length, 0);
+  assert.deepEqual(await seedDemo(client, OTHER), { programs: 0, campaigns: 0, donors: 0, gifts: 0 });
+});
+
 test('every donor is owned by an active member and ownership is balanced', async (t) => {
   const { db, client } = await database(t);
   await seedDemo(client, ORG);

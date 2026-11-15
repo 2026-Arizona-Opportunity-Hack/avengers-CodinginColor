@@ -78,7 +78,7 @@ node --env-file-if-exists=.env db/seed-demo.ts --yes-demo-data
 
 It inserts 3 programs, 5 campaigns, 26 fictional donors (`@example.org` emails,
 `602-555-01xx` phones, `metadata.demo = true`) and 53 gifts from 2023 to 2026, with
-deterministic IDs, in one transaction. Re-running inserts nothing. Donors are spread
+deterministic per-organization IDs, in one transaction. Re-running inserts nothing. Donors are spread
 round-robin across active board members. As of Nov 14, 2026 (YTD vs prior YTD), the
 ledger covers every retention segment (new, reactivated, increased, flat, decreased,
 lapsed, plus dormant). It also includes a fully refunded gift, pending gifts, gifts

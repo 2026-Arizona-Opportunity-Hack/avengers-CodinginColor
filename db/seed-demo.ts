@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { Client } from 'pg';
 import { z } from 'zod';
 import { isRuntimeLogin } from './provision.ts';
@@ -8,8 +9,15 @@ interface SeedClient {
 export class SeedError extends Error {}
 export type SeedResult = { programs: number; campaigns: number; donors: number; gifts: number };
 
-// Deterministic, recognizable demo IDs so re-runs insert nothing new.
-const id = (kind: 'a' | 'b' | 'c' | 'd', n: number) => `de300000-0000-4000-8000-${kind}${n.toString(16).padStart(11, '0')}`;
+/**
+ * Deterministic demo IDs, scoped per organization: the same org re-seeds to the same rows, while
+ * another org gets its own (a global fixed ID made a second org's seed silently insert nothing).
+ */
+export function demoId(orgId: string, kind: 'a' | 'b' | 'c' | 'd', n: number): string {
+  const h = createHash('sha256').update(`cic-demo:${orgId}:${kind}:${n}`).digest('hex');
+  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
 
 const PROGRAMS = ['AI Academy', 'Summer Camp', 'Day of Compute'];
 // [title, program index or null]: Giving Tuesday and AZ Gives are general, not program-restricted.
@@ -52,6 +60,7 @@ async function assertPrivileged(client: SeedClient) {
  */
 export async function seedDemo(client: SeedClient, orgId: string): Promise<SeedResult> {
   if (!z.uuid().safeParse(orgId).success) throw new SeedError('CIC_ORG_ID must be a UUID');
+  const id = (kind: 'a' | 'b' | 'c' | 'd', n: number) => demoId(orgId, kind, n);
   await assertPrivileged(client);
   await client.query('BEGIN');
   try {
