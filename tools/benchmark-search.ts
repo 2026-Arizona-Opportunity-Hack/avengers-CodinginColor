@@ -6,7 +6,7 @@ import { isDeepStrictEqual } from 'node:util';
 import express, { type ErrorRequestHandler } from 'express';
 import { PGlite } from '@electric-sql/pglite';
 import { z } from 'zod';
-import { askData } from '../apps/api/ask-data.ts';
+import { askData, selectFilterAdvice } from '../apps/api/ask-data.ts';
 import { proposeJson } from '../apps/api/ai.ts';
 import { EnvSchema, HttpError } from '../apps/api/env.ts';
 import type { Database } from '../apps/api/db.ts';
@@ -91,7 +91,8 @@ async function benchmark() {
       measurement.semantic_echo = parsed.success && isDeepStrictEqual(parsed.data, current.filters);
       measurement.serialized_echo = parsed.success && JSON.stringify(parsed.data) === JSON.stringify(request.data);
       measurement.provider = advice === null ? 'unavailable' : !parsed.success ? 'invalid-schema'
-        : !measurement.semantic_echo ? 'changed-filters' : measurement.serialized_echo ? 'accepted' : 'ordering-mismatch';
+        : !measurement.semantic_echo ? 'changed-filters'
+        : selectFilterAdvice(request.data as Filter, advice) !== request.data ? 'accepted' : 'ordering-mismatch';
       return advice;
     }));
     const errors: ErrorRequestHandler = (_error, _req, res, _next) => res.status(503).json({ error: 'benchmark request failed' });

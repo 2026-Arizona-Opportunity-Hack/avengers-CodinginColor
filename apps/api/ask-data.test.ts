@@ -5,10 +5,23 @@ import { fileURLToPath } from 'node:url';
 import express, { type ErrorRequestHandler } from 'express';
 import { PGlite } from '@electric-sql/pglite';
 import { migrate } from '../../db/migrate.ts';
-import { askData, interpretQuestion } from './ask-data.ts';
+import { askData, interpretQuestion, selectFilterAdvice } from './ask-data.ts';
 import { EnvSchema, HttpError } from './env.ts';
 import type { Database } from './db.ts';
 const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+test('equivalent advice is selected regardless of property order; changed or invalid filters retain local intent', () => {
+  const local = interpretQuestion('Show my donors over $100 in USD')!;
+  const reordered = Object.fromEntries(Object.entries(local).reverse());
+  const accepted = selectFilterAdvice(local, reordered);
+  assert.notStrictEqual(accepted, local, 'equivalent validated advice must be selected, not fallback');
+  assert.deepEqual(accepted, local);
+  for (const advice of [null, {}, { ...reordered, scope: 'visible' }, { ...reordered, currency: 'EUR' },
+    { ...reordered, minimum_cents: 0 }, { ...reordered, status: 'pending' },
+    { ...reordered, segment: 'lapsed' }, { ...reordered, period: 'last_year' },
+    { ...reordered, sql: 'SELECT * FROM donors' }])
+    assert.strictEqual(selectFilterAdvice(local, advice), local, 'rejected advice retains original filters');
+});
 
 test('questions become only explicit allowlisted filters; unknown or personal questions ask for clarification', () => {
   assert.deepEqual(interpretQuestion('Show my lapsed donors in EUR'), { scope: 'mine', segment: 'lapsed', currency: 'EUR', period: 'this_year', minimum_cents: null, status: null });

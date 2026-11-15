@@ -1,4 +1,5 @@
 import express from 'express';
+import { isDeepStrictEqual } from 'node:util';
 import { z } from 'zod';
 import { withMember, type Database } from './db.ts';
 import { HttpError, type Env } from './env.ts';
@@ -16,6 +17,11 @@ type Filter = z.infer<typeof Filters>;
 const Body = z.strictObject({ question: z.string().trim().min(1).max(500) });
 const clarify = { needs_clarification: true, explanation: 'Choose a retention segment, gift status, or giving threshold. You can add a currency and this year or last year. Try “show my lapsed donors” or “donors giving over $100 this year in USD”.', donors: [] };
 const segments = ['new', 'reactivated', 'increased', 'flat', 'decreased', 'lapsed', 'retained'] as const;
+
+export function selectFilterAdvice(filters: Filter, advice: unknown): Filter {
+  const checked = Filters.safeParse(advice);
+  return checked.success && isDeepStrictEqual(checked.data, filters) ? checked.data : filters;
+}
 
 /** An intentionally small grammar. Unrecognized or personal text never becomes a broad query. */
 export function interpretQuestion(question: string): Filter | null {
@@ -57,9 +63,8 @@ export function askData(env: Env, db: Database, verify: (h: string | undefined) 
     if (!filters) { res.json(clarify); return; }
     try {
       // External input contains only recognized nonpersonal intent; never the question or donor facts.
-      const checked = Filters.safeParse(await model({ purpose: 'Extract the supplied donor-search intent as the same allowlisted filters. Do not add scope, records, SQL, or unmentioned constraints.',
+      filters = selectFilterAdvice(filters, await model({ purpose: 'Extract the supplied donor-search intent as the same allowlisted filters. Do not add scope, records, SQL, or unmentioned constraints.',
         schema: z.toJSONSchema(Filters), data: filters }));
-      if (checked.success && JSON.stringify(checked.data) === JSON.stringify(filters)) filters = checked.data;
     } catch { /* Optional advice cannot block the local interpretation. */ }
     const selected = filters;
     const result = await withMember(db, env.CIC_ORG_ID, identity, async (client, member) => {
