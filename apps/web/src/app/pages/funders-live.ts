@@ -30,7 +30,7 @@ export function packetQuery(funderId: string, programId: string, from: string, t
         <label class="field">From<input class="input" type="date" [value]="from()" (input)="from.set($any($event.target).value)" /></label>
         <label class="field">Through<input class="input" type="date" [value]="through()" (input)="through.set($any($event.target).value)" /></label>
       </form>
-      <app-outcomes-upload [example]="outcomeExample()" (saved)="refresh.update(increment)" />
+      <app-outcomes-upload class="no-print" [example]="outcomeExample()" (saved)="refresh.update(increment)" />
       @if (!query()) { <p role="status">Choose a funder, program and valid date range.</p> }
       @if (loading()) { <p role="status">Loading report…</p> }
       @if (error()) { <p role="alert">{{ error() }}</p> }
