@@ -148,6 +148,19 @@ test('sub-millisecond precision is kept when comparing against window bounds', (
   assert.equal(report.donors[0]?.segment, 'new');
 });
 
+test('a gift 0.1 ms before a sub-millisecond current start stays out of the current window', () => {
+  // Reproduction from review on #32: Date.parse truncated .0004 and .0005 to the same millisecond.
+  const report = retentionReport([
+    gift(1, '2025-03-01T00:00:00Z', 100),
+    gift(1, '2026-01-01T00:00:00.0004Z', 100),
+  ], {
+    prior: { from: '2025-01-01T00:00:00Z', to: '2026-01-01T00:00:00Z' },
+    current: { from: '2026-01-01T00:00:00.0005Z', to: '2027-01-01T00:00:00Z' },
+  }).byCurrency.USD;
+  assert.equal(report.donors[0].segment, 'lapsed');
+  assert.equal(report.donors[0].current_cents, 0);
+});
+
 test('an empty ledger yields an empty report', () => {
   assert.deepEqual(retentionReport([], windows), { byCurrency: {} });
 });
