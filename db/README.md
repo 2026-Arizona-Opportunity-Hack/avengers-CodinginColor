@@ -83,7 +83,8 @@ round-robin across active board members. As of Nov 14, 2026 (YTD vs prior YTD), 
 ledger covers every retention segment (new, reactivated, increased, flat, decreased,
 lapsed, plus dormant). It also includes a fully refunded gift, pending gifts, gifts
 with no campaign, three sources, and two foundations with program-restricted gifts
-for the funder packet. It **refuses** to run against an organization that already has
+for the funder packet. For Outreach it adds a Q4 2026 quarterly touch per donor and six next
+steps (two overdue, two due this week, two upcoming on Nov 15, 2026), each owned by the donor's owner. It **refuses** to run against an organization that already has
 any non-demo donor, and it refuses the runtime login. Tests: `node --test tests/seed-demo.test.ts`.
 
 ## Dashboard API keys (`004_reporting_api.sql`, #29)

@@ -7,13 +7,13 @@ interface SeedClient {
   query(sql: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
 }
 export class SeedError extends Error {}
-export type SeedResult = { programs: number; campaigns: number; donors: number; gifts: number };
+export type SeedResult = { programs: number; campaigns: number; donors: number; gifts: number; follow_ups: number };
 
 /**
  * Deterministic demo IDs, scoped per organization: the same org re-seeds to the same rows, while
  * another org gets its own (a global fixed ID made a second org's seed silently insert nothing).
  */
-export function demoId(orgId: string, kind: 'a' | 'b' | 'c' | 'd', n: number): string {
+export function demoId(orgId: string, kind: 'a' | 'b' | 'c' | 'd' | 'e', n: number): string {
   const h = createHash('sha256').update(`cic-demo:${orgId}:${kind}:${n}`).digest('hex');
   const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
@@ -60,7 +60,7 @@ async function assertPrivileged(client: SeedClient) {
  */
 export async function seedDemo(client: SeedClient, orgId: string): Promise<SeedResult> {
   if (!z.uuid().safeParse(orgId).success) throw new SeedError('CIC_ORG_ID must be a UUID');
-  const id = (kind: 'a' | 'b' | 'c' | 'd', n: number) => demoId(orgId, kind, n);
+  const id = (kind: 'a' | 'b' | 'c' | 'd' | 'e', n: number) => demoId(orgId, kind, n);
   await assertPrivileged(client);
   await client.query('BEGIN');
   try {
@@ -74,7 +74,7 @@ export async function seedDemo(client: SeedClient, orgId: string): Promise<SeedR
         AND coalesce(metadata->>'demo', '') <> 'true' LIMIT 1`, [orgId])).rows.length > 0) {
       throw new SeedError('Refusing to seed: this organization already has non-demo donors');
     }
-    const result: SeedResult = { programs: 0, campaigns: 0, donors: 0, gifts: 0 };
+    const result: SeedResult = { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0 };
     const inserted = async (sql: string, values: unknown[]) => (await client.query(sql, values)).rows.length;
 
     for (const [i, title] of PROGRAMS.entries()) {
@@ -116,6 +116,22 @@ export async function seedDemo(client: SeedClient, orgId: string): Promise<SeedR
           `${g.day}T12:00:00-07:00`, g.status ?? 'settled', SOURCES[n % SOURCES.length], `demo-${n}`]);
       }
     }
+    // Outreach (#45): a Q4 2026 touch for every demo donor, plus next steps that land in each queue
+    // bucket on demo day (Nov 15): two overdue, two due this week, two upcoming. Owned by the donor's owner.
+    const followUp = (n: number, donor: number, kind: 'quarterly' | 'next_action', title: string, due: string) => inserted(
+      `INSERT INTO follow_ups (id, org_id, donor_id, owner_id, kind, quarter, title, due_at)
+       SELECT $1, $2, d.id, d.owner_id, $3, $4, $5, $6 FROM donors d WHERE d.id = $7
+       ON CONFLICT DO NOTHING RETURNING id`,
+      [id('e', n), orgId, kind, kind === 'quarterly' ? '2026-Q4' : null, title, due, id('c', donor)]);
+    for (const [i] of donors.entries()) {
+      result.follow_ups += await followUp(i, i, 'quarterly', 'Quarterly update', '2027-01-01T00:00:00-07:00');
+    }
+    const NEXT: Array<[string, string]> = [['Invite to Day of Compute', '2026-11-12'], ['Thank-you call', '2026-11-17'],
+      ['Send AI Academy photos', '2026-12-03']];
+    for (let i = 0; i < 6; i++) {
+      const [title, day] = NEXT[i % NEXT.length];
+      result.follow_ups += await followUp(1000 + i, i, 'next_action', title, `${day}T09:00:00-07:00`);
+    }
     await client.query('COMMIT');
     return result;
   } catch (error) {
@@ -135,7 +151,7 @@ if (import.meta.main) {
     client = new Client({ connectionString: url.href, connectionTimeoutMillis: 10000 });
     await client.connect();
     const r = await seedDemo(client, process.env.CIC_ORG_ID ?? '');
-    console.log(`Inserted ${r.programs} programs, ${r.campaigns} campaigns, ${r.donors} donors, ${r.gifts} gifts (existing rows skipped)`);
+    console.log(`Inserted ${r.programs} programs, ${r.campaigns} campaigns, ${r.donors} donors, ${r.gifts} gifts, ${r.follow_ups} follow-ups (existing rows skipped)`);
   } catch (error) {
     // Driver errors can contain connection details; only our own messages are printed.
     console.error(error instanceof SeedError ? `Seeding failed: ${error.message}`
