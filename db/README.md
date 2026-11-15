@@ -62,7 +62,9 @@ It needs `MIGRATION_DATABASE_URL` and `CIC_ORG_ID` (the same UUID the API uses).
 is one transaction and safe to repeat: it creates or updates the organization name
 and each listed membership's role and active flag, and prints counts only. People not
 in the file are **left unchanged**, never deactivated implicitly. It refuses the runtime
-login, and it refuses any role that can't write under row-level security. Never grant
+login (any role that can `SET ROLE cic_runtime`; a migration owner that merely created
+that role is fine), and it refuses any role that can't write under row-level security.
+Invalid roster JSON gets a fixed message that never echoes the file. Never grant
 BYPASSRLS to the runtime login to make provisioning work. Tests: `node --test tests/provision.test.ts`.
 
 ## Demo data (`db/seed-demo.ts`, #31)
