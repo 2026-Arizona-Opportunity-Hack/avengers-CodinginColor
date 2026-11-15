@@ -1,0 +1,32 @@
+{
+  "scope": "Unauthenticated local development sign-in only; not release-wide WCAG certification",
+  "requested_url": "http://localhost:4200/sign-in",
+  "final_url": "http://localhost:4200/sign-in",
+  "fetch_time_utc": "2026-11-15T12:44:36.322Z",
+  "lighthouse_version": "13.6.0",
+  "form_factor": "mobile",
+  "accessibility_score": 95,
+  "pdf_target": 95,
+  "target_met": true,
+  "passed_audits": 18,
+  "not_applicable_audits": 47,
+  "run_warnings": [],
+  "failed_audits": [
+    {
+      "id": "color-contrast",
+      "title": "Background and foreground colors do not have a sufficient contrast ratio.",
+      "nodes": [
+        {
+          "label": "Secured by",
+          "explanation": "Fix any of the following:\n  Element has insufficient color contrast of 3.04 (foreground color: #6b3b20, background color: #f36b16, font size: 9.0pt (12px), font weight: normal). Expected contrast ratio of 4.5:1"
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "Fresh isolated headless profile; shared browser untouched",
+    "No authenticated workflow or manual keyboard/screen-reader audit",
+    "Working checkout development server, not immutable deployed release",
+    "Raw reports retained in local ignored .board-state/a11y only"
+  ]
+}
