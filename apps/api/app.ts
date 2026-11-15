@@ -3,6 +3,7 @@ import type { ErrorRequestHandler } from 'express';
 import { HttpError, type Env } from './env.ts';
 import { withMember, type Database } from './db.ts';
 import type { Identity } from './auth.ts';
+import { claimInvitation } from './invitation-claim.ts';
 import { members } from './members.ts';
 import { donors } from './donors.ts';
 import { gifts } from './gifts.ts';
@@ -37,6 +38,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
   app.get('/api/v1/me', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
+    await claimInvitation(db, env.CIC_ORG_ID, identity);
     const member = await withMember(db, env.CIC_ORG_ID, identity, async (_client, membership) => membership);
     res.json(member);
   });
