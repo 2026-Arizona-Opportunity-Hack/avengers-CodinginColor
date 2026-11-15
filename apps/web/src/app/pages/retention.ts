@@ -11,20 +11,8 @@ import { Store } from '../core/store';
 import { date, money, pct, today } from '../core/format';
 import { RetentionResult, SEGMENTS, SEGMENT_COPY, Segment, retention, yearWindows, ytdWindows } from '../core/retention';
 import { Api, ApiError, ApiRetention } from '../core/api';
+import { retentionFromServer } from '../core/report-models';
 import { SOURCE_LABEL } from '../core/models';
-
-/** Server report (USD) in the page's shape. Segment rules are identical; see core/retention.ts. */
-function fromServer(report: ApiRetention): RetentionResult {
-  const c = report.byCurrency['USD'];
-  const counts = Object.fromEntries(SEGMENTS.map((s) => [s, c?.segments[s]?.donors ?? 0])) as RetentionResult['counts'];
-  const cents = Object.fromEntries(SEGMENTS.map((s) => [s, { prior: c?.segments[s]?.prior_cents ?? 0, current: c?.segments[s]?.current_cents ?? 0 }])) as RetentionResult['cents'];
-  return {
-    windows: report.windows, counts, cents,
-    donors: (c?.donors ?? []).filter((d): d is typeof d & { segment: Segment } => (SEGMENTS as readonly string[]).includes(d.segment)),
-    retained: c?.retention.retained_donors ?? 0, priorDonors: c?.retention.prior_donors ?? 0,
-    totals: { prior: c?.totals.prior_cents ?? 0, current: c?.totals.current_cents ?? 0 },
-  };
-}
 
 @Component({
   selector: 'app-retention',
@@ -213,10 +201,10 @@ function fromServer(report: ApiRetention): RetentionResult {
 export class RetentionPage {
   protected readonly store = inject(Store);
   private readonly api = inject(Api);
-  protected readonly server = signal<RetentionResult | null>(null);
+  protected readonly server = signal<ApiRetention | null>(null);
   protected readonly serverError = signal<string | null>(null);
-  protected readonly serverNames = signal(new Map<string, string>());
-  protected readonly money = money;
+  protected readonly serverNames = computed(() => new Map((this.server()?.byCurrency[this.store.currency()]?.donors ?? []).filter(d => d.name).map(d => [d.donor_id, d.name!])));
+  protected readonly money = (cents: number) => money(cents, this.store.currency());
   protected readonly pct = pct;
   protected readonly copy = SEGMENT_COPY;
   protected readonly segments = SEGMENTS;
@@ -233,7 +221,7 @@ export class RetentionPage {
 
   private readonly windows = computed(() => (this.period() === 'ytd' ? ytdWindows(this.now) : yearWindows(Number(this.period()))));
   protected readonly r = computed(() => this.store.live()
-    ? this.server() ?? retention([], this.windows())
+    ? this.server() ? retentionFromServer(this.server()!, this.store.currency()) : retention([], this.windows())
     : retention(this.store.gifts(), this.windows()));
   protected readonly windowLabel = computed(() => {
     const w = this.r().windows;
@@ -245,7 +233,7 @@ export class RetentionPage {
     return c.new + c.reactivated + c.increased + c.flat + c.decreased;
   });
 
-  protected readonly dollars = (n: number) => `$${Math.round(n).toLocaleString('en-US')}`;
+  protected readonly dollars = (n: number) => this.money(n * 100);
   protected readonly percent = (n: number) => `${Math.round(n)}%`;
   protected readonly segIcon: Record<Segment, string> = {
     new: 'lucideUserPlus', reactivated: 'lucideRotateCcw', increased: 'lucideTrendingUp', flat: 'lucideRepeat', decreased: 'lucideTrendingDown', lapsed: 'lucideCircleAlert',
@@ -337,27 +325,24 @@ export class RetentionPage {
     return [...counts.entries()].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n);
   });
 
+  private reportGeneration = 0;
   constructor() {
-    // Never keep a server report past the session that fetched it.
     effect(() => {
-      if (this.store.signedIn()) return;
-      this.server.set(null);
-      this.serverNames.set(new Map());
-    });
-    if (!this.store.live()) return;
-    const epoch = this.store.sessionEpoch();
-    this.api.retention(this.now).then((report) => {
-      if (this.store.sessionEpoch() !== epoch || !this.store.signedIn()) return;
-      this.server.set(fromServer(report));
-      this.serverNames.set(new Map((report.byCurrency['USD']?.donors ?? []).filter((d) => d.name).map((d) => [d.donor_id, d.name!])));
-    }).catch((e) => {
-      if (this.store.sessionEpoch() !== epoch) return;
-      this.serverError.set(e instanceof ApiError ? e.message : 'The retention report could not load.');
+      const generation = ++this.reportGeneration;
+      const epoch = this.store.sessionEpoch(), signedIn = this.store.signedIn();
+      this.server.set(null); this.serverError.set(null);
+      if (!this.store.live() || !signedIn) return;
+      void this.api.retention(this.now).then(report => {
+        if (generation === this.reportGeneration && epoch === this.store.sessionEpoch() && this.store.signedIn()) this.server.set(report);
+      }).catch(error => {
+        if (generation === this.reportGeneration && epoch === this.store.sessionEpoch() && this.store.signedIn())
+          this.serverError.set(error instanceof ApiError ? error.message : 'The retention report could not load.');
+      });
     });
   }
 
   protected signed(cents: number) {
-    return `${cents > 0 ? '+' : cents < 0 ? '−' : ''}${money(Math.abs(cents))}`;
+    return `${cents > 0 ? '+' : cents < 0 ? '−' : ''}${this.money(Math.abs(cents))}`;
   }
 
   protected async nudge(donorId: string) {

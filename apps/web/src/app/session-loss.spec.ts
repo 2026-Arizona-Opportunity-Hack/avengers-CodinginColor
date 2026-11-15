@@ -95,6 +95,7 @@ describe('live session loss', () => {
   it('clears a populated retention report when the session ends', async () => {
     const { api, store } = liveSession();
     const page = TestBed.createComponent(RetentionPage).componentInstance as unknown as Record<string, () => unknown>;
+    TestBed.tick();
     api.resolveReport(REPORT);
     await Promise.resolve(); await Promise.resolve();
     expect(page['server']()).not.toBeNull();
@@ -111,6 +112,7 @@ describe('live session loss', () => {
   it('drops a report that arrives after sign-out', async () => {
     const { api, store } = liveSession();
     const page = TestBed.createComponent(RetentionPage).componentInstance as unknown as Record<string, () => unknown>;
+    TestBed.tick();
     expect(api.retention).toHaveBeenCalledTimes(1);
 
     await store.signOut();

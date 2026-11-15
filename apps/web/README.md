@@ -98,3 +98,6 @@ Lighthouse accessibility is 100 on every route (checked against the production b
   phone, then records it. Nothing is sent automatically.
 
 The overview uses scoped persisted gifts and outreach, the selected currency, net settled amounts, and Phoenix calendar boundaries.
+
+Overview and Retention read server retention KPIs for the selected currency.
+Currency changes select the matching server bucket; sign-out clears loaded reports.
