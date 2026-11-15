@@ -96,7 +96,7 @@ export class Api {
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
 
-  private async request<T>(path: string, init: RequestInit = {}, parse: 'json' | 'blob' = 'json'): Promise<T> {
+  async request<T>(path: string, init: RequestInit = {}, parse: 'json' | 'blob' = 'json'): Promise<T> {
     if (!this.config || !this.clerk?.session) throw new ApiError(401);
     const token = await this.clerk.session.getToken();
     if (!token) throw new ApiError(401);

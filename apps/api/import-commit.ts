@@ -1,6 +1,6 @@
 import type {Router} from 'express';
 import {z} from 'zod';
-import {DonorWriteSchema,GiftWriteSchema,IdSchema} from '../../packages/contracts/index.ts';
+import {DonorWriteSchema,GiftWriteSchema} from '../../packages/contracts/index.ts';
 import {applyReviewedGifts} from '../../tools/import-apply.ts';
 import {batchOf,fail,ImportError,parse,staged} from './import-batches.ts';
 import {giftPlan,plans,resolve,sameReviewer,stale,type ImportAccess} from './import-plans.ts';
@@ -10,7 +10,7 @@ export function registerImportCommit(router:Router,access:ImportAccess,org:strin
   router.post('/:id/commit',async(req,res)=>{
     const result=await access(req.get('Authorization'),async(c,m)=>{
       const input=parse(Commit,req.body);
-      const b=await batchOf(c,parse(IdSchema,req.params.id),org);
+      const b=await batchOf(c,req.params.id,org);
       if(b.status==='committed') {
         if(b.donor_plan_hash!==input.donor_plan_hash||b.gift_plan_hash!==input.plan_hash) fail(409,'batch_not_reviewing');
         return {...b.result,replayed:true};

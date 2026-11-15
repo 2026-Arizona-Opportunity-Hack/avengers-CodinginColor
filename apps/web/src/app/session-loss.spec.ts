@@ -39,7 +39,50 @@ function liveSession() {
   return { api, store };
 }
 
+function pendingLiveRefresh() {
+  const member = { id: 'board-owner', org_id: 'org', role: 'board' as const };
+  let resolveMember!: (value: typeof member) => void;
+  let rejectMember!: (reason: Error) => void;
+  let onSignedOut!: () => void;
+  const oldMember = new Promise<typeof member>((resolve, reject) => { resolveMember = resolve; rejectMember = reject; });
+  const api = {
+    status: signal<LiveStatus>('signed-out'), error: signal<string | null>(null),
+    start: async (_config: unknown, _onIn: () => void, onOut: () => void) => { onSignedOut = onOut; },
+    me: vi.fn(() => oldMember), allDonors: vi.fn(async () => []),
+    request: vi.fn(async (path: string) => path.includes('follow-ups')
+      ? { overdue: [], due_this_week: [], upcoming: [] } : { items: [] }),
+    fail: (message: string) => { api.error.set(message); api.status.set('error'); },
+  };
+  TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api }] });
+  const store = TestBed.inject(Store);
+  store.connect({ apiBase: '', clerkPublishableKey: 'synthetic' });
+  return { api, store, member, resolveMember, rejectMember,
+    signOut: () => { onSignedOut(); api.status.set('signed-out'); } };
+}
+
 describe('live session loss', () => {
+  it('does not restore a session when its initial data request finishes after sign-out', async () => {
+    const f = pendingLiveRefresh();
+    const pending = f.store.refreshLive();
+    f.signOut(); f.resolveMember(f.member);
+    await pending;
+    expect(f.api.status()).toBe('signed-out');
+    expect(f.store.signedIn()).toBe(false);
+    expect(f.store.members()).toEqual([]);
+  });
+
+  it('does not let an old request failure overwrite a newer successful session', async () => {
+    const f = pendingLiveRefresh();
+    const pending = f.store.refreshLive();
+    f.signOut();
+    f.api.me.mockResolvedValue(f.member);
+    await f.store.refreshLive();
+    f.rejectMember(new Error('Old request failed'));
+    await pending;
+    expect(f.api.status()).toBe('ready');
+    expect(f.store.me().id).toBe(f.member.id);
+    expect(f.api.error()).toBeNull();
+  });
   beforeAll(() => {
     // jsdom has no layout; the command palette's list calls this when it opens.
     Element.prototype.scrollIntoView ??= () => {};

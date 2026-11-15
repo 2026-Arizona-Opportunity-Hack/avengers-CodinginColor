@@ -87,6 +87,11 @@ Project requirements and delivery roles: [CIC Donor Platform Implementation Plan
 
 ## Run it locally
 
+Live workspaces load the server-scoped follow-up queue and drafts. Administrators
+can issue and revoke real aggregate API keys from **Read API**; the secret is shown
+once and is never stored in the browser dataset. Other live workflows remain
+tracked separately; demo actions do not persist to the server.
+
 Tests and checks need no accounts or keys:
 
 ```bash

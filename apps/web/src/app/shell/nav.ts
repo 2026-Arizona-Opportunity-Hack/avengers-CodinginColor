@@ -24,7 +24,7 @@ export const NAV: NavGroup[] = [
   ] },
   { label: 'Data', items: [
     { path: '/import', label: 'Import', icon: 'lucideUpload', admin: true },
-    { path: '/api', label: 'Read API', icon: 'lucideKeyRound', admin: true },
+    { path: '/api', label: 'Read API', icon: 'lucideKeyRound', admin: true, live: true },
     { path: '/settings', label: 'Settings', icon: 'lucideSettings', admin: true },
   ] },
 ];
