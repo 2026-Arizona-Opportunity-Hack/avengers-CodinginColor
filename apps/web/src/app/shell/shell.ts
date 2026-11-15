@@ -13,13 +13,14 @@ import { Store } from '../core/store';
 import { relativeDue, today } from '../core/format';
 import { CommandPalette } from './command-palette';
 import { NAV, NavGroup } from './nav';
+import { BoardGuide } from './board-guide';
 
 const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
 
 @Component({
   selector: 'app-shell',
   imports: [
-    NgTemplateOutlet, RouterOutlet, RouterLink, RouterLinkActive, NgIcon, CommandPalette,
+    NgTemplateOutlet, RouterOutlet, RouterLink, RouterLinkActive, NgIcon, CommandPalette, BoardGuide,
     HlmAvatarImports, HlmButtonImports, HlmDropdownMenuImports, HlmKbdImports, HlmSheetImports,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -164,6 +165,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       }
 
       <main id="main" tabindex="-1">
+        @if (store.signedIn() && store.me().role === 'board') { <app-board-guide /> }
         <!-- Protected views exist only while the session is valid; losing it destroys them. -->
         @if (store.signedIn()) { <router-outlet /> }
       </main>
