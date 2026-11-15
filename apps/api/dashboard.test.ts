@@ -10,12 +10,13 @@ import { generateApiKey } from '../../packages/reporting/summary.ts';
 import type { Database } from './db.ts';
 import { HttpError } from './env.ts';
 import { createDashboardRouter } from './dashboard.ts';
+import { RateLimiter } from './rate-limit.ts';
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const ORG = id(1), OTHER = id(2), ADMIN = id(10), BOARD = id(11), OTHER_ADMIN = id(12), AI = id(20), FUND = id(30);
 const migrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
 
-async function setup(t: test.TestContext, limitPerMinute = 60) {
+async function setup(t: test.TestContext, limitPerMinute = 60, limiter?: RateLimiter) {
   const db = new PGlite();
   t.after(() => db.close());
   const owner = { query: async (s: string, v?: unknown[]) => v ? db.query<Record<string, unknown>>(s, v) : (await db.exec(s)).at(-1)! };
@@ -41,7 +42,7 @@ async function setup(t: test.TestContext, limitPerMinute = 60) {
     SET SESSION AUTHORIZATION cic_app_test;`);
   const api: Database = { connect: async () => ({ query: (s, v) => db.query<Record<string, unknown>>(s, v), release: () => {} }) };
   const app = express();
-  app.use(createDashboardRouter(api, { offset: '-07:00', minDonors: 3, limitPerMinute }));
+  app.use(createDashboardRouter(api, { offset: '-07:00', minDonors: 3, limitPerMinute, limiter }));
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     res.status(error instanceof HttpError ? error.status : 503).json({ error: 'x' });
   };
@@ -104,6 +105,17 @@ test('missing, malformed, unknown and revoked keys are 401; bad queries 400', as
   assert.equal(await revokeKey(owner, ORG, key.hint), 1);
   await owner.query('SET SESSION AUTHORIZATION cic_app_test');
   assert.equal((await get(path, { Authorization: `Bearer ${key.key}` })).status, 401);
+});
+
+test('unknown keys leave no rate-limit state behind', async (t) => {
+  // Review on #53: every well-formed unknown key used to stay in the limiter map forever.
+  const limiter = new RateLimiter({ limit: 60, windowMs: 60_000, maxEntries: 1000 });
+  const { get } = await setup(t, 60, limiter);
+  for (let i = 0; i < 30; i++) {
+    const res = await get('/api/v1/summary?from=2026-01-01&to=2027-01-01', { Authorization: `Bearer ${generateApiKey().key}` });
+    assert.equal(res.status, 401);
+  }
+  assert.equal(limiter.size, 0);
 });
 
 test('each key is rate limited and told when to retry', async (t) => {

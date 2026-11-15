@@ -5,6 +5,7 @@ import {
 } from '../../packages/reporting/summary.ts';
 import { HttpError } from './env.ts';
 import type { Client, Database } from './db.ts';
+import { RateLimiter } from './rate-limit.ts';
 
 export type DashboardOptions = {
   /** CIC reports in Phoenix time: '-07:00'. */
@@ -14,6 +15,8 @@ export type DashboardOptions = {
   /** Requests per key per minute. */
   limitPerMinute: number;
   now?: () => number;
+  /** Injectable for tests; defaults to a bounded per-key limiter. */
+  limiter?: RateLimiter;
 };
 
 // Bigint amounts are read as text and checked by summarize()/recentActivity().
@@ -54,8 +57,8 @@ async function asRuntime<T>(db: Database, action: (client: Client) => Promise<T>
  */
 export function createDashboardRouter(db: Database, options: DashboardOptions) {
   const router = express.Router();
-  const now = options.now ?? Date.now;
-  const windows = new Map<string, { start: number; count: number }>();
+  const limiter = options.limiter ?? new RateLimiter({ limit: options.limitPerMinute, windowMs: 60_000,
+    maxEntries: 1000, now: options.now });
 
   const authenticate = (req: express.Request, res: express.Response) => {
     res.set('Cache-Control', 'no-store');
@@ -68,12 +71,17 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     }
   };
   const rateLimit = (hash: string, res: express.Response) => {
-    const t = now();
-    const w = windows.get(hash);
-    if (!w || t - w.start >= 60_000) { windows.set(hash, { start: t, count: 1 }); return; }
-    if (++w.count > options.limitPerMinute) {
-      res.set('Retry-After', String(Math.max(1, Math.ceil((w.start + 60_000 - t) / 1000))));
+    const result = limiter.hit(hash);
+    if (!result.ok) {
+      res.set('Retry-After', String(result.retryAfterSeconds));
       throw new HttpError(429);
+    }
+  };
+  /** Run a key-scoped query; an unknown or revoked key leaves no limiter state behind. */
+  const forKey = async <T>(hash: string, action: (client: Client) => Promise<T>) => {
+    try { return await asRuntime(db, action); } catch (error) {
+      if (error instanceof HttpError && error.status === 401) limiter.forget(hash);
+      throw error;
     }
   };
 
@@ -84,7 +92,7 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
       throw error instanceof QueryError ? new HttpError(400) : error;
     }
     rateLimit(hash, res);
-    const { gifts, titles } = await asRuntime(db, async (client) => ({
+    const { gifts, titles } = await forKey(hash, async (client) => ({
       gifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
         [hash, query.window.from, query.window.to])).rows.map(toGift),
       titles: new Map((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
@@ -105,7 +113,7 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     const parsed = ActivityQuery.safeParse(req.query);
     if (!parsed.success) throw new HttpError(400);
     rateLimit(hash, res);
-    const { rows, titles } = await asRuntime(db, async (client) => ({
+    const { rows, titles } = await forKey(hash, async (client) => ({
       rows: (await client.query(`SELECT ${ROW} FROM cic_reporting_recent($1, $2)`, [hash, parsed.data.limit])).rows.map(toGift),
       titles: Object.fromEntries((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
         .map((r) => [String(r.id), String(r.title)])),
