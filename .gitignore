@@ -28,3 +28,6 @@ target/
 Thumbs.db
 *.log
 .board-state/
+
+# Vercel build output (the web app copied for same-origin hosting)
+/public/
