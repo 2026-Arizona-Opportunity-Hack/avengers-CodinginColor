@@ -4,6 +4,7 @@ import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { GiftEntry } from './gift-entry';
 import { Debrief } from './debrief';
+import { GroundedUpdate } from './grounded-update';
 import { Store } from '../core/store';
 import { date, relativeDue, today } from '../core/format';
 import { CommunicationKind, Consent, SOURCE_LABEL } from '../core/models';
@@ -19,7 +20,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
 
 @Component({
   selector: 'app-donor-detail',
-  imports: [RouterLink, NgIcon, HlmButtonImports, GiftEntry, Debrief],
+  imports: [RouterLink, NgIcon, HlmButtonImports, GiftEntry, Debrief, GroundedUpdate],
   template: `
     @let d = donor();
     @if (!d) {
@@ -97,6 +98,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
             </section>
 
             <app-gift-entry [donorId]="d.id" />
+            <app-grounded-update [donorId]="d.id" />
 
             <section class="section" aria-labelledby="tl-h">
               <div class="section-head">
