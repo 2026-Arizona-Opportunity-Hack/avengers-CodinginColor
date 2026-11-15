@@ -437,3 +437,7 @@ visible only to that owner and admins.
 Each visible donor also has a historical gift form with explicit currency, refund,
 status, campaign and date. Failed saves retain the same request identity for retry;
 confirmed gifts update that currency in the timeline.
+
+Live admin Team settings list actual membership roles and activity, add existing
+verified Clerk users and save audited access changes. Reassign a board member's
+active donor portfolio before deactivation.

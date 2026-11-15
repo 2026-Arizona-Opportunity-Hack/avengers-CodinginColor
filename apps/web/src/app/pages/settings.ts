@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { toast } from '@spartan-ng/brain/sonner';
+import { MemberSettings } from './member-settings';
 import { Store } from '../core/store';
 import { date } from '../core/format';
 import { CustomField } from '../core/models';
@@ -28,9 +29,10 @@ const ACCESS: Array<[string, string, string]> = [
 
 @Component({
   selector: 'app-settings',
-  imports: [NgIcon, HlmButtonImports],
+  imports: [NgIcon, HlmButtonImports, MemberSettings],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if(store.live()){<app-member-settings />}@else{
     <div class="page">
       <header class="page-head">
         <div>
@@ -140,6 +142,7 @@ const ACCESS: Array<[string, string, string]> = [
         </section>
       </div>
     </div>
+    }
   `,
   styles: `
     .settings { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
