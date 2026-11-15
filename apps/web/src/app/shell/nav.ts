@@ -20,7 +20,7 @@ export const NAV: NavGroup[] = [
   ] },
   { label: 'Insights', items: [
     { path: '/retention', label: 'Retention', icon: 'lucideRepeat', live: true },
-    { path: '/funders', label: 'Funder reports', icon: 'lucideFileText', admin: true },
+    { path: '/funders', label: 'Funder reports', icon: 'lucideFileText', admin: true, live: true },
   ] },
   { label: 'Data', items: [
     { path: '/import', label: 'Import', icon: 'lucideUpload', admin: true, live: true },
