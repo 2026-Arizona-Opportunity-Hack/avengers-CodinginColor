@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import { DonorWriteSchema, GiftWriteSchema, IdSchema } from '../packages/contracts/index.ts';
+import { DonorSchema, DonorWriteSchema, GiftSchema, GiftWriteSchema, IdSchema } from '../packages/contracts/index.ts';
 import { planDonorMatches, planGiftChanges } from './import-reconcile.ts';
 
 type Kind = 'donor' | 'gift';
 type Row = { row: number; action: string; reason: string; existingIds: string[]; matchingRows: number[] };
 export type ReviewPlan = { status: 'needs_review'; org_id: string; batch_id: string; file_sha256: string; plan_hash: string;
-  donors: { drafts: unknown[]; rows: Row[] }; gifts: { drafts: unknown[]; rows: Row[] } };
+  donors: { drafts: unknown[]; rows: Row[]; reviewed: unknown[] }; gifts: { drafts: unknown[]; rows: Row[]; reviewed: unknown[] } };
 export type Operation = { kind: Kind; row: number; op: 'create' | 'link' | 'insert' | 'correct';
   reviewer_id: string | null; draft?: unknown; donor_id?: string; gift_id?: string };
 
@@ -47,15 +47,25 @@ export function checkFileReplay(orgId: string, fingerprint: string, prior: unkno
   return open.length ? { action: 'resume', batch_id: open[0].batch_id } : { action: 'new' };
 }
 
+// Only stored records a row references were reviewed, so unrelated records must not change the hash.
+const referenced = <T extends { id: string }>(records: T[], rows: Row[]) => {
+  const ids = new Set(rows.flatMap(row => row.existingIds));
+  return records.filter(record => ids.has(record.id)).sort((a, b) => a.id < b.id ? -1 : 1);
+};
+
 export function createReviewPlan(input: Record<string, unknown>): ReviewPlan {
   const value = PlanInputSchema.parse(input);
   for (const gift of value.gifts) {
     const batch = (gift as { source_row?: { batch_id?: unknown } } | null)?.source_row?.batch_id;
     if (batch !== undefined && batch !== value.batch_id) throw new Error('Gift provenance must belong to the reviewed batch');
   }
+  const donorRows = planDonorMatches(value.org_id, value.donors, value.existing_donors).rows;
+  const giftRows = planGiftChanges(value.org_id, value.gifts, value.existing_gifts).rows;
   const body = { org_id: value.org_id, batch_id: value.batch_id, file_sha256: value.file_sha256,
-    donors: { drafts: value.donors, rows: planDonorMatches(value.org_id, value.donors, value.existing_donors).rows },
-    gifts: { drafts: value.gifts, rows: planGiftChanges(value.org_id, value.gifts, value.existing_gifts).rows } };
+    donors: { drafts: value.donors, rows: donorRows,
+      reviewed: referenced(z.array(DonorSchema).parse(value.existing_donors), donorRows) },
+    gifts: { drafts: value.gifts, rows: giftRows,
+      reviewed: referenced(z.array(GiftSchema).parse(value.existing_gifts), giftRows) } };
   return { status: 'needs_review', ...body, plan_hash: hashPlan(body) };
 }
 

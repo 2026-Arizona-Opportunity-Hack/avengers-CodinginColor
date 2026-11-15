@@ -144,6 +144,58 @@ test('changed transactions require an explicit correction of the matched gift', 
   ]);
 });
 
+// A human approves the stored records too, so their facts belong in the plan hash.
+const donorReview = { ...donor, email: null };
+const changedGift = { ...gift, refund_cents: 400 };
+const reviewed = plan({ donors: [donorReview], gifts: [changedGift], existing_donors: [storedDonor],
+  existing_gifts: [storedGift] });
+const reviewedDecisions = [decide(reviewed, 'donor', 0, 'link', { donor_id: donorId }),
+  decide(reviewed, 'gift', 0, 'correct', { gift_id: giftId })];
+const rebuilt = (overrides: Record<string, unknown>) => plan({ donors: [donorReview], gifts: [changedGift],
+  existing_donors: [storedDonor], existing_gifts: [storedGift], ...overrides });
+
+test('changed transaction rows bind the reviewed stored gift facts', () => {
+  for (const change of [{ amount_cents: 1200 }, { refund_cents: 200 }, { status: 'pending' }]) {
+    const fresh = rebuilt({ existing_gifts: [{ ...storedGift, ...change }] });
+    assert.equal(fresh.gifts.rows[0].reason, 'changed_transaction');
+    assert.notEqual(fresh.plan_hash, reviewed.plan_hash, JSON.stringify(change));
+    // The saved correction described the older financial history.
+    assert.throws(() => resolveReview(fresh, reviewedDecisions), /different review plan/);
+  }
+});
+
+test('donor review rows bind the reviewed stored donor facts', () => {
+  for (const change of [{ name: 'Avery Jones' }, { email: 'avery.jones@example.com' },
+    { archived_at: '2026-11-15T00:00:00Z' }]) {
+    const fresh = rebuilt({ existing_donors: [{ ...storedDonor, ...change }] });
+    assert.equal(fresh.donors.rows[0].action, 'review');
+    assert.notEqual(fresh.plan_hash, reviewed.plan_hash, JSON.stringify(change));
+    assert.throws(() => resolveReview(fresh, reviewedDecisions), /different review plan/);
+  }
+});
+
+test('snapshot hashing ignores key order and unrelated stored records', () => {
+  const reorderedDonor = { archived_at: null, owner_id: null, org_id: org, id: donorId, metadata: donor.metadata,
+    consent: donor.consent, phone: null, email: donor.email, name: donor.name };
+  const reorderedGift = { org_id: org, id: giftId, source_row: storedGift.source_row, status: storedGift.status,
+    external_id: storedGift.external_id, source: storedGift.source, occurred_at: storedGift.occurred_at,
+    currency: storedGift.currency, refund_cents: storedGift.refund_cents, amount_cents: storedGift.amount_cents,
+    campaign_id: null, donor_id: donorId };
+  assert.equal(rebuilt({ existing_donors: [reorderedDonor], existing_gifts: [reorderedGift] }).plan_hash,
+    reviewed.plan_hash);
+  const unrelatedDonor = { id: otherDonor, org_id: org, owner_id: null, archived_at: null, name: 'Unrelated Person',
+    email: 'unrelated@example.com', phone: null, consent: 'granted', metadata: {} };
+  const unrelatedGift = { ...storedGift, id: '550e8400-e29b-41d4-a716-446655440007', external_id: 'gift-999',
+    amount_cents: 7777 };
+  assert.equal(rebuilt({ existing_donors: [storedDonor, unrelatedDonor],
+    existing_gifts: [storedGift, unrelatedGift] }).plan_hash, reviewed.plan_hash);
+});
+
+test('an unchanged snapshot keeps previously approved decisions ready', () => {
+  assert.equal(resolveReview(reviewed, reviewedDecisions).status, 'ready');
+  assert.equal(resolveReview(rebuilt({}), reviewedDecisions).status, 'ready');
+});
+
 test('conflicting rows for one transaction identity cannot both be written', () => {
   const p = plan({ gifts: [gift, { ...gift, amount_cents: 2000, source_row: { batch_id: batch, row_key: '3' } }] });
   assert.ok(p.gifts.rows.every(row => row.reason === 'conflicting_batch_transaction'));
