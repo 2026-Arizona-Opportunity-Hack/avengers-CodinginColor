@@ -47,6 +47,7 @@ import { Store } from '../core/store';
             @case ('error') {
               <p class="mt-3 text-sm" role="alert">{{ api.error() }}</p>
               <button hlmBtn class="mt-5" (click)="retry()"><ng-icon name="lucideRefreshCw" size="16" /> Try again</button>
+              @if (api.canRetry()) { <button hlmBtn variant="outline" class="mt-3" type="button" (click)="api.manageSecurity()">Manage sign-in security</button> }
             }
             @default {
               <p class="text-muted-foreground mt-1 text-sm" role="status">Connecting to your workspace…</p>
