@@ -1,0 +1,65 @@
+name: Application checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: cic_native_deadbeef
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - name: Test API, contracts, migrations and concurrent imports
+        run: node --test --test-concurrency=2 apps/api/*.test.ts tests/*.test.ts packages/contracts/*.test.ts packages/imports/*.test.ts packages/outreach/*.test.ts packages/reporting/*.test.ts
+        env:
+          CIC_NATIVE_TEST_URL: postgresql://postgres@127.0.0.1:5432/cic_native_deadbeef
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.15.0
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/web/package-lock.json
+      - run: npm ci
+      - run: npm ci --prefix apps/web
+      - run: npm run test --prefix apps/web -- --watch=false
+      - run: npm run build --prefix apps/web
