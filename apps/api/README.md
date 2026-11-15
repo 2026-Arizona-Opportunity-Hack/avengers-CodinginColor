@@ -76,4 +76,11 @@ explicit batch financial metadata and optional paired date-format/UTC-offset.
 returns bounded pages. `POST /:batchId/abandon` irreversibly purges staged bytes
 and layout. All routes are under `/api/v1/imports`, enforced by membership and
 database RLS; foreign batches are404. Stage/layout/abandon are audited atomically.
-Review and commit endpoints follow in a separate slice; staging is not a saved import.
+Review uses two phases: `POST /:id/donors/plan`, then `/donors/review` with
+`{plan_hash,decisions}`; after donors are ready, `/gifts/plan`, then `/gifts/review`
+with `{donor_plan_hash,plan_hash,decisions}`. Decisions contain kind, row, action
+and the applicable donor/gift ID only. The server binds reviewer identity and
+rebuilds from fresh scoped facts. Stale plans return409 with a fresh hash; layout
+changes invalidate both phases. `GET /:id/plan/rows?kind=donor|gift` returns bounded
+review rows and authorized candidates. Review never writes donors/gifts. Commit
+follows separately; a ready plan is not a saved import.

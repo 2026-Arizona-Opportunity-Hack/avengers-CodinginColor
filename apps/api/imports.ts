@@ -7,6 +7,7 @@ import { withMember,type Database,type Client,type Member } from './db.ts';
 import { HttpError,type Env } from './env.ts';
 import type { Identity } from './auth.ts';
 import { batchOf,countsOf,draftsOf,fail,ImportError,parse,staged,summary,type Batch } from './import-batches.ts';
+import {registerImportReview} from './import-plans.ts';
 const Source=z.enum(['spreadsheet','zeffy','benevity','az_gives','united_way']);
 const Page=z.strictObject({kind:z.enum(['preview','donor','gift']).default('preview'),
   offset:z.coerce.number().int().nonnegative().default(0),limit:z.coerce.number().int().min(1).max(200).default(100)});
@@ -70,8 +71,10 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
     await c.query("INSERT INTO audit_events(org_id,actor_id,action,target_id,status) VALUES($1,$2,'import.abandon',$3,'success')",[env.CIC_ORG_ID,m.id,b.id]);
     return {batch_id:b.id,status:'abandoned'};
   })));
+  registerImportReview(router,admin,env.CIC_ORG_ID);
   const errors:ErrorRequestHandler=(e,_req,res,next)=>{
-    if(e instanceof HttpError) {res.status(e.status).json({error:e instanceof ImportError?e.code:e.status===401?'unauthenticated':'forbidden_role'});return;}
+    if(e instanceof HttpError) {res.status(e.status).json({error:e instanceof ImportError?e.code:e.status===401?'unauthenticated':'forbidden_role',
+      ...('current_plan_hash' in e?{current_plan_hash:e.current_plan_hash}:{})});return;}
     if(e?.type==='entity.too.large'||e?.type==='entity.parse.failed') {res.status(e.type==='entity.too.large'?413:400).json({error:e.type==='entity.too.large'?'payload_too_large':'invalid_decision'});return;}
     next(e);
   };
