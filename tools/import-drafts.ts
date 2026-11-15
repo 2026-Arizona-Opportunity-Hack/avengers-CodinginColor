@@ -19,7 +19,8 @@ type Drafts = { status: 'needs_review'; donors: DonorWrite[]; gifts: GiftDraft[]
   unresolved: { field: string; code: string }[] };
 
 export function buildImportDrafts(preview: ReturnType<typeof previewCsv>,
-  { batch_id, values = {} }: { batch_id: string; values?: Record<string, unknown> }): Drafts {
+  { batch_id, values = {}, aliases }: { batch_id: string; values?: Record<string, unknown>;
+    aliases?: { campaign: Record<string, string | null>; contact_person: Record<string, string | null> } }): Drafts {
   if (preview.status !== 'needs_review') throw new Error('Preview must need review');
   IdSchema.parse(batch_id);
   if (!values || typeof values !== 'object' || Array.isArray(values)) throw new Error('Batch values must be an object');
@@ -41,11 +42,17 @@ export function buildImportDrafts(preview: ReturnType<typeof previewCsv>,
     const found = codes.get(row.recordNumber);
     if (found) { excluded.push({ recordNumber: row.recordNumber, codes: [...found].sort() }); continue; }
     const v = row.values;
+    if (aliases) {
+      const missing = (['campaign', 'contact_person'] as const).filter(field => v[field] && !Object.hasOwn(aliases[field], String(v[field])));
+      if (missing.length) { excluded.push({ recordNumber: row.recordNumber, codes: missing.map(f => `unresolved_${f}_alias`) }); continue; }
+    }
     const email = (v.email as string | null) ?? null;
     const company = (v.company as string | null) ?? null;
     const donor: DonorWrite = { name: [v.first_name, v.last_name].filter(Boolean).join(' ') || company || '',
       email, phone: (v.phone as string | null) ?? null, consent: 'unknown',
-      metadata: company ? { company } : {} };
+      metadata: { ...(company ? { company } : {}),
+        ...(aliases && v.contact_person ? { import_contact_person: String(v.contact_person),
+          import_owner_id: aliases.contact_person[String(v.contact_person)] ?? null } : {}) } };
     // Only a corroborated email makes two identical drafts the same donor.
     const key = email === null ? null : JSON.stringify(donor);
     const known = key === null ? undefined : donorRows.get(key);
@@ -56,7 +63,7 @@ export function buildImportDrafts(preview: ReturnType<typeof previewCsv>,
       const value = v[field] ?? values[field];
       if (value !== undefined) Object.assign(facts, { [field]: value });
     }
-    gifts.push({ donor_row: donorRow, campaign_id: null, amount_cents: v.amount_cents as number, ...facts,
+    gifts.push({ donor_row: donorRow, campaign_id: aliases && v.campaign ? aliases.campaign[String(v.campaign)] ?? null : null, amount_cents: v.amount_cents as number, ...facts,
       source: preview.source, external_id: (v.external_id as string | null) ?? null,
       source_row: { batch_id, row_key: String(row.recordNumber) } });
     rows.push({ recordNumber: row.recordNumber, donor_row: donorRow, gift_row: gifts.length - 1 });
