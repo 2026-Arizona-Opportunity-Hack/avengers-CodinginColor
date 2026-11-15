@@ -15,6 +15,7 @@ export interface ImportResult {
   counts?: { donors_created: number; donors_linked: number; gifts_inserted: number; gifts_corrected: number; skipped: number };
 }
 export interface ImportLayout {
+  aliases?: { campaign: Record<string, string | null>; contact_person: Record<string, string | null> };
   mapping: Record<string, string | null>; skip_records: number[];
   batch_values: { currency?: string; occurred_at?: string; status?: string; refund_cents?: number };
   date_format?: string; utc_offset?: string;
@@ -54,6 +55,9 @@ export class LiveImports {
   }
 
   details(batch: string): Promise<ImportResult> { return this.request(path(batch)); }
+  aliases(batch: string): Promise<{ campaigns: { id: string; title: string }[]; owners: { id: string }[] }> {
+    return this.request(`${path(batch)}/aliases`);
+  }
 
   suggest(batch: string, header: string): Promise<{ suggestion: ImportSuggestion | null }> {
     return this.request(`${path(batch)}/suggestion`, post({ header }));

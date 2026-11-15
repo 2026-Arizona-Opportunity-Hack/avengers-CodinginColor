@@ -81,6 +81,11 @@ demo data in the browser.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
+Campaign and contact-person values require explicit alias choices in live import review. Choose
+a stored campaign or leave the gift unattributed; choose an active board member for new donors
+or automatic assignment. Linked existing donors retain their owner. Unresolved aliases remain
+excluded for explicit review, and stale/foreign alias IDs are rejected before persistence.
+
 Unmapped headers can request optional Jev suggestions. Only the selected header leaves the server;
 the reviewer must explicitly accept a suggestion and apply the mapping. Without a configured key
 or when the provider is unavailable, deterministic aliases and manual mapping continue to work.

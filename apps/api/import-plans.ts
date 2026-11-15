@@ -3,7 +3,8 @@ import {z} from 'zod';
 import {DonorSchema,GiftSchema,IdSchema} from '../../packages/contracts/index.ts';
 import {createReviewPlan,resolveReview,type ReviewPlan} from '../../tools/import-review.ts';
 import type {Client,Member} from './db.ts';
-import {batchOf,draftsOf,fail,ImportError,parse,type Batch} from './import-batches.ts';
+import {batchOf,draftsOf,fail,ImportError,Layout,parse,type Batch} from './import-batches.ts';
+import {validateAliases} from './import-aliases.ts';
 export type ImportAccess=<T>(h:string|undefined,action:(c:Client,m:Member)=>Promise<T>)=>Promise<T>;
 const Hash=z.string().regex(/^sha256:[0-9a-f]{64}$/);
 const Decision=z.discriminatedUnion('kind',[
@@ -25,6 +26,7 @@ export async function snapshot(c:Client,org:string,lock=false) {
   return {existing_donors:donors,existing_gifts:gifts};
 }
 export async function plans(c:Client,b:Batch,org:string,lock=false) {
+  await validateAliases(c,org,parse(Layout,b.layout??{}).aliases);
   const {drafts}=draftsOf(b),stored=await snapshot(c,org,lock);
   const base={...stored,org_id:org,batch_id:b.id,file_sha256:b.file_sha256};
   const donor=createReviewPlan({...base,donors:drafts.donors,gifts:[]});

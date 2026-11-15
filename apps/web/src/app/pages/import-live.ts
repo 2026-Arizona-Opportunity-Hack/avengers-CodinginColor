@@ -49,6 +49,19 @@ import { IMPORT_FIELDS, LiveImports, importTotals, type ImportDecision, type Imp
               }
               </div>
             }</div>
+            <section class="stack"><h3>Review campaign and contact-person aliases</h3>
+              <p>Owners apply to newly created donors. Existing linked donors keep their owner. Choose an explicit fallback for unmatched values.</p>
+              <button type="button" class="btn" (click)="loadAliases()">Load campaign and owner choices</button>
+              @for (field of aliasFields; track field) { @for (value of aliasValues(field); track value) {
+                <label class="field">{{ field === 'campaign' ? 'Campaign' : 'Contact person' }}: {{ value }}
+                  <select class="input" [value]="aliasChoice(field, value)" (change)="chooseAlias(field, value, $any($event.target).value)">
+                    <option value="">Needs review</option><option value="__none">{{ field === 'campaign' ? 'Leave gift unattributed' : 'Use automatic assignment for new donors' }}</option>
+                    @if (field === 'campaign') { @for (c of aliasCatalog().campaigns; track c.id) { <option [value]="c.id">{{ c.title }}</option> } }
+                    @else { @for (o of aliasCatalog().owners; track o.id) { <option [value]="o.id">Board member {{ o.id }}</option> } }
+                  </select>
+                </label>
+              } }
+            </section>
             <div class="fields">
               @if (!mapped('currency')) { <label class="field">Currency for missing values<input class="input" name="currency" maxlength="3" placeholder="USD" [value]="layout().batch_values.currency ?? ''" /></label> }
               @if (!mapped('occurred_at')) { <label class="field">Gift timestamp with timezone, only if missing<input class="input" name="occurred_at" placeholder="2026-11-01T12:00:00-07:00" [value]="layout().batch_values.occurred_at ?? ''" /></label> }
@@ -124,6 +137,9 @@ export class LiveImportPage {
   protected readonly layout = signal<ImportLayout>({ mapping: {}, skip_records: [], batch_values: {} });
   protected readonly mapping = signal<Record<string, string | null>>({});
   protected readonly suggestions = signal<Record<string, ImportSuggestion>>({});
+  protected readonly aliasFields = ['campaign', 'contact_person'] as const;
+  protected readonly aliasCatalog = signal<{ campaigns: { id: string; title: string }[]; owners: { id: string }[] }>({ campaigns: [], owners: [] });
+  protected readonly aliases = signal<NonNullable<ImportLayout['aliases']>>({ campaign: {}, contact_person: {} });
   protected readonly filename = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -149,6 +165,7 @@ export class LiveImportPage {
 
   protected clear() {
     this.suggestions.set({});
+    this.aliases.set({ campaign: {}, contact_person: {} }); this.aliasCatalog.set({ campaigns: [], owners: [] });
     this.batch.set(null); this.preview.set(null); this.previewRows.set([]); this.rows.set([]); this.plan.set(null);
     this.layout.set({ mapping: {}, skip_records: [], batch_values: {} }); this.mapping.set({}); this.choices.set({});
     this.filename.set(''); this.phase.set('mapping'); this.applied.set(false); this.skipInvalid.set(false); this.page.set(0); this.error.set(null);
@@ -179,6 +196,7 @@ export class LiveImportPage {
       return { batch, rows };
     }, ({ batch, rows }) => {
       this.batch.set(batch); this.filename.set(file.name); this.preview.set(batch.preview ?? null); this.previewRows.set(rows);
+      this.aliases.set(batch.layout?.aliases ?? { campaign: {}, contact_person: {} });
       if (batch.layout) { this.layout.set({ ...batch.layout, mapping: batch.layout.mapping ?? {},
         batch_values: batch.layout.batch_values ?? {}, skip_records: batch.layout.skip_records ?? [] }); this.mapping.set(batch.layout.mapping ?? {}); }
       this.skipInvalid.set(rows.some(r => r.issues.length) && rows.filter(r => r.issues.length).every(r => batch.layout?.skip_records?.includes(r.recordNumber)));
@@ -190,6 +208,19 @@ export class LiveImportPage {
       if (result.suggestion) this.suggestions.update(s => ({ ...s, [header]: result.suggestion! }));
       else this.error.set('Suggestions are unavailable. Choose a mapping manually.');
     });
+  }
+
+  protected loadAliases() { return this.run(() => this.client.aliases(this.batch()!.batch_id), c => this.aliasCatalog.set(c)); }
+  protected aliasValues(field: 'campaign' | 'contact_person') {
+    const index = this.preview()?.headers.findIndex((h, i) => (Object.hasOwn(this.mapping(), h) ? this.mapping()[h] : this.preview()?.mapping[i]) === field) ?? -1;
+    return index < 0 ? [] : [...new Set(this.previewRows().map(r => r.raw[index]?.trim()).filter((v): v is string => !!v))];
+  }
+  protected aliasChoice(field: 'campaign' | 'contact_person', value: string) {
+    const choices = this.aliases()[field]; return Object.hasOwn(choices, value) ? choices[value] ?? '__none' : '';
+  }
+  protected chooseAlias(field: 'campaign' | 'contact_person', value: string, id: string) {
+    const choices = { ...this.aliases()[field] }; if (id) choices[value] = id === '__none' ? null : id; else delete choices[value];
+    this.aliases.update(a => ({ ...a, [field]: choices })); this.applied.set(false); this.skipInvalid.set(false);
   }
 
   protected map(header: string, value: string) {
@@ -218,7 +249,7 @@ export class LiveImportPage {
       }
       for (const field of ['currency', 'occurred_at'] as const) if (String(form.get(field) ?? '').trim()) batch_values[field] = String(form.get(field)).trim();
       const date_format = String(form.get('date_format') ?? '');
-      const layout: ImportLayout = { mapping: this.mapping(), batch_values,
+      const layout: ImportLayout = { mapping: this.mapping(), batch_values, aliases: this.aliases(),
         skip_records: this.skipInvalid() ? this.invalidRows().map(r => r.recordNumber) : [],
         ...(date_format ? { date_format, utc_offset: String(form.get('utc_offset')) } : {}) };
       const result = await this.client.layout(this.batch()!.batch_id, layout);

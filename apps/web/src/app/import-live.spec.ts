@@ -42,6 +42,8 @@ function setup() {
     error: WritableSignal<string | null>; previewRows: WritableSignal<unknown[]>;
     preview: WritableSignal<ImportPreview | null>; mapping: WritableSignal<Record<string, string | null>>;
     suggest(header: string): Promise<void>;
+    aliases: WritableSignal<{ campaign: Record<string, string | null>; contact_person: Record<string, string | null> }>;
+    chooseAlias(field: 'campaign' | 'contact_person', value: string, id: string): void;
   };
   const get = FormData.prototype.get;
   vi.spyOn(FormData.prototype, 'get').mockImplementation(function (this: FormData, name: string) {
@@ -144,4 +146,16 @@ it('retains manually mapped decimal refunds instead of requesting conflicting ba
   const body = JSON.parse(String(api.request.mock.calls.find(([path]) => path.endsWith('/layout'))![1]?.body));
   expect(body.mapping).toEqual({ Return: 'refund_decimal' });
   expect(body.batch_values).toEqual({ status: 'settled' });
+});
+
+it('requires explicit alias choices and sends reviewed fallbacks with the mapping', async () => {
+  const { api, fixture, page, upload } = setup(); await upload();
+  page.chooseAlias('campaign', 'Spring', '__none'); page.chooseAlias('contact_person', 'Pat', 'owner-id');
+  fixture.detectChanges(); const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+  (form.elements.namedItem('status') as HTMLInputElement).value = 'settled';
+  (form.elements.namedItem('refund_cents') as HTMLInputElement).value = '0';
+  await page.applyLayout(eventFor(form));
+  const body = JSON.parse(String(api.request.mock.calls.find(([path]) => path.endsWith('/layout'))![1]?.body));
+  expect(body.aliases).toEqual({ campaign: { Spring: null }, contact_person: { Pat: 'owner-id' } });
+  page.clear(); expect(page.aliases()).toEqual({ campaign: {}, contact_person: {} });
 });
