@@ -6,6 +6,7 @@ import { ImportRow, Store } from '../core/store';
 import { ColumnGuess, TARGETS, Target, classifyColumns, parseCsv } from '../core/csv';
 import { money, today } from '../core/format';
 import { Donor, SOURCE_LABEL, Source } from '../core/models';
+import { LiveImportPage } from './import-live';
 
 const STEPS = ['Upload', 'Map columns', 'Check rows', 'Resolve duplicates', 'Confirm'] as const;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -36,8 +37,9 @@ interface Match { row: Checked; donor: Donor; reason: string; }
 
 @Component({
   selector: 'app-import',
-  imports: [RouterLink, NgIcon],
+  imports: [RouterLink, NgIcon, LiveImportPage],
   template: `
+    @if (store.live()) { <app-live-import /> } @else {
     <div class="page">
       <header class="page-head">
         <div>
@@ -249,6 +251,7 @@ interface Match { row: Checked; donor: Donor; reason: string; }
       </section>
       </div>
     </div>
+    }
   `,
   styles: `
     .wizard { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }

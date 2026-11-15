@@ -60,9 +60,14 @@ Read API; raw keys are shown once and kept out of browser storage. Follow-ups
 supports server-backed task creation/completion, quarterly task planning (admin),
 draft editing and approval, consent-checked email/SMS compose, and confirmed manual
 send logging with scoped history. Quarterly touches require a logged contact.
+Import now uploads original CSV/XLSX bytes and walks through server mapping,
+explicit financial facts, invalid-record acknowledgments, donor/gift decisions,
+per-currency reconciliation and atomic commit. Re-uploading the same file returns
+the saved result. Review state stays in memory and clears on session changes;
+abandoning a staged batch purges it on the server. XLSX API support requires #105.
 Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
-server routes have not landed (overview, donations, add donor, import,
+server routes have not landed (overview, donations, add donor,
 funder reports, settings) are hidden. Any other write shows "not
 connected yet" instead of pretending to save. Other owners appear as a short member
 ID until the API has a member directory route.
