@@ -84,7 +84,7 @@ already sets the install and build steps:
 | Framework | Detected as Express from `src/index.ts`, which default-exports the app (no `listen`) |
 | Node.js version | 24.x (Angular's build needs 24.15 or newer) |
 | Install | `npm ci && npm ci --prefix apps/web` |
-| Build | builds `apps/web` and copies `apps/web/dist/web/browser` into `public/` |
+| Build | builds `apps/web`, then `node deploy/vercel-build.ts` copies it into `public/` and writes `config.json` (same-origin API plus the Clerk publishable key) |
 | Routing | static files from `public/`; page routes rewrite to `index.html`; `/api/*` and `/healthz` reach the API |
 
 Check these on the **first deploy**; none have been verified on Vercel yet:
@@ -106,6 +106,8 @@ to start, logging only the variable *names*, if any is missing or invalid):
 | `CLERK_SECRET_KEY` | `sk_test_…` / `sk_live_…` | yes |
 | `CLERK_JWT_ISSUER` | `https://<name>.clerk.accounts.dev` | no |
 | `APP_ORIGIN` | the production URL, exact origin, e.g. `https://<project>.vercel.app` | no |
+| `CLERK_PUBLISHABLE_KEY` | `pk_test_…` / `pk_live_…`, written into the web app's `config.json` at build time; **the build fails without it** | no (public) |
+| `CIC_WEB_DEMO_MODE` | optional: `1` deliberately ships the web app on demo data (no `config.json`) | no |
 
 **Never** set `MIGRATION_DATABASE_URL` on the web service. It's only used from a
 person's machine for migrations, provisioning and seeding.
