@@ -2,7 +2,6 @@ import express,{type ErrorRequestHandler} from 'express';
 import { z } from 'zod';
 import { fingerprintFile } from '../../tools/import-review.ts';
 import { parseCsv } from '../../tools/import-preview.ts';
-import { IdSchema } from '../../packages/contracts/index.ts';
 import { withMember,type Database,type Client,type Member } from './db.ts';
 import { HttpError,type Env } from './env.ts';
 import type { Identity } from './auth.ts';
@@ -46,9 +45,9 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
     res.status(result.created?201:200).json(result.body);
   });
   router.get('/:id',async(req,res)=>res.json(await admin(req.get('Authorization'),async c=>
-    summary(await batchOf(c,parse(IdSchema,req.params.id),env.CIC_ORG_ID)))));
+    summary(await batchOf(c,req.params.id,env.CIC_ORG_ID)))));
   router.post('/:id/layout',async(req,res)=>res.json(await admin(req.get('Authorization'),async(c,m)=>{
-    const b=await batchOf(c,parse(IdSchema,req.params.id),env.CIC_ORG_ID);
+    const b=await batchOf(c,req.params.id,env.CIC_ORG_ID);
     draftsOf(b,req.body);
     const updated=await c.query(`UPDATE import_batches SET layout=$2,donor_decisions='[]',gift_decisions='[]',
       donor_plan_hash=NULL,gift_plan_hash=NULL,reviewer_id=NULL WHERE id=$1 RETURNING *`,[b.id,JSON.stringify(req.body)]);
@@ -56,7 +55,7 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
     return {...summary(b),preview:countsOf(updated.rows[0] as unknown as Batch)};
   })));
   router.get('/:id/rows',async(req,res)=>res.json(await admin(req.get('Authorization'),async c=>{
-    const b=await batchOf(c,parse(IdSchema,req.params.id),env.CIC_ORG_ID),q=parse(Page,req.query);
+    const b=await batchOf(c,req.params.id,env.CIC_ORG_ID),q=parse(Page,req.query);
     const {preview,drafts}=draftsOf(b);
     const rows=q.kind==='preview'?preview.rows.map(r=>({...r,issues:preview.issues.filter(i=>i.recordNumber===r.recordNumber)}))
       :q.kind==='donor'?drafts.donors:drafts.gifts;
@@ -68,7 +67,7 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
     return {items,total:rows.length,offset:q.offset,next_offset:q.offset+items.length};
   })));
   router.post('/:id/abandon',async(req,res)=>res.json(await admin(req.get('Authorization'),async(c,m)=>{
-    const b=await batchOf(c,parse(IdSchema,req.params.id),env.CIC_ORG_ID); staged(b);
+    const b=await batchOf(c,req.params.id,env.CIC_ORG_ID); staged(b);
     await c.query("UPDATE import_batches SET status='abandoned',raw_csv=NULL,layout=NULL,donor_decisions=NULL,gift_decisions=NULL WHERE id=$1",[b.id]);
     await c.query("INSERT INTO audit_events(org_id,actor_id,action,target_id,status) VALUES($1,$2,'import.abandon',$3,'success')",[env.CIC_ORG_ID,m.id,b.id]);
     return {batch_id:b.id,status:'abandoned'};

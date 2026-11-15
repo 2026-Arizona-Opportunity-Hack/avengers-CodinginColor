@@ -1,0 +1,7 @@
+{
+  "componentsPath": "src/ui",
+  "buildable": false,
+  "generateAs": "entrypoint",
+  "importAlias": "@spartan-ng/helm",
+  "style": "luma"
+}
