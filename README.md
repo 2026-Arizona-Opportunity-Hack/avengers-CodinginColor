@@ -56,25 +56,28 @@ follow-ups live in people's heads. **Cadence** gives the CEO and the board one p
 donor and gift, know who owns each relationship, and keep the next touch from slipping. It also
 produces the funder report CIC needs, without re-keying anything.
 
-What works on `main` today:
+What's built on `main` (API, database and rules):
 - **Import:** CSV exports are uploaded privately, mapped and validated. Dates are confirmed, never
   guessed, and cents are exact. An admin reviews each import before an atomic commit, and
   re-importing the same file adds no duplicate gifts (`apps/api/imports.ts`). XLSX workbooks can
-  be previewed with a bounded local tool (`tools/import-xlsx.ts`); XLSX upload through the API is #94.
+  be previewed with a bounded local tool (`tools/import-xlsx.ts`); XLSX upload through the API is in progress (#94).
 - **Donors and gifts:** one record per donor with an owner, a gift ledger with audited corrections,
   and admin reassignment that moves open follow-ups along with the donor.
 - **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
   donor. Messages are drafted from templates and need human approval, then go out from the
   person's own email or phone and are logged once. Nothing is sent automatically.
-- **Reporting:** a retention breakdown (new, reactivated, increased, flat, decreased, lapsed) and an
-  admin-only funder packet CSV. Groups smaller than three donors are hidden. A read-only, hashed API
-  key exposes aggregates for CIC's dashboard.
+- **Reporting:** a retention breakdown (new, reactivated, increased, flat, decreased, lapsed), scoped
+  to each member's own donors, and an admin-only, audited funder packet CSV from the API. A
+  read-only, hashed API key gives CIC's dashboard aggregate totals, and that summary API hides any
+  group smaller than three donors.
 - **Security:** invite-only Clerk sign-in, MFA required for admins, PostgreSQL row-level security
   (board members see only their own donors), and audit events for changes, sends and exports.
 
-Still in progress: connecting the web screens for live import (#19) and Follow-ups and API keys
-(#48) to the API. Until a full-stack deploy is live (#30), the hosted app runs on synthetic demo
-data.
+The backend above is built and tested. Still in progress is connecting the web screens to it: the
+live import screen (#106), XLSX upload through the API (#94), Follow-ups and API keys (#48), and
+the Funder reports screen, which still builds its CSV in the browser instead of downloading the
+server's audited export. Until a full-stack deploy is live (#30), the hosted app runs on synthetic
+demo data in the browser.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
