@@ -49,10 +49,25 @@ export function ytdWindows(asOf: string, offset: string): RetentionWindows {
   };
 }
 
-function instant(value: string): number {
-  const t = Date.parse(value);
-  if (Number.isNaN(t)) throw new RangeError(`Invalid timestamp: ${value}`);
-  return t;
+// Real calendar date, explicit Z or ±HH:MM offset, up to microseconds (PostgreSQL's precision).
+const STAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/;
+
+/** Exact instant in microseconds since the epoch; rejects anything Date.parse would normalize. */
+function instant(value: string): bigint {
+  const m = STAMP.exec(value);
+  const [y, mo, d, h, mi, s] = (m?.slice(1, 7) ?? []).map(Number);
+  if (!m || mo < 1 || mo > 12 || d < 1 || d > daysIn(y, mo) || h > 23 || mi > 59 || s > 59) {
+    throw new RangeError(`Invalid timestamp: ${value}`);
+  }
+  const ms = Date.parse(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}${m[8]}`);
+  return BigInt(ms) * 1000n + BigInt((m[7] ?? '').padEnd(6, '0'));
+}
+
+/** Cents addition that refuses to leave the exact integer range instead of rounding. */
+function add(a: number, b: number): number {
+  const sum = a + b;
+  if (!Number.isSafeInteger(sum)) throw new RangeError('Cents total exceeds the safe integer range');
+  return sum;
 }
 
 function checkGift(g: RetentionGift): void {
@@ -88,10 +103,10 @@ export function retentionReport(gifts: readonly RetentionGift[], windows: Retent
     if (net === 0 || t >= cTo) continue;
     const byDonor = sums.get(g.currency) ?? sums.set(g.currency, new Map()).get(g.currency)!;
     const s = byDonor.get(g.donor_id) ?? byDonor.set(g.donor_id, { prior: 0, current: 0, earlier: false }).get(g.donor_id)!;
-    if (t >= cFrom) s.current += net;
+    if (t >= cFrom) s.current = add(s.current, net);
     else {
       s.earlier = true;
-      if (t >= pFrom && t < pTo) s.prior += net;
+      if (t >= pFrom && t < pTo) s.prior = add(s.prior, net);
     }
   }
 
@@ -104,7 +119,9 @@ export function retentionReport(gifts: readonly RetentionGift[], windows: Retent
       if (!segment) continue;
       donors.push({ donor_id, segment, prior_cents: s.prior, current_cents: s.current });
       const total = segments[segment];
-      total.donors++; total.prior_cents += s.prior; total.current_cents += s.current;
+      total.donors++;
+      total.prior_cents = add(total.prior_cents, s.prior);
+      total.current_cents = add(total.current_cents, s.current);
     }
     if (donors.length === 0) continue;
     const retained = segments.increased.donors + segments.flat.donors + segments.decreased.donors;
@@ -112,8 +129,8 @@ export function retentionReport(gifts: readonly RetentionGift[], windows: Retent
       donors, segments,
       retention: { retained_donors: retained, prior_donors: retained + segments.lapsed.donors },
       totals: {
-        prior_cents: donors.reduce((n, d) => n + d.prior_cents, 0),
-        current_cents: donors.reduce((n, d) => n + d.current_cents, 0),
+        prior_cents: donors.reduce((n, d) => add(n, d.prior_cents), 0),
+        current_cents: donors.reduce((n, d) => add(n, d.current_cents), 0),
       },
     };
   }

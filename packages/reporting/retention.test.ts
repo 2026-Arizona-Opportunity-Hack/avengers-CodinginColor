@@ -111,6 +111,43 @@ test('invalid inputs are rejected instead of silently miscounted', () => {
   }));
 });
 
+test('sums that leave the safe-integer range are rejected, never rounded', () => {
+  const MAX = Number.MAX_SAFE_INTEGER;
+  // Donor sums: prior MAX+1 vs current MAX+2 used to round to equal ("flat").
+  assert.throws(() => retentionReport([
+    gift(1, '2025-03-01T12:00:00Z', MAX), gift(1, '2025-04-01T12:00:00Z', 1),
+    gift(1, '2026-03-01T12:00:00Z', MAX), gift(1, '2026-04-01T12:00:00Z', 2),
+  ], windows), /safe integer/);
+  // Segment totals: each donor is safe, the segment sum is not.
+  const half = Math.floor(MAX / 2) + 1;
+  assert.throws(() => retentionReport([
+    gift(1, '2026-03-01T12:00:00Z', half), gift(2, '2026-03-01T12:00:00Z', half),
+  ], windows), /safe integer/);
+  // Report totals: different segments, combined current total overflows.
+  assert.throws(() => retentionReport([
+    gift(1, '2026-03-01T12:00:00Z', half),
+    gift(2, '2025-03-01T12:00:00Z', 1), gift(2, '2026-03-01T12:00:00Z', half),
+  ], windows), /safe integer/);
+});
+
+test('timestamps must be real calendar instants with an explicit offset', () => {
+  for (const bad of ['2026-02-30T12:00:00Z', '2026-03-01', '2026-03-01T00:00:00',
+    '2026-03-01T24:00:00Z', '2026-03-01T12:00:00+25:00', '2026-03-01T12:00:00.1234567Z']) {
+    assert.throws(() => retentionReport([gift(1, bad, 100)], windows), /timestamp/, bad);
+    assert.throws(() => retentionReport([], {
+      current: { from: bad, to: windows.current.to }, prior: windows.prior,
+    }), /timestamp/, `window ${bad}`);
+  }
+  assert.doesNotThrow(() => retentionReport([gift(1, '2028-02-29T12:00:00-07:00', 100)], windows));
+});
+
+test('sub-millisecond precision is kept when comparing against window bounds', () => {
+  const report = retentionReport([gift(1, '2026-11-15T07:00:00.000400Z', 100)], {
+    current: { from: windows.current.from, to: '2026-11-15T07:00:00.000500Z' }, prior: windows.prior,
+  }).byCurrency.USD;
+  assert.equal(report.donors[0]?.segment, 'new');
+});
+
 test('an empty ledger yields an empty report', () => {
   assert.deepEqual(retentionReport([], windows), { byCurrency: {} });
 });

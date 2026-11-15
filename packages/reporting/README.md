@@ -26,6 +26,9 @@ year-to-date at midnight Phoenix time; on Feb 29 the prior window ends after
 Feb 28. The output contains per-donor rows, per-segment counts and cents,
 `retention: { retained_donors, prior_donors }` (the caller computes the rate),
 and totals. Invalid amounts, timestamps or windows throw instead of being miscounted.
+Timestamps must be real calendar instants with an explicit `Z` or `±HH:MM` offset and
+at most 6 fractional digits. They're compared at microsecond precision. Any donor,
+segment or report sum that would leave the safe-integer range throws instead of rounding.
 
 ```powershell
 npm ci
