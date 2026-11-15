@@ -91,3 +91,18 @@ it('requires a fresh review after a stale-plan response and can purge the staged
   await page.abandon(); expect(page.batch()).toBeNull();
   expect(api.request).toHaveBeenCalledWith('/api/v1/imports/batch/abandon', expect.objectContaining({ method: 'POST' }));
 });
+
+it('uses mapped row statuses and refunds without replacing them with batch defaults', async () => {
+  const { api, fixture, page, upload } = setup();
+  api.request.mockResolvedValueOnce(batch).mockResolvedValueOnce({ ...batch, layout: {}, preview: {
+    ...preview, headers: [...preview.headers, 'status', 'refunded amount'], mapping: [...preview.mapping, 'status', 'refund_cents'],
+  } });
+  await upload(); fixture.detectChanges();
+  const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+  expect(form.elements.namedItem('status')).toBeNull(); expect(form.elements.namedItem('refund_cents')).toBeNull();
+  (form.elements.namedItem('currency') as HTMLInputElement).value = 'USD';
+  (form.elements.namedItem('occurred_at') as HTMLInputElement).value = '2026-01-01T12:00:00Z';
+  await page.applyLayout(eventFor(form));
+  const body = JSON.parse(String(api.request.mock.calls.find(([path]) => path.endsWith('/layout'))![1]?.body));
+  expect(body.batch_values).toEqual({ currency: 'USD', occurred_at: '2026-01-01T12:00:00Z' });
+});

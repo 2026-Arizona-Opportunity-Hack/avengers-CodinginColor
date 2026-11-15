@@ -97,6 +97,33 @@ test('missing gift facts are left out, reported and never defaulted', () => {
   assert.equal(plan.gifts.rows[0].reason, 'invalid_gift');
 });
 
+test('mixed row statuses and exact refunds remain authoritative over batch facts', () => {
+  const text = 'first name,email,donation amount,refunded amount,status,currency,occurred at\n' +
+    'Avery,a@example.org,12.34,0,SETTLED,USD,2026-01-01T12:00:00Z\n' +
+    'Sam,s@example.org,15.00,2.34,settled,USD,2026-01-02T12:00:00Z\n' +
+    'Jo,j@example.org,5,5,void,USD,2026-01-03T12:00:00Z\n' +
+    'Cam,c@example.org,10,0,pending,EUR,2026-01-04T12:00:00Z';
+  const parsed = preview(text), drafts = buildImportDrafts(parsed, { batch_id: batch });
+  assert.deepEqual(drafts.unresolved, []); assert.deepEqual(drafts.excluded, []);
+  assert.deepEqual(drafts.gifts.map(g => [g.amount_cents, g.refund_cents, g.status]),
+    [[1234, 0, 'settled'], [1500, 234, 'settled'], [500, 500, 'void'], [1000, 0, 'pending']]);
+  assert.throws(() => buildImportDrafts(parsed, { batch_id: batch, values: { status: 'settled' } }), /mapped/);
+  assert.throws(() => buildImportDrafts(parsed, { batch_id: batch, values: { refund_cents: 0 } }), /mapped/);
+  const cents = previewCsv('first name,email,donation amount,Refund,State\nA,a@example.org,10,123,settled',
+    'zeffy', 'cents.csv', { Refund: 'refund_cents', State: 'status' });
+  assert.equal(cents.rows[0].values.refund_cents, 123);
+});
+
+test('unsafe or missing mapped financial values are excluded for explicit review', () => {
+  for (const [refund, status, code] of [['10.01', 'settled', 'refund_exceeds_amount'], ['-1', 'settled', 'invalid_refund'],
+    ['900719925474099.92', 'settled', 'invalid_refund'], ['', 'settled', 'missing_refund'], ['0', 'paid', 'invalid_status']]) {
+    const parsed = preview(`first name,email,donation amount,refunded amount,status\nA,a@example.org,10,${refund},${status}`);
+    const drafts = buildImportDrafts(parsed, { batch_id: batch });
+    assert.equal(drafts.gifts.length, 0);
+    assert.ok(drafts.excluded[0].codes.includes(code), `${refund}/${status}`);
+  }
+});
+
 test('rows with preview issues are excluded by record number, never silently dropped', () => {
   const p = preview(csv(
     'Avery,Smith,not-an-email,,,10,,',
