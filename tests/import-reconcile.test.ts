@@ -136,3 +136,48 @@ test('all 210 source rows can enter donor reconciliation without mutating input 
   assert.ok(result.rows.some(row => row.action === 'review'));
   assert.doesNotMatch(JSON.stringify(result), /@|555|Avery/);
 });
+
+const provenance = { batch_id: batch, row_key: '2' };
+const third = '550e8400-e29b-41d4-a716-446655440004';
+const sourced = { ...gift, source_row: provenance, id: other, org_id: org };
+
+test('source-row provenance identifies a gift even when only the stored side has an external ID', () => {
+  const replay = { ...gift, external_id: null, source_row: provenance };
+  const result = planGiftChanges(org, [replay], [sourced]);
+  assert.equal(result.rows[0].action, 'duplicate');
+  assert.deepEqual(result.rows[0].existingIds, [other]);
+});
+
+test('conflicting external IDs on one source row need review, changed facts too', () => {
+  const conflict = planGiftChanges(org, [{ ...gift, external_id: 'tx-b', source_row: provenance }], [sourced]).rows[0];
+  assert.equal(conflict.action, 'review');
+  assert.equal(conflict.reason, 'conflicting_identity');
+  assert.deepEqual(conflict.existingIds, [other]);
+  const changed = planGiftChanges(org, [{ ...gift, external_id: null, source_row: provenance, amount_cents: 500 }],
+    [sourced]).rows[0];
+  assert.equal(changed.action, 'review');
+});
+
+test('external ID and source row naming different stored gifts fail closed with both IDs', () => {
+  const byRow = { ...gift, external_id: 'tx-old', source_row: provenance, id: third, org_id: org };
+  const row = planGiftChanges(org, [{ ...gift, source_row: provenance }], [storedGift, byRow]).rows[0];
+  assert.equal(row.action, 'review');
+  assert.equal(row.reason, 'conflicting_identity');
+  assert.deepEqual([...row.existingIds].sort(), [other, third].sort());
+});
+
+test('incoming rows sharing one source row but not one identity all need review', () => {
+  const ids = planGiftChanges(org, [{ ...gift, external_id: 'tx-a', source_row: provenance },
+    { ...gift, external_id: 'tx-b', source_row: provenance }], []);
+  assert.ok(ids.rows.every(row => row.action === 'review' && row.reason === 'conflicting_batch_transaction'));
+  const facts = planGiftChanges(org, [{ ...gift, external_id: null, source_row: provenance },
+    { ...gift, external_id: null, source_row: provenance, amount_cents: 2000 }], []);
+  assert.ok(facts.rows.every(row => row.reason === 'conflicting_batch_transaction'));
+});
+
+test('ambiguous stored provenance is rejected while distinct identities still insert independently', () => {
+  assert.throws(() => planGiftChanges(org, [gift], [sourced, { ...sourced, external_id: 'gift-002', id: third }]));
+  const distinct = planGiftChanges(org, [{ ...gift, external_id: 'tx-c', source_row: { ...provenance, row_key: '3' } },
+    { ...gift, external_id: 'tx-d', source_row: { ...provenance, row_key: '4' } }], [sourced]);
+  assert.deepEqual(distinct.rows.map(row => row.action), ['insert', 'insert']);
+});
