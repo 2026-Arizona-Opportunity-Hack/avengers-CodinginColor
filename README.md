@@ -240,6 +240,13 @@ node tools/import-drafts.ts zeffy data/zeffy_export.csv \
   --currency USD --status settled --refund-cents 0 --occurred-at 2026-11-14T00:00:00-07:00
 ```
 
+Sources are `spreadsheet`, `zeffy`, `benevity`, `az_gives` and `united_way`.
+When the sheet's dates are in a known format but carry no zone, confirm both
+`--date-format MM/DD/YYYY|DD/MM/YYYY|YYYY-MM-DD` and `--utc-offset ±HH:MM`
+(within ±14:00) together; dates are then resolved, never guessed. A partial pair,
+an unsupported format, a repeated flag or an out-of-range offset is rejected
+without producing a draft plan.
+
 The CLI is a dry run: it prints plan counts only (no names, emails, phones or
 paths), runs phase one and, when that is `ready`, phase two.
 

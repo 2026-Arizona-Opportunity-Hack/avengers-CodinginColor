@@ -156,3 +156,34 @@ test('dry-run CLI argument errors never echo private input', () => {
   assert.equal(result.stdout, '');
   assert.doesNotMatch(result.stderr, /avery@example/);
 });
+
+test('drafts CLI forwards confirmed dates without guessing or losing excluded rows', () => {
+  const cli = fileURLToPath(new URL('../tools/import-drafts.ts', import.meta.url));
+  const file = fileURLToPath(new URL('../apps/web/public/samples/az_gives_export.csv', import.meta.url));
+  const run = (...flags: string[]) => spawnSync(process.execPath, [cli, 'az_gives', file,
+    '--currency', 'USD', '--status', 'settled', '--refund-cents', '0', ...flags], { encoding: 'utf8' });
+  const unconfirmed = run();
+  assert.equal(unconfirmed.status, 0, unconfirmed.stderr);
+  const before = JSON.parse(unconfirmed.stdout);
+  assert.equal(before.giftDrafts, 0);
+  assert.equal(before.excludedRows, 8);
+  assert.equal(before.excludedCodes.invalid_occurred_at, 8);
+  const confirmed = run('--date-format', 'MM/DD/YYYY', '--utc-offset', '-07:00');
+  assert.equal(confirmed.status, 0, confirmed.stderr);
+  const after = JSON.parse(confirmed.stdout);
+  assert.equal(after.rowCount, 8);
+  assert.equal(after.giftDrafts, 6);
+  assert.equal(after.excludedRows, 2);
+  assert.deepEqual(after.excludedCodes, { invalid_email: 1, invalid_amount: 1 });
+  assert.doesNotMatch(confirmed.stdout + confirmed.stderr, /@|555|Avery|Copperline/);
+  for (const flags of [
+    ['--date-format', 'MM/DD/YYYY'],
+    ['--utc-offset', '-07:00'],
+    ['--date-format', 'MM/DD/YYYY', '--utc-offset', '-15:00'],
+    ['--date-format', 'MM/DD/YYYY', '--date-format', 'DD/MM/YYYY', '--utc-offset', '-07:00'],
+  ]) {
+    const bad = run(...flags);
+    assert.equal(bad.status, 1, flags.join(' '));
+    assert.equal(bad.stdout, '');
+  }
+});

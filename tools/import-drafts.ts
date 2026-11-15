@@ -78,23 +78,36 @@ if (import.meta.main) {
   try {
     const [source, file, ...extra] = process.argv.slice(2);
     if (!source || !file || !file.toLowerCase().endsWith('.csv')) throw new Error(
-      'Usage: node tools/import-drafts.ts <spreadsheet|zeffy|benevity> <file.csv> [options]');
+      'Usage: node tools/import-drafts.ts <spreadsheet|zeffy|benevity|az_gives|united_way> ' +
+      '<file.csv> [--currency USD --status settled --refund-cents 0 ' +
+      '--occurred-at 2026-11-14T00:00:00-07:00] [--date-format MM/DD/YYYY --utc-offset ±HH:MM]');
     const flags = new Map([['--currency', 'currency'], ['--status', 'status'],
       ['--refund-cents', 'refund_cents'], ['--occurred-at', 'occurred_at']]);
     const values: Record<string, unknown> = {};
+    const dates = new Map<string, string>();
     for (let i = 0; i < extra.length; i += 2) {
-      const field = flags.get(extra[i]);
-      if (!field) throw new Error('Unknown option');
-      if (extra[i + 1] === undefined) throw new Error(`Missing value for ${extra[i]}`);
-      if (field in values) throw new Error(`Duplicate option ${extra[i]}`);
-      values[field] = extra[i + 1];
+      const option = extra[i], dateFlag = option === '--date-format' || option === '--utc-offset';
+      const field = flags.get(option);
+      if (!field && !dateFlag) throw new Error('Unknown option');
+      if (extra[i + 1] === undefined) throw new Error(`Missing value for ${option}`);
+      if (dateFlag) {
+        if (dates.has(option)) throw new Error(`Duplicate option ${option}`);
+        dates.set(option, extra[i + 1]);
+      } else {
+        if (field! in values) throw new Error(`Duplicate option ${option}`);
+        values[field!] = extra[i + 1];
+      }
     }
+    if (dates.size === 1) throw new Error('Both --date-format and --utc-offset are required together');
+    const dateOptions = dates.size ? { date_format: dates.get('--date-format')!,
+      utc_offset: dates.get('--utc-offset')! } : undefined;
     const refund = values.refund_cents as string | undefined;
     if (refund !== undefined && !/^\d+$/.test(refund)) throw new Error('Refund cents must be a nonnegative integer');
     if (refund !== undefined) values.refund_cents = Number(refund);
     const bytes = await readFile(file);
     if (bytes.length > MAX_BYTES) throw new Error('CSV exceeds 5 MiB');
-    const preview = previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes), source, basename(file));
+    const preview = previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes), source,
+      basename(file), undefined, dateOptions);
     const batch_id = randomUUID();
     const drafts = buildImportDrafts(preview, { batch_id, values });
     const base = { org_id: '00000000-0000-4000-8000-000000000000', batch_id,
