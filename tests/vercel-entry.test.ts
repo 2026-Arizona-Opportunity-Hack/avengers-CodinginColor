@@ -29,6 +29,7 @@ test('the Vercel entry default-exports a ready Express app without listening', a
     await new Promise((r) => server.once('listening', r));
     const port = server.address().port;
     const health = await fetch('http://127.0.0.1:' + port + '/healthz');
+    if (health.headers.has('x-powered-by')) throw new Error('framework header exposed');
     const me = await fetch('http://127.0.0.1:' + port + '/api/v1/me');
     console.log(JSON.stringify({ health: health.status, me: me.status }));
     // Close every socket and let the process end on its own (process.exit with open handles crashes on Windows).
