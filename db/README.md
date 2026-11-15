@@ -1,5 +1,14 @@
 # Database foundation
 
+Migration 014 contains private SQL API-limit counters, adapted from the repository's
+unapplied colliding `012_api_limits.sql`. Keep `012_member_admin.sql` unchanged and
+apply the integrated numbered sequence before 015/016/017. Do not rename a migration
+already recorded in a real `schema_migrations` ledger. The runtime can consume a
+counter but cannot inspect or write its table; PUBLIC cannot execute the function.
+Callers must hash credentials into bucket IDs, include any required org/route scope,
+use their server-controlled limits and commit counter consumption independently of
+rejected application work. This DDL does not wire or validate route-level security.
+
 Migration 017 permits read-only approved aggregate outcome access for a program
 funded by an RLS-visible positive settled gift. Board members cannot modify these
 facts or read unrelated programs. Staff draft grounding is separate from donor
