@@ -16,7 +16,9 @@ process liveness, not proof that Clerk or the database is configured or reachabl
 `GET /api/v1/me` takes `Authorization: Bearer <Clerk session token>` and returns
 only `{id, org_id, role}`. Missing/invalid sessions get 401, disallowed origins or
 memberships get 403, and dependency failures get 503 without underlying messages.
-Only exact `APP_ORIGIN` is allowed by CORS. Configure invitation-only registration
+Only exact `APP_ORIGIN` is allowed by CORS. Summary/activity preflights also allow
+`X-API-Key`; the request still requires a valid scoped read API key.
+Configure invitation-only registration
 in Clerk; require verified primary email and MFA for admins. Each request verifies
 the signed token's issuer/authorized party, checks the live session and user, and
 checks current database membership. Admin tokens must contain a verified second

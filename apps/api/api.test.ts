@@ -99,3 +99,31 @@ test('HTTP me endpoint enforces bearer authentication and exact CORS; errors dis
     assert.deepEqual(await denied.json(), { error: 'Request rejected' });
   } finally { server.closeAllConnections(); await new Promise<void>((resolve) => server.close(() => resolve())); }
 });
+
+test('read API preflight allows X-API-Key only on aggregate routes from the configured origin', async t => {
+  const db = database();
+  const server = createApp(env, db, createVerifier(env, provider)).listen(0, '127.0.0.1');
+  t.after(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  await once(server, 'listening');
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  for (const path of ['/api/v1/summary', '/api/v1/activity', '/api/v1/summary/']) {
+    const response = await fetch(base + path, { method: 'OPTIONS', headers: {
+      Origin: env.APP_ORIGIN, 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'x-api-key',
+    } });
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get('access-control-allow-origin'), env.APP_ORIGIN);
+    assert.match(response.headers.get('access-control-allow-headers') ?? '', /(?:^|,\s*)x-api-key(?:,|$)/i);
+    const denied = await fetch(base + path, { method: 'OPTIONS', headers: { Origin: 'https://attacker.example' } });
+    assert.equal(denied.status, 403);
+    assert.equal(denied.headers.get('access-control-allow-origin'), null);
+    assert.equal((await fetch(base + path, { headers: { Origin: env.APP_ORIGIN, 'X-API-Key': 'invalid' } })).status, 401);
+  }
+  for (const path of ['/api/v1/donors', '/api/v1/summary-extra', '/api/v1/summary/private', '/api/v1/imports']) {
+    const response = await fetch(base + path, { method: 'OPTIONS', headers: { Origin: env.APP_ORIGIN } });
+    assert.doesNotMatch(response.headers.get('access-control-allow-headers') ?? '', /x-api-key/i);
+    if (path.endsWith('/imports')) assert.match(response.headers.get('access-control-allow-headers') ?? '', /X-Import-Source/);
+  }
+  assert.equal(db.calls.length, 0);
+});
