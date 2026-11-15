@@ -69,7 +69,9 @@ row lock, revalidates, and audits `gift.correct` atomically; identity and
 provenance cannot be rewritten. Gifts are never hard-deleted.
 
 Import staging requires an active admin with verified MFA. `POST /api/v1/imports`
-accepts raw UTF-8 `text/csv` up to 4 MiB, with `X-Import-Source` and basename-only
+accepts raw UTF-8 `text/csv` or original `.xlsx` bytes with MIME
+`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, up to 4 MiB,
+with `X-Import-Source` and basename-only
 `X-Import-Filename`. The server computes the file hash and batch UUID; exact replay
 resumes the existing batch and changing its source label gives409. Staging writes
 no donor or gift rows. `POST /:batchId/layout` accepts reviewed column mapping,
@@ -87,7 +89,9 @@ with `{donor_plan_hash,plan_hash,decisions}`. Decisions contain kind, row, actio
 and the applicable donor/gift ID only. The server binds reviewer identity and
 rebuilds from fresh scoped facts. Stale plans return409 with a fresh hash; layout
 changes invalidate both phases. `GET /:id/plan/rows?kind=donor|gift` returns bounded
-review rows and authorized candidates. Review never writes donors/gifts. Commit
+review rows and authorized candidates. Each review request REPLACES the complete
+decision set for that phase: send all saved decisions, not only the current page.
+Review never writes donors/gifts. Commit
 is explicit: `POST /:id/commit` accepts only `{donor_plan_hash,plan_hash}`. It
 serializes imports per org, locks current donor/gift facts, rebuilds both plans,
 applies assigned donors then gifts, audits and saves the result in one transaction.
@@ -96,5 +100,15 @@ back. Identical retries/re-uploads return the saved result with `replayed:true`.
 Raw bytes, layout and decisions are purged on success. Excluded CSV records require
 explicit `layout.skip_records:[recordNumber,...]` before review; otherwise commit
 fails400. Their validation issues are available on preview row pages. No financial
-defaults or client-supplied write operations are accepted. This is CSV-only until
-the Data-owned XLSX ingestion handoff; the UI must wire these server routes.
+defaults or client-supplied write operations are accepted. XLSX uses the reviewed
+bounded parser and stages its validated cells as CSV, with the original workbook's
+fingerprint retained for replay. The normalized CSV must also fit 4 MiB. One visible
+sheet is supported; formulas, macros, unsafe archives and numeric date cells are
+rejected. Enter workbook dates as text and review their format/timezone. Invalid
+workbooks return400 `invalid_xlsx`, oversized input returns413, and wrong MIME or
+extension returns415. The UI must wire these server routes.
+
+`tests/import-native.test.ts` provides optional real-PostgreSQL concurrency proof
+using `CIC_NATIVE_TEST_URL`. It accepts only an empty disposable loopback database
+named `cic_native_<hex>` and creates synthetic test data. It checks overlapping
+commit retries and competing-file staleness; it must never target a live database.
