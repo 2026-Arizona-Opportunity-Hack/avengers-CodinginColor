@@ -102,6 +102,12 @@ CSV or print it. Gift totals stay separated by currency and attribution. Until
 approved outcomes are uploaded, reports explicitly show that outcome data is
 unavailable.
 
+Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
+`cohort` (acquisition year) filters alongside inclusive `asOf`. Dates compare
+matched Phoenix calendar windows within one year. Cohort is the donor's first
+positive settled gift year across their visible history, before campaign/program
+narrowing. Every filter intersects the caller's existing organization/owner scope.
+
 Live administrators can reassign a donor to any active same-organization board
 member, including members without donors. Assignment and open-task transfer remain
 server-controlled and audited; board members cannot list other eligible owners.
