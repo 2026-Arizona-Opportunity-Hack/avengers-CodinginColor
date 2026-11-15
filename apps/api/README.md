@@ -65,4 +65,3 @@ separate records. `PATCH /api/v1/gifts/:id` accepts a nonempty subset of campaig
 amount, refund, currency, occurred_at and status, merges the stored record under a
 row lock, revalidates, and audits `gift.correct` atomically; identity and
 provenance cannot be rewritten. Gifts are never hard-deleted.
-
