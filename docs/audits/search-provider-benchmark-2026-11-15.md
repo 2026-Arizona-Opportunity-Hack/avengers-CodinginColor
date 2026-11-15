@@ -2,8 +2,8 @@
 
 Measured at 17:51:33 UTC against source main `cf88ea2`. Model:
 `gemini-3.5-flash-lite`, provider origin `https://generativelanguage.googleapis.com`.
-This is loopback HTTP with synthetic identities and a disposable PGlite database,
-not a deployed Vercel, network, Neon or Clerk acceptance measurement.
+This is loopback HTTP with synthetic identities and a disposable PGlite database.
+It does not establish deployed Vercel/Neon, real Clerk or remote-client network acceptance.
 
 Run from the repository root with existing provider configuration:
 
