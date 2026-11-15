@@ -12,10 +12,11 @@ const gift = (id: string, occurred_at: string, amount_cents = 1000, refund_cents
 });
 function setup() {
   vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-15T12:00:00-07:00'));
+  const gifts = signal<Gift[]>([]);
   const store = {
-    live: signal(false), signedIn: signal(true), sessionEpoch: signal(1), gifts: signal<Gift[]>([]), currency: signal('EUR'), followUps: signal([]),
+    live: signal(false), signedIn: signal(true), sessionEpoch: signal(1), gifts, ledgerGifts: gifts, currency: signal('EUR'), followUps: signal([]),
     donors: signal([{ id: 'visible', owner_id: 'member' }]), boardMembers: signal([{ id: 'member', name: 'Owner' }]),
-    communications: signal([]), campaign: () => ({ program_id: 'program' }), program: () => ({ title: 'Academy' }),
+    historicalDonor: () => ({ owner_id: 'member' }), communications: signal([]), campaign: () => ({ program_id: 'program' }), program: () => ({ title: 'Academy' }),
     netCents: (g: Gift) => g.status === 'settled' ? g.amount_cents - g.refund_cents : 0,
   };
   TestBed.configureTestingModule({ providers: [{ provide: Store, useValue: store }, { provide: Api, useValue: { retention: vi.fn() } }] });

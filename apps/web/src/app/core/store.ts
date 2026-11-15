@@ -50,6 +50,8 @@ const NOT_CONNECTED = 'This action is not connected to the server yet, so nothin
 const uid = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 const nowIso = () => new Date().toISOString();
 
+export type ManualSave<T> = { kind: 'saved'; value: T } | { kind: 'invalid' | 'retry' };
+
 export interface NewDonorInput {
   name: string; email: string | null; phone: string | null; company: string | null;
   kind: Donor['kind']; consent: Donor['consent']; preferred_channel: Channel;
@@ -113,9 +115,12 @@ export class Store {
   });
   private readonly visibleIds = computed(() => new Set(this.donors().map((d) => d.id)));
   readonly selectedCurrency = signal('USD');
-  readonly currencies = computed(() => [...new Set(this.data().gifts.filter(g => this.visibleIds().has(g.donor_id)).map(g => g.currency))].sort());
+  readonly historicalDonors = computed(() => this.data().donors.filter(d => this.isAdmin() || d.owner_id === this.me().id));
+  private readonly historicalIds = computed(() => new Set(this.historicalDonors().map(d => d.id)));
+  readonly currencies = computed(() => [...new Set(this.data().gifts.filter(g => this.historicalIds().has(g.donor_id)).map(g => g.currency))].sort());
   readonly currency = computed(() => this.currencies().includes(this.selectedCurrency()) ? this.selectedCurrency() : this.currencies()[0] ?? 'USD');
   readonly gifts = computed(() => this.data().gifts.filter((g) => this.visibleIds().has(g.donor_id) && g.currency === this.currency()));
+  readonly ledgerGifts = computed(() => this.data().gifts.filter(g => this.historicalIds().has(g.donor_id) && g.currency === this.currency()));
   readonly communications = computed(() => this.data().communications.filter((c) => this.visibleIds().has(c.donor_id)));
   readonly followUps = computed(() => this.data().followUps.filter((f) => this.visibleIds().has(f.donor_id)));
   readonly drafts = computed(() => this.data().drafts.filter((d) =>
@@ -147,6 +152,8 @@ export class Store {
 
   member(id: string | null) { return this.members().find((m) => m.id === id) ?? null; }
   donor(id: string) { return this.donors().find((d) => d.id === id) ?? null; }
+  historicalDonor(id: string) { return this.historicalDonors().find(d => d.id === id) ?? null; }
+  historicalContacts(id: string) { return this.historicalIds().has(id) ? this.data().communications.filter(c => c.donor_id === id) : []; }
   campaign(id: string | null) { return this.campaigns().find((c) => c.id === id) ?? null; }
   program(id: string | null) { return this.programs().find((p) => p.id === id) ?? null; }
   template(id: string) { return this.templates().find((t) => t.id === id) ?? null; }
@@ -205,7 +212,7 @@ export class Store {
     const outreachGeneration = ++this.outreachLoadGeneration;
     this.api.status.set('loading');
     try {
-      const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
+      const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors(true)]);
       if (generation !== this.liveLoadGeneration) return;
       const request: outreach.Request = (path, init) => this.api.request(path, init);
       const [followUps, drafts, apiKeys, gifts, communications, catalog, owners] = await Promise.all([
@@ -283,24 +290,24 @@ export class Store {
     return pick.id;
   }
 
-  async addDonor(input: NewDonorInput, requestId: string): Promise<{ id: string; owner_id: string | null } | null> {
+  async addDonor(input: NewDonorInput, requestId: string): Promise<ManualSave<{ id: string; owner_id: string | null }>> {
     if (this.live()) {
       const epoch = this.sessionEpoch();
       let result: { id: string; owner_id: string | null } | null = null;
-      const saved = await this.liveWrite(async () => {
+      return this.manualWrite(async () => {
         result = await this.api.request('/api/v1/donors', { method: 'POST', body: JSON.stringify({
           request_id: requestId, name: input.name, email: input.email, phone: input.phone, consent: input.consent,
           metadata: { company: input.company, kind: input.kind, preferred_channel: input.preferred_channel,
             custom: input.custom, sources: ['manual'] },
         }) });
         const assigned = result!;
-        if (epoch !== this.sessionEpoch()) return;
+        if (epoch !== this.sessionEpoch()) return assigned;
         if (this.isAdmin() || assigned.owner_id === this.me().id) {
           const donor = await this.api.request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(assigned.id)}`);
           if (epoch === this.sessionEpoch()) this.putDonor(donor);
         }
-      });
-      return saved ? result : null;
+        return assigned;
+      }, () => result === null);
     }
     let created!: Donor;
     this.mutate((d) => {
@@ -311,7 +318,7 @@ export class Store {
       };
       d.donors.push(created);
     }, 'donor.create', input.name);
-    return created;
+    return { kind: 'saved', value: created };
   }
 
   /** Owner the next new donor would get, for previews. Does not advance the cursor. */
@@ -322,19 +329,36 @@ export class Store {
   }
 
   async addGift(input: { donor_id: string; amount_cents: number; campaign_id: string | null; occurred_at: string;
-    source: Source; refund_cents?: number; currency?: string; status?: Gift['status'] }, requestId: string): Promise<boolean> {
+    source: Source; refund_cents?: number; currency?: string; status?: Gift['status'] }, requestId: string): Promise<ManualSave<Gift>> {
     const gift = { refund_cents: 0, currency: 'USD', status: 'settled' as const, ...input, external_id: `manual:${requestId}` };
     if (this.live()) {
       const epoch = this.sessionEpoch();
-      return this.liveWrite(async () => {
+      return this.manualWrite(async () => {
         const { source, ...body } = gift;
         const saved = await this.api.request<Gift>('/api/v1/gifts', { method: 'POST', body: JSON.stringify(body) });
         if (epoch === this.sessionEpoch()) this.data.update(d => ({ ...d,
           gifts: [...d.gifts.filter(g => g.id !== saved.id), saved] }));
+        return saved;
       });
     }
-    this.mutate(d => d.gifts.push({ id: uid('g'), ...gift }), 'gift.create', input.donor_id);
-    return true;
+    const saved = { id: uid('g'), ...gift };
+    this.mutate(d => d.gifts.push(saved), 'gift.create', input.donor_id);
+    return { kind: 'saved', value: saved };
+  }
+
+  /** Only a definitive validation rejection permits changing a submitted payload. */
+  private async manualWrite<T>(run: () => Promise<T>, editable = () => true): Promise<ManualSave<T>> {
+    const epoch = this.sessionEpoch();
+    try {
+      const value = await run();
+      if (epoch !== this.sessionEpoch()) return { kind: 'retry' };
+      this.notice.set(null);
+      return { kind: 'saved', value };
+    } catch (e) {
+      if (epoch !== this.sessionEpoch()) return { kind: 'retry' };
+      this.notice.set(e instanceof ApiError ? e.message : 'The change could not be saved.');
+      return { kind: e instanceof ApiError && e.status === 400 && editable() ? 'invalid' : 'retry' };
+    }
   }
 
   /** Resolves true when saved. In live mode the API validates, scopes and audits the change. */

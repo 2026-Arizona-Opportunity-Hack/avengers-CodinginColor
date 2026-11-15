@@ -32,8 +32,10 @@ export interface ApiRetention {
 }
 
 export class ApiError extends Error {
-  constructor(readonly status: number) {
-    super(status === 401 ? 'Your session ended. Sign in again.'
+  constructor(readonly status: number, readonly code?: string) {
+    super(status === 403 && code === 'admin_mfa_required'
+      ? 'Your admin account needs two-step verification. Open Manage sign-in security, add an authenticator under Security, then sign out and sign in again.'
+      : status === 401 ? 'Your session ended. Sign in again.'
       : status === 403 ? 'You do not have access to that.'
       : status === 404 ? 'That record was not found or is not yours.'
       : status === 429 ? 'Too many requests. Wait a moment and try again.'
@@ -100,7 +102,7 @@ export class Api {
   unmountSignUp(node: HTMLDivElement) { this.clerk?.unmountSignUp(node); }
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
-  manageSecurity() { this.clerk?.openUserProfile(); }
+  manageSecurity() { this.clerk?.openUserProfile({ __experimental_startPath: '/security' }); }
 
   async request<T>(path: string, init: RequestInit = {}, parse: 'json' | 'blob' = 'json'): Promise<T> {
     if (!this.config || !this.clerk?.session) throw new ApiError(401);
@@ -119,20 +121,24 @@ export class Api {
     } catch {
       throw new ApiError(0);
     }
-    if (!res.ok) throw new ApiError(res.status);
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      throw new ApiError(res.status, error?.code === 'admin_mfa_required' ? error.code : undefined);
+    }
     return (parse === 'blob' ? res.blob() : res.json()) as Promise<T>;
   }
 
   me() { return this.request<ApiMe>('/api/v1/me'); }
 
   /** Every donor this member may see. The API caps a page at 100, so this pages until done. */
-  async allDonors(): Promise<ApiDonor[]> {
+  async allDonors(includeArchived = false): Promise<ApiDonor[]> {
     const all: ApiDonor[] = [];
-    for (let offset = 0; ; offset += 100) {
-      const page = await this.request<{ items: ApiDonor[] }>(`/api/v1/donors?limit=100&offset=${offset}`);
+    for (const archived of includeArchived ? [false, true] : [false]) for (let offset = 0; ; offset += 100) {
+      const page = await this.request<{ items: ApiDonor[] }>(`/api/v1/donors?limit=100&offset=${offset}${archived ? '&archived=true' : ''}`);
       all.push(...page.items);
-      if (page.items.length < 100) return all;
+      if (page.items.length < 100) break;
     }
+    return all;
   }
 
   patchDonor(id: string, patch: ApiDonorPatch) {
@@ -143,7 +149,7 @@ export class Api {
     return this.request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(id)}/archive`, { method: 'POST' });
   }
 
-  retention(asOf: string) {
-    return this.request<ApiRetention>(`/api/v1/reports/retention?asOf=${encodeURIComponent(asOf)}`);
+  retention(asOf: string, filters: Partial<Record<'from' | 'programId' | 'ownerId' | 'campaignId' | 'cohort', string>> = {}) {
+    return this.request<ApiRetention>(`/api/v1/reports/retention?${new URLSearchParams({ asOf, ...filters })}`);
   }
 }
