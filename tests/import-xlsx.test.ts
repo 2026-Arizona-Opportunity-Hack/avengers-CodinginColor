@@ -103,6 +103,12 @@ test('fails closed on empty, leading-blank, multiple and hidden sheets', async (
   await assert.rejects(preview(xlsx([header], { sheets: [{ name: 'One', state: 'hidden' }] })), /visible|worksheet/i);
 });
 
+test('rejects macro workbooks renamed to xlsx', async () => {
+  await assert.rejects(preview(xlsx([header], { extra: { 'xl/vbaProject.bin': 'macro' } })), /macros/i);
+  await assert.rejects(preview(xlsx([header], { extra: { '[Content_Types].xml':
+    '<Types><Override ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/></Types>' } })), /macros/i);
+});
+
 test('bounds archive expansion, worksheet coordinates and malformed structures', async () => {
   await assert.rejects(preview(xlsx([header], {
     sheet: '<worksheet><sheetData><row r="1e309"><c r="A1"><v>1</v></c></row></sheetData></worksheet>' })), /invalid|limit/i);

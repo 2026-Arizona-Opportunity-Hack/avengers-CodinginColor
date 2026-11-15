@@ -136,6 +136,10 @@ export async function previewXlsx(bytes: Uint8Array, source: string, file: strin
     fail('must be a non-empty file of at most 5 MiB');
   }
   const entries = unzipBounded(bytes);
+  if ([...entries.keys()].some(name => /vbaproject|vbasignature/i.test(name))) fail('macros are not supported');
+  parseXml(xml(entries, '[Content_Types].xml'), (_name, attrs) => {
+    if (Object.values(attrs).some(value => /macroenabled|vbaproject/i.test(value))) fail('macros are not supported');
+  });
   for (const required of ['[Content_Types].xml', 'xl/workbook.xml', 'xl/_rels/workbook.xml.rels']) {
     if (!entries.has(required)) fail('is missing required parts');
   }

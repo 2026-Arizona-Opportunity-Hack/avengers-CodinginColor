@@ -33,6 +33,6 @@ export async function importFixture(t: TestContext) {
   const call=(method:string,path:string,body?:unknown,who:string|null='admin',headers:Record<string,string>={})=>
     fetch(`http://127.0.0.1:${a.port}/api/v1/imports${path}`,{method,headers:{...(who?{Authorization:`Bearer ${who}`} :{}),
       ...(body===undefined?{}:typeof body==='string'?{'Content-Type':'text/csv; charset=utf-8','X-Import-Source':'zeffy','X-Import-Filename':'test.csv'}:{'Content-Type':'application/json'}),...headers},
-      body:body===undefined?undefined:typeof body==='string'?body:JSON.stringify(body)});
+      body:body===undefined?undefined:typeof body==='string'?body:Buffer.isBuffer(body)?new Uint8Array(body):JSON.stringify(body)});
   return {sql,call};
 }
