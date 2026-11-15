@@ -186,11 +186,15 @@ when you choose to use the service.
 The five accepted source labels (`spreadsheet`, `zeffy`, `benevity`, `az_gives`,
 `united_way`) identify provenance. They are not verified provider-specific adapters;
 real export schemas, timezones and status/refund meanings remain unverified.
-The live `/api/v1/imports` upload in `apps/api/imports.ts` currently accepts raw
-CSV with `Content-Type: text/csv; charset=utf-8` only. To persist XLSX, core must
-add an authorized XLSX upload path that invokes `previewXlsx` and stores a safe
-canonical representation for the existing layout, two-phase review and atomic
-commit flow. No XLSX upload endpoint is claimed here.
+The live `/api/v1/imports` upload accepts raw CSV with
+`Content-Type: text/csv; charset=utf-8` and original `.xlsx` bytes with
+`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Both require
+an admin with MFA, `X-Import-Source`, `X-Import-Filename` and a file up to 4 MiB.
+XLSX uses the reviewed parser, stages validated cells for the existing two-phase
+review and atomic commit, and retains the original workbook fingerprint for safe
+reimport. Only one visible worksheet is supported; macros, formulas, unsafe ZIPs
+and numeric date cells are rejected. Converted staging data must also fit 4 MiB.
+The live import screen remains a separate integration task.
 
 ```json
 {"Contribution Value":"amount_decimal","When Received":"occurred_at","Money Code":"currency","Unused":null}

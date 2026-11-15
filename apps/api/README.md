@@ -69,7 +69,9 @@ row lock, revalidates, and audits `gift.correct` atomically; identity and
 provenance cannot be rewritten. Gifts are never hard-deleted.
 
 Import staging requires an active admin with verified MFA. `POST /api/v1/imports`
-accepts raw UTF-8 `text/csv` up to 4 MiB, with `X-Import-Source` and basename-only
+accepts raw UTF-8 `text/csv` or original `.xlsx` bytes with MIME
+`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, up to 4 MiB,
+with `X-Import-Source` and basename-only
 `X-Import-Filename`. The server computes the file hash and batch UUID; exact replay
 resumes the existing batch and changing its source label gives409. Staging writes
 no donor or gift rows. `POST /:batchId/layout` accepts reviewed column mapping,
@@ -96,5 +98,10 @@ back. Identical retries/re-uploads return the saved result with `replayed:true`.
 Raw bytes, layout and decisions are purged on success. Excluded CSV records require
 explicit `layout.skip_records:[recordNumber,...]` before review; otherwise commit
 fails400. Their validation issues are available on preview row pages. No financial
-defaults or client-supplied write operations are accepted. This is CSV-only until
-the Data-owned XLSX ingestion handoff; the UI must wire these server routes.
+defaults or client-supplied write operations are accepted. XLSX uses the reviewed
+bounded parser and stages its validated cells as CSV, with the original workbook's
+fingerprint retained for replay. The normalized CSV must also fit 4 MiB. One visible
+sheet is supported; formulas, macros, unsafe archives and numeric date cells are
+rejected. Enter workbook dates as text and review their format/timezone. Invalid
+workbooks return400 `invalid_xlsx`, oversized input returns413, and wrong MIME or
+extension returns415. The UI must wire these server routes.
