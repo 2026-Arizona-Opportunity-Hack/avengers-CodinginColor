@@ -121,3 +121,10 @@ extension returns415. The UI must wire these server routes.
 using `CIC_NATIVE_TEST_URL`. It accepts only an empty disposable loopback database
 named `cic_native_<hex>` and creates synthetic test data. It checks overlapping
 commit retries and competing-file staleness; it must never target a live database.
+
+Admin/MFA-only `GET /api/v1/members` lists same-org membership IDs, Clerk subjects,
+roles and activity. `POST` accepts `{clerk_subject,role,active}` for an existing
+Clerk user with a verified primary email. `PATCH /:id` changes `{role,active}`.
+Self-admin removal, last-admin removal and making an active donor owner ineligible
+return409; reassign the portfolio first. Unknown/foreign IDs return404. Changes
+and audit events commit together; Clerk invitations remain a separate workflow.

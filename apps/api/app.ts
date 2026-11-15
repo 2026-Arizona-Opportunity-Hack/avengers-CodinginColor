@@ -3,6 +3,7 @@ import type { ErrorRequestHandler } from 'express';
 import { HttpError, type Env } from './env.ts';
 import { withMember, type Database } from './db.ts';
 import type { Identity } from './auth.ts';
+import { members } from './members.ts';
 import { donors } from './donors.ts';
 import { gifts } from './gifts.ts';
 import { imports } from './imports.ts';
@@ -55,6 +56,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
     });
     res.json({ items });
   });
+  app.use('/api/v1/members', express.json({ limit: '4kb' }), members(env, db, verify));
   app.use('/api/v1/donors', express.json({ limit: '32kb' }), donors(env, db, verify));
   app.use('/api/v1/gifts', express.json({ limit: '32kb' }), gifts(env, db, verify));
   app.use('/api/v1/imports', imports(env, db, verify));
