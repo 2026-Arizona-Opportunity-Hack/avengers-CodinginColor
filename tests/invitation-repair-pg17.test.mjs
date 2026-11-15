@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdtemp, readdir, readFile, writeFile, rm, rmdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -8,7 +7,7 @@ import test from 'node:test';
 import pg from 'pg';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
-const historical = () => execFileSync('git', ['show','224b0dd:db/migrations/013_staff_invitations.sql'], {encoding:'utf8'});
+const historical = () => readFile('tests/fixtures/staff-invitations-historical.sql','utf8');
 const asModule = source => import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
 
 test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {skip:!process.env.CIC_PG17_REHEARSAL_URL}, async () => {
@@ -21,7 +20,7 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
     const names=(await readdir('db/migrations')).filter(n=>/^\d{3}_.*\.sql$/.test(n)).sort();
     assert.equal(names.length,18);
     const files=Object.fromEntries(await Promise.all(names.map(async n=>[n,await readFile(`db/migrations/${n}`,'utf8')])));
-    const old=historical();
+    const old=await historical();
     await db.query('CREATE TABLE schema_migrations(name text PRIMARY KEY,sha256 text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())');
     for(const name of names.slice(0,17)) {
       const source=name==='013_staff_invitations.sql'?old:files[name];
