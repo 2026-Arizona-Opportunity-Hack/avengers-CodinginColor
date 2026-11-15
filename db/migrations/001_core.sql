@@ -4,8 +4,15 @@ REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
 -- Run as a migration owner; grant cic_runtime to a separate application login.
 DO $$ BEGIN
+  IF EXISTS (SELECT FROM pg_roles r WHERE r.rolname = 'cic_runtime' AND (
+    r.rolsuper OR r.rolbypassrls OR r.rolcanlogin OR r.rolcreatedb OR
+    r.rolcreaterole OR r.rolinherit OR r.rolreplication OR
+    EXISTS (SELECT FROM pg_auth_members m WHERE m.member = r.oid)
+  )) THEN
+    RAISE EXCEPTION 'Unsafe existing cic_runtime role: remove elevated attributes and role memberships before migrating';
+  END IF;
   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'cic_runtime') THEN
-    CREATE ROLE cic_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+    CREATE ROLE cic_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
   END IF;
 END $$;
 
