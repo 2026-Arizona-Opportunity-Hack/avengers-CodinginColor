@@ -65,7 +65,7 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
       throw error instanceof ApiKeyError ? new HttpError(401) : error;
     }
   };
-  const forKey = async <T>(hash: string, res: express.Response, action: (client: Client) => Promise<T>) => {
+  const forKey = async <T>(hash: string, res: express.Response, route: 'summary' | 'activity', action: (client: Client) => Promise<T>) => {
     const result = await asRuntime(db, async client => {
       // Authenticate before allocating a bucket, including keys for organizations with no programs.
       await client.query('SELECT 1 FROM public.cic_reporting_programs($1) LIMIT 1', [hash]);
@@ -74,8 +74,12 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
           - clock_timestamp())))::int AS retry_after_seconds`, [`aggregate:${hash}`, options.limitPerMinute])
         .catch(() => { throw new HttpError(503); })).rows[0];
       if (typeof quota?.allowed !== 'boolean') throw new HttpError(503);
+      // Finish aggregation and serialization before recording success; failures roll back the quota too.
+      const payload = quota.allowed ? JSON.stringify(await action(client)) : '';
+      await client.query('SELECT public.cic_record_aggregate_access($1,$2,$3)', [hash, route, quota.allowed ? 200 : 429])
+        .catch(() => { throw new HttpError(503); });
       if (!quota.allowed) return { allowed: false as const, retryAfter: quota.retry_after_seconds };
-      return { allowed: true as const, value: await action(client) };
+      return { allowed: true as const, value: payload };
     });
     // Return a quota rejection only after COMMIT so its consumed count cannot be rolled back.
     if (!result.allowed) {
@@ -105,48 +109,54 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     const priorEnd = new Date(`${priorLastDay.slice(0, 10)}T00:00:00Z`);
     priorEnd.setUTCDate(priorEnd.getUTCDate() + 1);
     const prior = { from: previousYear(current.from), to: priorEnd.toISOString().slice(0, 10) + current.to.slice(10) };
-    const { gifts, priorGifts, titles } = await forKey(hash, res, async (client) => ({
-      gifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
-        [hash, query.window.from, query.window.to])).rows.map(toGift),
-      priorGifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
-        [hash, prior.from, prior.to])).rows.map(toGift),
-      titles: new Map((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
-        .map((r) => [String(r.id), String(r.title)])),
-    }));
-    const summary = summarize(gifts, query, { offset: options.offset, minDonors: options.minDonors });
-    const windows = { current, prior };
-    for (const gift of priorGifts) checkGift(gift);
-    const currencies = new Set([...priorGifts, ...gifts].filter(g => netCents(g) > 0).map(g => g.currency));
-    const byCurrency = Object.fromEntries([...currencies].map(currency => {
-      const priorDonors = new Set(priorGifts.filter(g => g.currency === currency && netCents(g) > 0).map(g => g.donor_id));
-      const currentDonors = new Set(gifts.filter(g => g.currency === currency && netCents(g) > 0).map(g => g.donor_id));
-      const retained = [...priorDonors].filter(id => currentDonors.has(id)).length;
-      const lapsed = priorDonors.size - retained;
-      const currentOnly = currentDonors.size - retained;
-      const small = (n: number) => n > 0 && n < options.minDonors;
-      return [currency, priorDonors.size < options.minDonors || small(retained) || small(lapsed) || small(currentOnly)
-        ? { suppressed: true } : { suppressed: false, retained_donors: retained, prior_donors: priorDonors.size }];
-    }));
-    const label = (key: string) => query.groupBy === 'program'
-      ? (key === 'unattributed' ? 'Unattributed' : titles.get(key) ?? 'Unknown program')
-      : query.groupBy === 'owner' && key === 'unassigned' ? 'Unassigned' : key;
-    res.json({
-      window: query.window, groupBy: query.groupBy, totals: summary.totals,
-      retention: { windows, byCurrency },
-      groups: summary.groups.map(({ key, ...rest }) => ({ key, label: label(key), ...rest })),
+    const payload = await forKey(hash, res, 'summary', async (client) => {
+      const { gifts, priorGifts, titles } = {
+        gifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
+          [hash, query.window.from, query.window.to])).rows.map(toGift),
+        priorGifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
+          [hash, prior.from, prior.to])).rows.map(toGift),
+        titles: new Map((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
+          .map((r) => [String(r.id), String(r.title)])),
+      };
+      const summary = summarize(gifts, query, { offset: options.offset, minDonors: options.minDonors });
+      const windows = { current, prior };
+      for (const gift of priorGifts) checkGift(gift);
+      const currencies = new Set([...priorGifts, ...gifts].filter(g => netCents(g) > 0).map(g => g.currency));
+      const byCurrency = Object.fromEntries([...currencies].map(currency => {
+        const priorDonors = new Set(priorGifts.filter(g => g.currency === currency && netCents(g) > 0).map(g => g.donor_id));
+        const currentDonors = new Set(gifts.filter(g => g.currency === currency && netCents(g) > 0).map(g => g.donor_id));
+        const retained = [...priorDonors].filter(id => currentDonors.has(id)).length;
+        const lapsed = priorDonors.size - retained;
+        const currentOnly = currentDonors.size - retained;
+        const small = (n: number) => n > 0 && n < options.minDonors;
+        return [currency, priorDonors.size < options.minDonors || small(retained) || small(lapsed) || small(currentOnly)
+          ? { suppressed: true } : { suppressed: false, retained_donors: retained, prior_donors: priorDonors.size }];
+      }));
+      const label = (key: string) => query.groupBy === 'program'
+        ? (key === 'unattributed' ? 'Unattributed' : titles.get(key) ?? 'Unknown program')
+        : query.groupBy === 'owner' && key === 'unassigned' ? 'Unassigned' : key;
+      return {
+        window: query.window, groupBy: query.groupBy, totals: summary.totals,
+        retention: { windows, byCurrency },
+        groups: summary.groups.map(({ key, ...rest }) => ({ key, label: label(key), ...rest })),
+      };
     });
+    res.type('json').send(payload);
   });
 
   router.get('/api/v1/activity', async (req, res) => {
     const hash = authenticate(req, res);
     const parsed = ActivityQuery.safeParse(req.query);
     if (!parsed.success) throw new HttpError(400);
-    const { rows, titles } = await forKey(hash, res, async (client) => ({
-      rows: (await client.query(`SELECT ${ROW} FROM cic_reporting_recent($1, $2)`, [hash, parsed.data.limit])).rows.map(toGift),
-      titles: Object.fromEntries((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
-        .map((r) => [String(r.id), String(r.title)])),
-    }));
-    res.json({ items: recentActivity(rows, { limit: parsed.data.limit, offset: options.offset, programTitles: titles }) });
+    const payload = await forKey(hash, res, 'activity', async (client) => {
+      const { rows, titles } = {
+        rows: (await client.query(`SELECT ${ROW} FROM cic_reporting_recent($1, $2)`, [hash, parsed.data.limit])).rows.map(toGift),
+        titles: Object.fromEntries((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
+          .map((r) => [String(r.id), String(r.title)])),
+      };
+      return { items: recentActivity(rows, { limit: parsed.data.limit, offset: options.offset, programTitles: titles }) };
+    });
+    res.type('json').send(payload);
   });
 
   return router;

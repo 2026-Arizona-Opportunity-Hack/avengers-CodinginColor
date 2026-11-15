@@ -175,9 +175,36 @@ test('two app instances share quota across routes and commit rejected attempts',
   const counters = (await db.query<{ bucket: string; hits: number }>('SELECT bucket,hits FROM api_rate_windows')).rows;
   assert.deepEqual(counters.find(row => row.bucket === `aggregate:${key.hash}`), { bucket: `aggregate:${key.hash}`, hits: 4 });
   assert.ok(!JSON.stringify(counters).includes(key.key));
+  const events=(await db.query<{org_id:string;route:string;status:number}>('SELECT org_id,route,status FROM aggregate_access_events ORDER BY created_at,id')).rows;
+  assert.equal(events.filter(e=>e.org_id===ORG&&e.status===200).length,2);
+  assert.equal(events.filter(e=>e.org_id===ORG&&e.status===429).length,2);
+  assert.ok(events.some(e=>e.route==='summary')); assert.ok(events.some(e=>e.route==='activity'));
   await revokeKey({ query: (sql, values) => db.query(sql, values) }, ORG, key.hint);
   await db.exec('SET SESSION AUTHORIZATION cic_app_test');
   assert.equal((await other('/api/v1/activity', auth)).status, 401, 'revocation takes precedence over exhausted quota');
+});
+
+test('audit failure returns no aggregates and rolls back allowed and rejected quota attempts', async t=>{
+  const {db,key,get}=await setup(t,1);
+  const auth={'X-API-Key':key.key};
+  const deny=async()=>db.exec(`SET SESSION AUTHORIZATION postgres;
+    REVOKE EXECUTE ON FUNCTION public.cic_record_aggregate_access(text,text,integer) FROM cic_runtime;
+    SET SESSION AUTHORIZATION cic_app_test;`);
+  await deny();
+  const failed=await get('/api/v1/summary?from=2026-01-01&to=2027-01-01',auth);
+  assert.equal(failed.status,503); assert.deepEqual(await failed.json(),{error:'x'});
+  await db.exec('SET SESSION AUTHORIZATION postgres');
+  assert.deepEqual((await db.query('SELECT * FROM api_rate_windows')).rows,[]);
+  assert.deepEqual((await db.query('SELECT * FROM aggregate_access_events')).rows,[]);
+  await db.exec(`SET ROLE cic_reporting;
+    GRANT EXECUTE ON FUNCTION public.cic_record_aggregate_access(text,text,integer) TO cic_runtime;
+    RESET ROLE; SET SESSION AUTHORIZATION cic_app_test;`);
+  assert.equal((await get('/api/v1/activity',auth)).status,200);
+  await deny();
+  assert.equal((await get('/api/v1/activity',auth)).status,503);
+  await db.exec('SET SESSION AUTHORIZATION postgres');
+  assert.equal((await db.query<{hits:number}>('SELECT hits FROM api_rate_windows')).rows[0].hits,1);
+  assert.equal((await db.query('SELECT * FROM aggregate_access_events')).rows.length,1);
 });
 
 test('quota dependency failure is closed and leaves no counter', async (t) => {
@@ -188,6 +215,18 @@ test('quota dependency failure is closed and leaves no counter', async (t) => {
   assert.equal((await get('/api/v1/activity', { 'X-API-Key': key.key })).status, 503);
   await db.exec('SET SESSION AUTHORIZATION postgres');
   assert.deepEqual((await db.query('SELECT * FROM api_rate_windows')).rows, []);
+});
+
+test('overflowing report totals fail before a successful audit can commit', async t=>{
+  const {db,key,get}=await setup(t);
+  await db.exec(`SET SESSION AUTHORIZATION postgres;
+    UPDATE gifts SET amount_cents=9007199254740991 WHERE external_id='g0';
+    SET SESSION AUTHORIZATION cic_app_test;`);
+  const failed=await get('/api/v1/summary?from=2026-01-01&to=2027-01-01',{'X-API-Key':key.key});
+  assert.equal(failed.status,503); assert.deepEqual(await failed.json(),{error:'x'});
+  await db.exec('SET SESSION AUTHORIZATION postgres');
+  assert.deepEqual((await db.query('SELECT * FROM aggregate_access_events')).rows,[]);
+  assert.deepEqual((await db.query('SELECT * FROM api_rate_windows')).rows,[]);
 });
 
 test('each key is rate limited and told when to retry', async (t) => {
