@@ -76,7 +76,13 @@ What's built on `main` (API, database and rules):
 - **Reporting:** a retention breakdown (new, reactivated, increased, flat, decreased, lapsed), scoped
   to each member's own donors, and an admin-only, audited funder packet CSV from the API. A
   read-only, hashed API key gives CIC's dashboard aggregate totals, and that summary API hides any
-  group smaller than three donors.
+  group smaller than three donors. `GET /api/v1/summary?from=2026-01-01&to=2027-01-01`
+  also returns `retention: { windows, byCurrency }`: the selected half-open Phoenix window versus
+  the immediately preceding window of equal duration. Each currency returns `retained_donors`
+  (positive settled net giving in both windows) and `prior_donors`, or `{ suppressed: true }`.
+  Prior cohorts below three, and nonzero retained, lapsed or current-only cohorts below three, are suppressed;
+  no donor identities or individual retention segments are returned. Retention covers the whole
+  authorized organization independently of `groupBy`; currencies are never combined.
 - **Security:** invite-only Clerk sign-in, MFA required for admins, PostgreSQL row-level security
   (board members see only their own donors), and audit events for changes, sends and exports.
 

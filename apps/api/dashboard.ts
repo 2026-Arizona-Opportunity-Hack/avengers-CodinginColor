@@ -6,6 +6,7 @@ import {
 import { HttpError } from './env.ts';
 import type { Client, Database } from './db.ts';
 import { RateLimiter } from './rate-limit.ts';
+import { retentionReport } from '../../packages/reporting/retention.ts';
 
 export type DashboardOptions = {
   /** CIC reports in Phoenix time: '-07:00'. */
@@ -92,18 +93,34 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
       throw error instanceof QueryError ? new HttpError(400) : error;
     }
     rateLimit(hash, res);
-    const { gifts, titles } = await forKey(hash, async (client) => ({
+    const current = query.window;
+    const prior = { from: new Date(2 * Date.parse(current.from) - Date.parse(current.to)).toISOString(), to: current.from };
+    const { gifts, priorGifts, titles } = await forKey(hash, async (client) => ({
       gifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
         [hash, query.window.from, query.window.to])).rows.map(toGift),
+      priorGifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
+        [hash, prior.from, prior.to])).rows.map(toGift),
       titles: new Map((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
         .map((r) => [String(r.id), String(r.title)])),
     }));
     const summary = summarize(gifts, query, { offset: options.offset, minDonors: options.minDonors });
+    const windows = { current, prior };
+    const retention = retentionReport([...priorGifts, ...gifts], windows);
+    const byCurrency = Object.fromEntries(Object.entries(retention.byCurrency).map(([currency, report]) => {
+      const { prior_donors, retained_donors } = report.retention;
+      const lapsed = prior_donors - retained_donors;
+      const currentOnly = report.donors.length - prior_donors;
+      // Suppress complementary cohorts too: subtraction must not reveal a small group.
+      const small = (n: number) => n > 0 && n < options.minDonors;
+      return [currency, prior_donors < options.minDonors || small(retained_donors) || small(lapsed) || small(currentOnly)
+        ? { suppressed: true } : { suppressed: false, ...report.retention }];
+    }));
     const label = (key: string) => query.groupBy === 'program'
       ? (key === 'unattributed' ? 'Unattributed' : titles.get(key) ?? 'Unknown program')
       : query.groupBy === 'owner' && key === 'unassigned' ? 'Unassigned' : key;
     res.json({
       window: query.window, groupBy: query.groupBy, totals: summary.totals,
+      retention: { windows, byCurrency },
       groups: summary.groups.map(({ key, ...rest }) => ({ key, label: label(key), ...rest })),
     });
   });
