@@ -98,7 +98,8 @@ test('approved aggregate uploads are scoped, atomic, audited and included in pac
   await sql.exec('SET SESSION AUTHORIZATION postgres;');
   assert.equal((await sql.query("SELECT * FROM audit_events WHERE action = 'report.outcome.approve'")).rows.length, 3);
   await sql.exec(`SET ROLE cic_runtime; SELECT set_config('app.org_id','${ORG}',false),set_config('app.user_id','board-a',false);`);
-  assert.equal((await sql.query('SELECT * FROM program_outcomes')).rows.length, 0, 'RLS hides aggregates from board direct reads');
+  assert.equal((await sql.query('SELECT * FROM program_outcomes')).rows.length, 2, 'board can read approved aggregates for its funded program');
+  assert.equal((await sql.query('UPDATE program_outcomes SET value=999 RETURNING id')).rows.length, 0, 'board cannot change approved aggregates');
 });
 
 test('retention report: admins see every CIC donor, board members only their own, never other orgs', async (t) => {
