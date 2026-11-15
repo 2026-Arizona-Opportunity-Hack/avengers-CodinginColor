@@ -6,6 +6,7 @@ import { migrate } from '../db/migrate.ts';
 import { provision } from '../db/provision.ts';
 import { seedDemo } from '../db/seed-demo.ts';
 import { retentionReport, ytdWindows } from '../packages/reporting/retention.ts';
+import { buildQueue, type OutreachTask } from '../packages/outreach/queue.ts';
 
 const ORG = '00000000-0000-4000-8000-0000000000c1';
 const migrations = fileURLToPath(new URL('../db/migrations/', import.meta.url));
@@ -35,7 +36,7 @@ test('seeds fictional donors, gifts, programs and campaigns, and is idempotent',
   const { db, client } = await database(t);
   const first = await seedDemo(client, ORG);
   assert.ok(first.donors >= 20 && first.gifts >= 50, JSON.stringify(first));
-  assert.deepEqual(await seedDemo(client, ORG), { programs: 0, campaigns: 0, donors: 0, gifts: 0 });
+  assert.deepEqual(await seedDemo(client, ORG), { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0 });
   const [{ n }] = (await db.query<{ n: number }>('SELECT count(*)::int AS n FROM gifts')).rows;
   assert.equal(n, first.gifts);
   // Fictional contact data only: reserved example domain and 555-01xx phone numbers.
@@ -62,7 +63,7 @@ test('two organizations each get their own full demo dataset (IDs are scoped per
   // Every donor's owner belongs to the donor's own organization.
   assert.equal((await db.query(`SELECT 1 FROM donors d JOIN memberships m ON m.id = d.owner_id
     WHERE m.org_id <> d.org_id`)).rows.length, 0);
-  assert.deepEqual(await seedDemo(client, OTHER), { programs: 0, campaigns: 0, donors: 0, gifts: 0 });
+  assert.deepEqual(await seedDemo(client, OTHER), { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0 });
 });
 
 test('every donor is owned by an active member and ownership is balanced', async (t) => {
@@ -136,6 +137,22 @@ test('the real retention calculation puts each seeded donor in its designed segm
   assert.deepEqual(Object.fromEntries(Object.entries(usd.segments).map(([k, v]) => [k, v.donors])),
     { new: 4, reactivated: 4, increased: 5, flat: 4, decreased: 3, lapsed: 3 });
   assert.deepEqual(usd.retention, { retained_donors: 12, prior_donors: 15 });
+});
+
+test('the demo has outreach work: a Q4 touch per donor plus overdue, this-week and upcoming next steps', async (t) => {
+  const { db, client } = await database(t);
+  const seeded = await seedDemo(client, ORG);
+  assert.equal(seeded.follow_ups, 32);   // 26 quarterly touches + 6 next actions
+  const rows = (await db.query<OutreachTask & { donor_owner: string }>(`SELECT f.id, f.donor_id, f.owner_id, f.kind,
+      f.quarter, f.title, f.status, to_char(f.due_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS due_at,
+      d.owner_id AS donor_owner FROM follow_ups f JOIN donors d ON d.id = f.donor_id`)).rows;
+  assert.equal(rows.filter((r) => r.kind === 'quarterly' && r.quarter === '2026-Q4').length, 26);
+  assert.ok(rows.every((r) => r.owner_id === r.donor_owner && r.status === 'open'), 'tasks belong to the donor owner');
+  // On demo day, the queue shows every urgency bucket.
+  const queue = buildQueue(rows, { now: '2026-11-15T09:00:00-07:00' });
+  assert.ok(queue.overdue.length >= 2 && queue.due_this_week.length >= 2 && queue.upcoming.length >= 28, JSON.stringify(
+    [queue.overdue.length, queue.due_this_week.length, queue.upcoming.length]));
+  assert.equal((await seedDemo(client, ORG)).follow_ups, 0);
 });
 
 test('refuses to run without provisioning, against real data, or on the runtime login', async (t) => {
