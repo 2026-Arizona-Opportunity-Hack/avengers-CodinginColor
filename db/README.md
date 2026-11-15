@@ -92,7 +92,7 @@ BYPASSRLS to the runtime login to make provisioning work. Tests: `node --test te
 ## Demo data (`db/seed-demo.ts`, #31)
 
 For demos and local development only. After provisioning (it needs at least one active
-**board** member), run:
+**board** member and one active **admin** for fictional outcome approval), run:
 
 ```powershell
 node --env-file-if-exists=.env db/seed-demo.ts --yes-demo-data
@@ -108,6 +108,10 @@ with no campaign, three sources, and two foundations with program-restricted gif
 for the funder packet. For Outreach it adds a Q4 2026 quarterly touch per donor and six next
 steps (two overdue, two due this week, two upcoming on Nov 15, 2026), each owned by the donor's owner. It **refuses** to run against an organization that already has
 any non-demo donor, and it refuses the runtime login. Tests: `node --test tests/seed-demo.test.ts`.
+
+The demo seed also inserts one fictional approved participant-count outcome per program,
+clearly labeled as demo fixtures rather than CIC results. The explicit `--yes-demo-data`
+confirmation authorizes only these synthetic approvals; reruns preserve existing outcome edits.
 
 ## Dashboard API keys (`004_reporting_api.sql`, #29)
 

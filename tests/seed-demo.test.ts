@@ -36,7 +36,7 @@ test('seeds fictional donors, gifts, programs and campaigns, and is idempotent',
   const { db, client } = await database(t);
   const first = await seedDemo(client, ORG);
   assert.ok(first.donors >= 20 && first.gifts >= 50, JSON.stringify(first));
-  assert.deepEqual(await seedDemo(client, ORG), { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0 });
+  assert.deepEqual(await seedDemo(client, ORG), { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0, outcomes: 0 });
   const [{ n }] = (await db.query<{ n: number }>('SELECT count(*)::int AS n FROM gifts')).rows;
   assert.equal(n, first.gifts);
   // Fictional contact data only: reserved example domain and 555-01xx phone numbers.
@@ -55,6 +55,9 @@ test('two organizations each get their own full demo dataset (IDs are scoped per
   const a = await seedDemo(client, ORG);
   const b = await seedDemo(client, OTHER);
   assert.deepEqual(b, a);
+  const outcomes = (await db.query<{ org_id: string; n: number }>(
+    'SELECT org_id, count(*)::int AS n FROM program_outcomes GROUP BY org_id ORDER BY org_id')).rows;
+  assert.deepEqual(outcomes, [{ org_id: ORG, n: 3 }, { org_id: OTHER, n: 3 }]);
   assert.ok(b.donors >= 20 && b.gifts >= 50, JSON.stringify(b));
   const counts = (await db.query<{ org_id: string; donors: number; gifts: number }>(`
     SELECT o.id AS org_id, (SELECT count(*) FROM donors d WHERE d.org_id = o.id)::int AS donors,
@@ -63,7 +66,7 @@ test('two organizations each get their own full demo dataset (IDs are scoped per
   // Every donor's owner belongs to the donor's own organization.
   assert.equal((await db.query(`SELECT 1 FROM donors d JOIN memberships m ON m.id = d.owner_id
     WHERE m.org_id <> d.org_id`)).rows.length, 0);
-  assert.deepEqual(await seedDemo(client, OTHER), { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0 });
+  assert.deepEqual(await seedDemo(client, OTHER), { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0, outcomes: 0 });
 });
 
 test('every donor is owned by an active member and ownership is balanced', async (t) => {
@@ -77,6 +80,29 @@ test('every donor is owned by an active member and ownership is balanced', async
   assert.equal(loads.find((l) => l.role === 'admin')!.n, 0);
   const board = loads.filter((l) => l.active && l.role === 'board').map((l) => l.n);
   assert.ok(Math.max(...board) - Math.min(...board) <= 1, JSON.stringify(loads));
+});
+
+test('seeds approved fictional outcomes for each program without overwriting review edits', async (t) => {
+  const { db, client } = await database(t);
+  assert.equal((await seedDemo(client, ORG)).outcomes, 3);
+  const outcomes = (await db.query<{ id: string; source: string; role: string; org_id: string; value: string }>(`
+    SELECT o.id, o.source, m.role, m.org_id, o.value::text AS value
+    FROM program_outcomes o JOIN memberships m ON m.id = o.approved_by
+    WHERE o.org_id = $1 ORDER BY o.id`, [ORG])).rows;
+  assert.equal(outcomes.length, 3);
+  assert.ok(outcomes.every(o => o.role === 'admin' && o.org_id === ORG && /fictional/i.test(o.source)));
+  await db.query('UPDATE program_outcomes SET value = 99 WHERE id = $1', [outcomes[0].id]);
+  assert.equal((await seedDemo(client, ORG)).outcomes, 0);
+  assert.equal((await db.query<{ value: string }>(
+    'SELECT value::text AS value FROM program_outcomes WHERE id = $1', [outcomes[0].id])).rows[0].value, '99');
+});
+
+test('refuses seed approval without an active administrator and leaves no demo rows', async (t) => {
+  const { db, client } = await database(t);
+  await db.query("UPDATE memberships SET active = false WHERE role = 'admin'");
+  await assert.rejects(seedDemo(client, ORG), /active admin/i);
+  assert.equal((await db.query('SELECT 1 FROM donors')).rows.length, 0);
+  assert.equal((await db.query('SELECT 1 FROM program_outcomes')).rows.length, 0);
 });
 
 test('the seeded ledger exercises every retention segment and the funder packet edge cases', async (t) => {
