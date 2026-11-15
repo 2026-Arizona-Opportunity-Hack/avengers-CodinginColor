@@ -445,3 +445,9 @@ active donor portfolio before deactivation.
 Admin Team settings send and revoke seven-day staff invitation emails through
 Clerk on explicit submission. The invitation sign-up page links verified primary
 email to stored role intent; failed, expired and revoked invitations grant no access.
+
+The donor impact portal is at `/impact`. Admin Team settings send requested donor
+invitations, then explicitly link a verified Clerk account matching that donor's
+email with opt-in. Donor access and staff membership remain separate. Admins must
+publish approved aggregate outcomes separately; corrections require republishing.
+Donors receive only their own gift facts and published updates for funded programs.

@@ -12,7 +12,7 @@ const signedIn: CanMatchFn = (_route, segments: UrlSegment[]) => inject(Store).s
   || inject(Router).createUrlTree(['/sign-in'], { queryParams: { next: '/' + segments.map((s) => s.path).join('/') } });
 
 export const routes: Routes = [
-  { path: 'impact', title: 'Your impact ? Coding in Color', loadComponent: () => import('./pages/donor-impact').then(m => m.DonorImpactPage) },
+  { path: 'impact', title: 'Your impact | Coding in Color', loadComponent: () => import('./pages/donor-impact').then(m => m.DonorImpactPage) },
   { path: 'sign-up', title: 'Accept invitation', loadComponent: () => import('./pages/invitation-sign-up').then(m => m.InvitationSignUpPage) },
   { path: 'sign-in', title: 'Sign in · Coding in Color', loadComponent: () => import('./pages/sign-in').then((m) => m.SignInPage) },
   {

@@ -17,7 +17,7 @@ interface Invitation{id:string;email:string;role:string;state:string;expires_at:
     <div class="panel-body stack">
       <button class="btn" type="button" [disabled]="busy()" (click)="reload()">Reload invitations</button>
       @for(invite of rows();track invite.id){
-        <article><h3>{{invite.email}}</h3><p>{{invite.role}} ? {{invite.state}} ? Expires {{invite.expires_at.slice(0,10)}}</p>
+        <article><h3>{{invite.email}}</h3><p>{{invite.role}} | {{invite.state}} | Expires {{invite.expires_at.slice(0,10)}}</p>
           @if(['queued','sent','failed'].includes(invite.state)){<button class="btn" type="button" [disabled]="busy()" (click)="revoke(invite.id)">Revoke invitation</button>}
         </article>
       }@empty{<p>No invitations loaded.</p>}

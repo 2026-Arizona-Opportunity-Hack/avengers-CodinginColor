@@ -20,7 +20,7 @@ it('sends only on explicit submission and retries uncertain delivery with the sa
   request.mockResolvedValueOnce({id:pending.request_id,email:pending.email,role:'board',state:'sent',expires_at:'2026-11-22'});await submit();
   const second=request.mock.calls.at(-1) as unknown as [string,RequestInit];expect(second[1].body).toBe(first[1].body);
   expect(fixture.nativeElement.textContent).toContain('Invitation email sent.');
-  expect(fixture.nativeElement.textContent).toContain('board ? sent');
+  expect(fixture.nativeElement.textContent).toContain('board | sent');
 });
 it('mounts and unmounts the Clerk sign-up landing',async()=>{
   const mountSignUp=vi.fn(),unmountSignUp=vi.fn();
