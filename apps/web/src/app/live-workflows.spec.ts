@@ -16,6 +16,8 @@ function session(role: 'board' | 'admin' = 'admin') {
     me: vi.fn(async () => ({ id: role === 'admin' ? 'admin' : 'board', org_id: 'org', role })),
     allDonors: vi.fn(async () => [donor]),
     request: vi.fn(async (path: string, init?: RequestInit): Promise<unknown> => {
+      if (path === '/api/v1/owners') return { items: [{id:'board'}, {id:'empty-owner'}] };
+      if (path === '/api/v1/catalog') return { programs: [], campaigns: [] };
       if (path.includes('/follow-ups?')) return { overdue: [task], due_this_week: [], upcoming: [] };
       if (path === '/api/v1/api-keys' && init?.method === 'POST')
         return { id: 'key', name: 'Dashboard', hint: 'cic_hint', key: 'one-time-secret' };
@@ -31,6 +33,47 @@ function session(role: 'board' | 'admin' = 'admin') {
 }
 
 describe('live workspace data and keys', () => {
+  it('loads zero-donor owners for admins and refreshes donor ownership after a real reassignment', async () => {
+    const { store, api } = session(); await store.refreshLive();
+    expect(store.boardMembers().map(m => m.id)).toEqual(['board', 'empty-owner']);
+    api.request.mockResolvedValueOnce({ id: 'donor', owner_id: 'empty-owner' });
+    api.request.mockResolvedValueOnce({ ...donor, owner_id: 'empty-owner' });
+    expect(await store.reassign('donor', 'empty-owner')).toBe(true);
+    expect(api.request).toHaveBeenCalledWith('/api/v1/donors/donor/owner', expect.objectContaining({body:'{"owner_id":"empty-owner"}'}));
+    expect(store.donor('donor')?.owner_id).toBe('empty-owner');
+    api.request.mockRejectedValueOnce(new ApiError(403));
+    expect(await store.reassign('donor', 'board')).toBe(false);
+    expect(store.donor('donor')?.owner_id).toBe('empty-owner');
+  });
+  it('loads actual history, separates currencies and persists a contact before reloading its timeline', async () => {
+    const { store, api } = session('board');
+    let logged = false;
+    api.request.mockImplementation(async (path, init) => {
+      if (path === '/api/v1/catalog') return { programs: [{ id: 'program', title: 'Academy' }],
+        campaigns: [{ id: 'campaign', title: 'Annual', program_id: 'program' }] };
+      if (path.startsWith('/api/v1/gifts?')) return { items: [
+        { id: 'gift-usd', donor_id: 'donor', amount_cents: 1234, refund_cents: 100, currency: 'USD', status: 'settled', source: 'zeffy', campaign_id: 'campaign' },
+        { id: 'gift-eur', donor_id: 'donor', amount_cents: 700, refund_cents: 0, currency: 'EUR', status: 'settled', source: 'benevity', campaign_id: null },
+      ] };
+      if (path.startsWith('/api/v1/communications?')) return { items: logged ? [{ id: 'contact', donor_id: 'donor',
+        draft_id: null, channel: 'sms', status: 'logged_contact', actor_id: 'board', occurred_at: '2026-11-15T19:00:00Z',
+        note: 'Visited class\nWants an update', subject: null, body: null }] : [] };
+      if (path.endsWith('/donor/communications')) { logged = true; expect(JSON.parse(String(init?.body)).channel).toBe('sms'); }
+      if (path.includes('/follow-ups?')) return { overdue: [], due_this_week: [], upcoming: [] };
+      return { items: [] };
+    });
+    await store.refreshLive();
+    expect(store.lifetime('donor')).toBe(1134);
+    expect(store.currencies()).toEqual(['EUR', 'USD']);
+    store.selectedCurrency.set('EUR'); expect(store.lifetime('donor')).toBe(700);
+    expect(store.campaign('campaign')?.title).toBe('Annual');
+    expect(await store.logCommunication({ donor_id: 'donor', kind: 'text', summary: 'Visited class',
+      body: 'Wants an update', occurred_at: '2026-11-15T12:00:00-07:00' })).toBe(true);
+    expect(store.communicationsFor('donor')[0]?.kind).toBe('text');
+    expect(store.communicationsFor('donor')[0]?.body).toContain('Wants an update');
+    api.request.mockRejectedValueOnce(new ApiError(403));
+    expect(await store.logCommunication({ donor_id: 'donor', kind: 'call', summary: 'Call', body: '', occurred_at: '2026-11-15T12:00:00-07:00' })).toBe(false);
+  });
   it('loads the board queue without requesting admin keys', async () => {
     const { store, api } = session('board');
     await store.refreshLive();
@@ -152,6 +195,7 @@ describe('live workspace data and keys', () => {
     const oldStarted = new Promise<void>((resolve) => { started = resolve; });
     let reads = 0;
     api.request.mockImplementation(async (path) => {
+      if (path === '/api/v1/catalog') return { programs: [], campaigns: [] };
       if (path.includes('/follow-ups?')) {
         if (++reads === 1) { started(); return new Promise((resolve) => { resolveOld = resolve; }); }
         return { overdue: [], due_this_week: [], upcoming: [] };
@@ -176,6 +220,7 @@ describe('live workspace data and keys', () => {
     const oldStarted = new Promise<void>((resolve) => { started = resolve; });
     let reads = 0;
     api.request.mockImplementation(async (path) => {
+      if (path === '/api/v1/catalog') return { programs: [], campaigns: [] };
       if (path.includes('/follow-ups?')) {
         if (++reads === 1) { started(); return new Promise((resolve) => { resolveOld = resolve; }); }
         return { overdue: [], due_this_week: [], upcoming: [] };

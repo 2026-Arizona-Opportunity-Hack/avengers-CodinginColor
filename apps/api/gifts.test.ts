@@ -54,7 +54,7 @@ test('manual gift ledger keeps scope, exact money and time, idempotent replay an
   assert.equal(response.status, 200);
   let list = await response.json() as { items: { id: string, amount_cents: number }[], limit: number, offset: number };
   assert.deepEqual([list.items, list.limit, list.offset], [[], 50, 0]);
-  for (const query of ['', '?donor_id=bad', '?donor_id=' + id(20) + '&limit=0', '?donor_id=' + id(20) + '&limit=101',
+  for (const query of ['?donor_id=bad', '?donor_id=' + id(20) + '&limit=0', '?donor_id=' + id(20) + '&limit=101',
     '?donor_id=' + id(20) + '&offset=-1', '?donor_id=' + id(20) + '&extra=1', '?donor_id=' + id(20) + '&donor_id=' + id(21)])
     assert.equal((await request('/gifts' + query)).status, 400, query);
   for (const [who, donor] of [['board', id(21)], ['other', id(20)], ['admin', id(22)]] as const)
@@ -87,6 +87,15 @@ test('manual gift ledger keeps scope, exact money and time, idempotent replay an
   assert.equal(response.status, 409);
   assert.doesNotMatch(await response.text(), new RegExp(created.id));
   assert.equal((await post(body({ donor_id: id(22), external_id: 'm-2' }), 'foreign')).status, 403);
+  assert.equal((await request('/gifts')).status, 200);
+  const mine = await (await request('/gifts?limit=1')).json() as { items: { donor_id: string }[] };
+  assert.deepEqual(mine.items.map(g => g.donor_id), [id(20)]);
+  assert.deepEqual((await (await request('/gifts', {}, 'other')).json() as {items:unknown[]}).items, []);
+  const catalog = await (await request('/catalog')).json() as { programs: {title:string}[]; campaigns:{title:string}[] };
+  assert.deepEqual(catalog.programs.map(p=>p.title), ['P']);
+  assert.deepEqual(catalog.campaigns.map(c=>c.title), ['C']);
+  assert.equal((await request('/catalog', {}, null)).status, 401);
+  assert.equal((await request('/catalog', {}, 'foreign')).status, 403);
 
   const twins = [await post(body({ amount_cents: 2500 })), await post(body({ amount_cents: 2500 }))];
   assert.deepEqual(twins.map(twin => twin.status), [201, 201]);

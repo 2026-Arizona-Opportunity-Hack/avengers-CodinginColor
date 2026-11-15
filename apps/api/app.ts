@@ -39,6 +39,22 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
     const member = await withMember(db, env.CIC_ORG_ID, identity, async (_client, membership) => membership);
     res.json(member);
   });
+  app.get('/api/v1/catalog', async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const catalog = await withMember(db, env.CIC_ORG_ID, identity, async client => ({
+      programs: (await client.query('SELECT id,title FROM programs ORDER BY title,id')).rows,
+      campaigns: (await client.query('SELECT id,program_id,title FROM campaigns ORDER BY title,id')).rows,
+    }));
+    res.json(catalog);
+  });
+  app.get('/api/v1/owners', async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const items = await withMember(db, env.CIC_ORG_ID, identity, async (client, member) => {
+      if (member.role !== 'admin') throw new HttpError(403);
+      return (await client.query('SELECT * FROM public.assignable_owners()')).rows;
+    });
+    res.json({ items });
+  });
   app.use('/api/v1/donors', express.json({ limit: '32kb' }), donors(env, db, verify));
   app.use('/api/v1/gifts', express.json({ limit: '32kb' }), gifts(env, db, verify));
   app.use('/api/v1/imports', imports(env, db, verify));
