@@ -4,6 +4,7 @@ import { withMember, type Database } from './db.ts';
 import { HttpError, type Env } from './env.ts';
 import type { Identity } from './auth.ts';
 import { proposeJson } from './ai.ts';
+import { formatCents } from '../../packages/reporting/funder-packet.ts';
 import { RateLimiter } from './rate-limit.ts';
 import { retentionReport, ytdWindows, type RetentionGift } from '../../packages/reporting/retention.ts';
 
@@ -87,7 +88,7 @@ export function askData(env: Env, db: Database, verify: (h: string | undefined) 
           && Date.parse(g.occurred_at) >= Date.parse(windows.current.from));
       });
       return { needs_clarification: false, filters, donors: matches.slice(0, 50), total: matches.length,
-        explanation: `Active donors ${filters.scope === 'mine' ? 'assigned to you' : 'visible to your account'}${filters.segment ? `, ${filters.segment} giving` : ''}${filters.minimum_cents !== null ? `, net settled giving over ${(filters.minimum_cents / 100).toFixed(2)}` : ''}${filters.status ? `, with ${filters.status} gifts` : ''}. Gift filters use ${filters.currency} for ${filters.period === 'last_year' ? 'last calendar year' : 'this year through today'}. Showing up to 50 matches.` };
+        explanation: `Active donors ${filters.scope === 'mine' ? 'assigned to you' : 'visible to your account'}${filters.segment ? `, ${filters.segment} giving` : ''}${filters.minimum_cents !== null ? `, net settled giving over ${formatCents(filters.minimum_cents)}` : ''}${filters.status ? `, with ${filters.status} gifts` : ''}. Gift filters use ${filters.currency} for ${filters.period === 'last_year' ? 'last calendar year' : 'this year through today'}. Showing up to 50 matches.` };
     });
     res.json(result);
   });

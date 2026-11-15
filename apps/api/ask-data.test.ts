@@ -61,6 +61,8 @@ test('Ask data scopes reads with RLS, preserves money/currency, never sends ques
   assert.equal(exact.donors.length, 0, 'partial refund produces exactly 10000 net cents, not greater than 10000');
   const eur = await (await call('donors over $100 in EUR')).json() as { donors: unknown[] }; assert.equal(eur.donors.length, 1);
   const all = await (await call('all donors', 'admin')).json() as { donors: unknown[] }; assert.equal(all.donors.length, 3, 'plain all donors retains donors with no gift history');
+  const large = await (await call('donors over $90071992547409.90 in USD')).json() as { explanation: string };
+  assert.match(large.explanation, /net settled giving over 90071992547409\.90/);
   const beforeModifiers = sent.length;
   for (const question of ['donors in EUR', 'donors this year', 'donors last year']) {
     const ambiguous = await (await call(question, 'admin')).json() as { needs_clarification: boolean; donors: unknown[] };
