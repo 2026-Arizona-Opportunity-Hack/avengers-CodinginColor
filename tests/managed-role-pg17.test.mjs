@@ -14,11 +14,13 @@ test('a separate grantor can harden a definer function without removing managed 
     await db.query('BEGIN');
     await db.query(`CREATE ROLE rehearsal_cloud NOLOGIN;
       CREATE ROLE rehearsal_owner NOLOGIN;
+      CREATE ROLE rehearsal_denied NOLOGIN;
       CREATE ROLE rehearsal_actor NOLOGIN;
       CREATE ROLE rehearsal_runtime NOLOGIN;
-      GRANT rehearsal_owner TO rehearsal_cloud WITH ADMIN TRUE;
+      GRANT rehearsal_owner, rehearsal_denied TO rehearsal_cloud WITH ADMIN TRUE;
       SET LOCAL ROLE rehearsal_cloud;
       GRANT rehearsal_owner TO rehearsal_actor WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
+      GRANT rehearsal_denied TO rehearsal_actor WITH ADMIN FALSE, INHERIT FALSE, SET FALSE;
       RESET ROLE;
       CREATE FUNCTION public.rehearsal_definer() RETURNS integer LANGUAGE sql SECURITY DEFINER AS 'SELECT 1';
       ALTER FUNCTION public.rehearsal_definer() OWNER TO rehearsal_owner;`);
@@ -43,6 +45,10 @@ test('a separate grantor can harden a definer function without removing managed 
       RESET ROLE;
       REVOKE rehearsal_owner FROM rehearsal_actor GRANTED BY rehearsal_actor;`);
     assert.deepEqual(await acl(), { public_exec: false, runtime_exec: true });
+    assert.deepEqual(await memberships(), baseline);
+    await db.query('SAVEPOINT denied');
+    await assert.rejects(db.query('GRANT rehearsal_denied TO rehearsal_actor WITH INHERIT FALSE, SET TRUE'));
+    await db.query('ROLLBACK TO SAVEPOINT denied');
     assert.deepEqual(await memberships(), baseline);
     await db.query('RESET SESSION AUTHORIZATION');
     await db.query('ROLLBACK');
