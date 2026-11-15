@@ -2,7 +2,7 @@ import { Component, ElementRef, computed, effect, inject, signal, viewChild } fr
 import { Api, ApiError } from '../core/api';
 import { Store } from '../core/store';
 import { IMPORT_FIELDS, LiveImports, importTotals, type ImportDecision, type ImportLayout,
-  type ImportPlan, type ImportPreview, type ImportResult, type PlanRow, type PreviewRow } from '../core/import-live';
+  type ImportPlan, type ImportPreview, type ImportResult, type ImportSuggestion, type PlanRow, type PreviewRow } from '../core/import-live';
 
 @Component({
   selector: 'app-live-import',
@@ -34,10 +34,20 @@ import { IMPORT_FIELDS, LiveImports, importTotals, type ImportDecision, type Imp
             <h2 #stageHeading tabindex="-1">Map columns and confirm financial facts</h2>
             <p>Automatic aliases retain the source units. For manual mapping, decimal amounts convert 12.34 to 1234 cents; amount_cents already contains integer cents.</p>
             <div class="fields">@for (h of p.headers; track h; let i = $index) {
-              <label class="field">{{ h }}<select class="input" [value]="mapping()[h] === null ? '__ignore' : mapping()[h] ?? ''" (change)="map(h, $any($event.target).value)">
+              <div class="stack"><label class="field">{{ h }}<select class="input" [value]="mapping()[h] === null ? '__ignore' : mapping()[h] ?? ''" (change)="map(h, $any($event.target).value)">
                 <option value="">Automatic: {{ p.mapping[i] ?? 'unmapped' }}</option><option value="__ignore">Ignore column</option>
                 @for (f of fields; track f) { <option [value]="f">{{ f === 'amount_decimal' ? 'Amount in major units, e.g. dollars' : f === 'amount_cents' ? 'Amount already in cents' : f.replaceAll('_', ' ') }}</option> }
               </select></label>
+              @if (p.mapping[i] === null && mapping()[h] === undefined) {
+                <button class="btn" type="button" (click)="suggest(h)">Suggest mapping for {{ h }}</button>
+                @if (suggestions()[h]; as s) {
+                  <p>Suggested: {{ s.target.replaceAll('_', ' ') }} ({{ (s.confidence * 100).toFixed(0) }}% confidence). Review before using.</p>
+                  @if (s.target !== 'unknown') {
+                    <button class="btn" type="button" (click)="map(h, s.target === 'ignore' ? '__ignore' : s.target)">Use suggestion for {{ h }}</button>
+                  }
+                }
+              }
+              </div>
             }</div>
             <div class="fields">
               @if (!mapped('currency')) { <label class="field">Currency for missing values<input class="input" name="currency" maxlength="3" placeholder="USD" [value]="layout().batch_values.currency ?? ''" /></label> }
@@ -113,6 +123,7 @@ export class LiveImportPage {
   protected readonly previewRows = signal<PreviewRow[]>([]);
   protected readonly layout = signal<ImportLayout>({ mapping: {}, skip_records: [], batch_values: {} });
   protected readonly mapping = signal<Record<string, string | null>>({});
+  protected readonly suggestions = signal<Record<string, ImportSuggestion>>({});
   protected readonly filename = signal('');
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -137,6 +148,7 @@ export class LiveImportPage {
   constructor() { effect(() => { this.store.sessionEpoch(); this.generation++; this.busy.set(false); this.clear(); }); }
 
   protected clear() {
+    this.suggestions.set({});
     this.batch.set(null); this.preview.set(null); this.previewRows.set([]); this.rows.set([]); this.plan.set(null);
     this.layout.set({ mapping: {}, skip_records: [], batch_values: {} }); this.mapping.set({}); this.choices.set({});
     this.filename.set(''); this.phase.set('mapping'); this.applied.set(false); this.skipInvalid.set(false); this.page.set(0); this.error.set(null);
@@ -170,6 +182,13 @@ export class LiveImportPage {
       if (batch.layout) { this.layout.set({ ...batch.layout, mapping: batch.layout.mapping ?? {},
         batch_values: batch.layout.batch_values ?? {}, skip_records: batch.layout.skip_records ?? [] }); this.mapping.set(batch.layout.mapping ?? {}); }
       this.skipInvalid.set(rows.some(r => r.issues.length) && rows.filter(r => r.issues.length).every(r => batch.layout?.skip_records?.includes(r.recordNumber)));
+    });
+  }
+
+  protected async suggest(header: string) {
+    await this.run(() => this.client.suggest(this.batch()!.batch_id, header), result => {
+      if (result.suggestion) this.suggestions.update(s => ({ ...s, [header]: result.suggestion! }));
+      else this.error.set('Suggestions are unavailable. Choose a mapping manually.');
     });
   }
 
