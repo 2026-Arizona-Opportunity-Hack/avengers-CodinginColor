@@ -138,11 +138,9 @@ All supplied samples lack currency, and the AZ Gives sample's dates stay unconfi
 until a reviewer passes both date flags, so every preview remains `needs_review`.
 External transaction IDs are optional in
 the backend baseline; reimport safety still needs reconciliation logic.
-Phone formatting is normalized without guessing
-a country; contact-person names do not assign owners. Jev suggestions,
-donor/gift deduplication, saved review decisions and transactional import remain
-follow-up work against the baseline published in [backend issue #7](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/7),
-with persistence integration after the shared foundation is reviewed and merged.
+Phone formatting is normalized without guessing a country; contact-person names
+do not assign owners. Local review helpers and the CSV import API are described
+below; XLSX upload still needs a backend integration.
 
 For ambiguous headers, pass an optional JSON mapping file as the final argument:
 `node tools/import-preview.ts spreadsheet export.csv mapping.json`.
