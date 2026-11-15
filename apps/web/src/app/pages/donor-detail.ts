@@ -321,7 +321,7 @@ export class DonorDetailPage {
     this.flash.set('Thank-you drafted. It waits for approval before anyone sends it.');
   }
 
-  protected saveProfile(event: Event) {
+  protected async saveProfile(event: Event) {
     event.preventDefault();
     const form = new FormData(event.target as HTMLFormElement);
     const value = (k: string) => String(form.get(k) ?? '').trim() || null;
@@ -332,21 +332,21 @@ export class DonorDetailPage {
       const v = value(`custom_${f.key}`);
       if (v) custom[f.key] = v;
     }
-    this.store.updateDonor(this.id(), {
+    const saved = await this.store.updateDonor(this.id(), {
       name, email: value('email'), phone: value('phone'), company: value('company'),
       consent: (value('consent') ?? 'unknown') as Consent, custom,
     });
+    if (!saved) return;
     this.editing.set(false);
     this.flash.set('Profile saved and recorded in the audit log.');
   }
 
-  protected reassign(ownerId: string) {
-    this.store.reassign(this.id(), ownerId);
+  protected async reassign(ownerId: string) {
+    if (!(await this.store.reassign(this.id(), ownerId))) return;
     this.flash.set(`Owner changed to ${this.store.member(ownerId)?.name}.`);
   }
 
-  protected archive() {
-    this.store.archiveDonor(this.id());
-    this.router.navigateByUrl('/donors');
+  protected async archive() {
+    if (await this.store.archiveDonor(this.id())) this.router.navigateByUrl('/donors');
   }
 }

@@ -1,8 +1,10 @@
-import { Injectable, computed, effect, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
 import { ANCHOR, DATASET_VERSION, buildDemoDataset } from './demo-data';
 import {
-  ApiKey, Channel, Communication, CommunicationKind, CustomField, Dataset, Donor, Draft, FollowUp, Gift, Member, Source,
+  ApiKey, Channel, Communication, CommunicationKind, CustomField, Dataset, Donor, DonorKind, Draft, FollowUp, Gift, Member,
+  SOURCE_LABEL, Source,
 } from './models';
+import { Api, ApiDonor, ApiDonorPatch, ApiError, ApiMe, LiveConfig } from './api';
 import { money, quarterOf, today } from './format';
 
 const STORE_KEY = 'cadence.dataset';
@@ -19,6 +21,29 @@ function load<T>(key: string): T | null {
 function save(key: string, value: unknown) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage unavailable: state stays in memory */ }
 }
+const KINDS: DonorKind[] = ['individual', 'company', 'foundation'];
+const text = (v: unknown) => (typeof v === 'string' && v.trim() ? v : null);
+
+/** Server donor to UI donor. Company, kind, channel, sources and custom fields live in donor metadata. */
+export function fromApiDonor(d: ApiDonor): Donor {
+  const m = d.metadata ?? {};
+  const custom: Record<string, string> = {};
+  if (m['custom'] && typeof m['custom'] === 'object' && !Array.isArray(m['custom'])) {
+    for (const [k, v] of Object.entries(m['custom'] as Record<string, unknown>)) if (text(v)) custom[k] = v as string;
+  }
+  return {
+    id: d.id, name: d.name, email: d.email, phone: d.phone, company: text(m['company']),
+    kind: KINDS.includes(m['kind'] as DonorKind) ? (m['kind'] as DonorKind) : 'individual',
+    owner_id: d.owner_id, consent: d.consent, preferred_channel: m['preferred_channel'] === 'text' ? 'text' : 'email',
+    created_at: text(m['created_at']) ?? '', archived_at: d.archived_at,
+    sources: Array.isArray(m['sources']) ? (m['sources'] as unknown[]).filter((x): x is Source => typeof x === 'string' && x in SOURCE_LABEL) : [],
+    custom,
+  };
+}
+
+const NO_MEMBER: Member = { id: '', name: '', email: '', role: 'board', title: '', active: false };
+const NOT_CONNECTED = 'This action is not connected to the server yet, so nothing was saved.';
+
 const uid = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 const nowIso = () => new Date().toISOString();
 
@@ -45,6 +70,12 @@ export interface ImportRow {
  */
 @Injectable({ providedIn: 'root' })
 export class Store {
+  private readonly api = inject(Api);
+  /** True once a config.json points at a real API. Demo data and browser storage are then never used. */
+  readonly live = signal(false);
+  /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
+  readonly notice = signal<string | null>(null);
+  private readonly rawMetadata = new Map<string, Record<string, unknown>>();
   private readonly data = signal<Dataset>(this.initial());
   readonly sessionId = signal<string>(load<string>(SESSION_KEY) ?? 'm-ceo');
 
@@ -57,7 +88,8 @@ export class Store {
   readonly customFields = computed(() => this.data().customFields);
   readonly audit = computed(() => this.data().audit);
 
-  readonly me = computed<Member>(() => this.members().find((m) => m.id === this.sessionId()) ?? this.members()[0]);
+  /** Until live data loads there is no member; fall back to the least-privileged role. */
+  readonly me = computed<Member>(() => this.members().find((m) => m.id === this.sessionId()) ?? this.members()[0] ?? NO_MEMBER);
   readonly isAdmin = computed(() => this.me().role === 'admin');
   readonly boardMembers = computed(() => this.members().filter((m) => m.role === 'board' && m.active));
 
@@ -84,8 +116,9 @@ export class Store {
   });
 
   constructor() {
-    effect(() => save(STORE_KEY, this.data()));
-    effect(() => save(SESSION_KEY, this.sessionId()));
+    // Live donor records stay in memory only: no donor PII is written to browser storage.
+    effect(() => { if (!this.live()) save(STORE_KEY, this.data()); });
+    effect(() => { if (!this.live()) save(SESSION_KEY, this.sessionId()); });
   }
 
   private initial(): Dataset {
@@ -108,13 +141,67 @@ export class Store {
     return this.giftsFor(donorId).filter((g) => g.status !== 'void').sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))[0] ?? null;
   }
 
-  setSession(id: string) { this.sessionId.set(id); }
+  setSession(id: string) { if (!this.live()) this.sessionId.set(id); }
 
   resetDemo() {
+    if (this.live()) return;
     this.data.set(buildDemoDataset());
   }
 
+  /** Switches to live mode and loads the signed-in member's data once Clerk has a session. */
+  connect(config: LiveConfig) {
+    this.live.set(true);
+    this.data.set(this.emptyDataset([], []));
+    void this.api.start(config, () => void this.refreshLive(), () => {
+      this.rawMetadata.clear();
+      this.data.set(this.emptyDataset([], []));
+      this.notice.set(null);
+    });
+  }
+
+  async refreshLive() {
+    this.api.status.set('loading');
+    try {
+      const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
+      this.loadLive(me, donors);
+      this.api.status.set('ready');
+    } catch (e) {
+      this.api.fail(e instanceof ApiError ? e.message : 'Could not load your data.');
+    }
+  }
+
+  private emptyDataset(members: Member[], donors: Donor[]): Dataset {
+    const demo = buildDemoDataset();
+    return {
+      version: DATASET_VERSION, members, donors, programs: [], campaigns: [], gifts: [], communications: [], followUps: [],
+      templates: demo.templates, drafts: [], outcomes: [], apiKeys: [], customFields: demo.customFields, audit: [],
+      assignmentCursor: 0,
+    };
+  }
+
+  /**
+   * There is no member directory route yet, so other owners show a short ID until one exists.
+   * Visibility comes from the server: board members only ever receive their own donors.
+   */
+  private loadLive(me: ApiMe, donors: ApiDonor[]) {
+    this.rawMetadata.clear();
+    for (const d of donors) this.rawMetadata.set(d.id, d.metadata ?? {});
+    const others = [...new Set(donors.map((d) => d.owner_id).filter((id): id is string => !!id && id !== me.id))];
+    const members: Member[] = [
+      { id: me.id, name: 'You', email: '', role: me.role, title: me.role === 'admin' ? 'Administrator' : 'Board member', active: true },
+      ...others.map((id) => ({ id, name: `Member ${id.slice(0, 6)}`, email: '', role: 'board' as const, title: 'Board member', active: true })),
+    ];
+    this.data.set(this.emptyDataset(members, donors.map(fromApiDonor)));
+    this.sessionId.set(me.id);
+  }
+
+  private putDonor(saved: ApiDonor) {
+    this.rawMetadata.set(saved.id, saved.metadata ?? {});
+    this.data.update((d) => ({ ...d, donors: d.donors.map((x) => (x.id === saved.id ? fromApiDonor(saved) : x)) }));
+  }
+
   private mutate(fn: (d: Dataset) => void, action: string, target: string) {
+    if (this.live()) { this.notice.set(NOT_CONNECTED); return; }
     this.data.update((current) => {
       const next = structuredClone(current);
       fn(next);
@@ -161,17 +248,45 @@ export class Store {
     }), 'gift.create', input.donor_id);
   }
 
-  updateDonor(id: string, patch: Partial<Pick<Donor, 'name' | 'email' | 'phone' | 'company' | 'consent' | 'preferred_channel' | 'custom'>>) {
-    this.mutate((d) => Object.assign(d.donors.find((x) => x.id === id)!, patch), 'donor.update', id);
+  /** Resolves true when saved. In live mode the API validates, scopes and audits the change. */
+  async updateDonor(id: string, patch: Partial<Pick<Donor, 'name' | 'email' | 'phone' | 'company' | 'consent' | 'preferred_channel' | 'custom'>>): Promise<boolean> {
+    if (!this.live()) {
+      this.mutate((d) => Object.assign(d.donors.find((x) => x.id === id)!, patch), 'donor.update', id);
+      return true;
+    }
+    const { name, email, phone, consent, company, preferred_channel, custom } = patch;
+    const metadata = { ...(this.rawMetadata.get(id) ?? {}) };
+    if (company !== undefined) metadata['company'] = company;
+    if (preferred_channel !== undefined) metadata['preferred_channel'] = preferred_channel;
+    if (custom !== undefined) metadata['custom'] = custom;
+    const body: ApiDonorPatch = { name, email, phone, consent, metadata };
+    return this.liveWrite(async () => this.putDonor(await this.api.patchDonor(id, body)));
   }
 
-  reassign(id: string, ownerId: string) {
-    if (!this.isAdmin()) return;
+  async reassign(id: string, ownerId: string): Promise<boolean> {
+    if (!this.isAdmin()) return false;
+    if (this.live()) { this.notice.set(NOT_CONNECTED); return false; }
     this.mutate((d) => { d.donors.find((x) => x.id === id)!.owner_id = ownerId; }, 'donor.reassign', id);
+    return true;
   }
 
-  archiveDonor(id: string) {
-    this.mutate((d) => { d.donors.find((x) => x.id === id)!.archived_at = nowIso(); }, 'donor.archive', id);
+  async archiveDonor(id: string): Promise<boolean> {
+    if (!this.live()) {
+      this.mutate((d) => { d.donors.find((x) => x.id === id)!.archived_at = nowIso(); }, 'donor.archive', id);
+      return true;
+    }
+    return this.liveWrite(async () => this.putDonor(await this.api.archiveDonor(id)));
+  }
+
+  private async liveWrite(run: () => Promise<void>): Promise<boolean> {
+    try {
+      await run();
+      this.notice.set(null);
+      return true;
+    } catch (e) {
+      this.notice.set(e instanceof ApiError ? e.message : 'The change could not be saved.');
+      return false;
+    }
   }
 
   logCommunication(input: { donor_id: string; kind: CommunicationKind; summary: string; body: string; occurred_at: string }) {
