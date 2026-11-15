@@ -15,15 +15,13 @@ it('anonymous sign-in shows Try Now without exposing a demo member picker', () =
   for (const member of store.members()) expect(fixture.nativeElement.textContent).not.toContain(member.name);
 });
 
-it('keeps the public sign-in placeholder until the Clerk widget has content', () => {
+it('shows a large demo entry without provider widgets or live-login controls', () => {
   TestBed.configureTestingModule({ providers: [provideRouter([]), provideIcons(APP_ICONS)] });
-  const api = TestBed.inject(Api); vi.spyOn(api, 'start').mockResolvedValue();
-  TestBed.inject(Store).connect({ apiBase: '', clerkPublishableKey: 'pk_test_synthetic' });
-  api.status.set('signed-out');
+  const api = TestBed.inject(Api), mount = vi.spyOn(api, 'mountSignIn');
   const fixture = TestBed.createComponent(SignInPage); fixture.detectChanges();
-  const placeholder = fixture.nativeElement.querySelector('.signin-placeholder') as HTMLElement;
-  expect(placeholder.textContent).toContain('Preparing secure sign-in');
-  expect(getComputedStyle(placeholder).display).not.toBe('none');
-  fixture.nativeElement.querySelector('.auth-component').append(document.createElement('form'));
-  expect(getComputedStyle(placeholder).display).toBe('none');
+  const el = fixture.nativeElement as HTMLElement;
+  expect(el.querySelector('.try-now')).not.toBeNull();
+  expect(el.querySelector('.auth-component, a[href*="demo=0"], a[href*="setup-security"]')).toBeNull();
+  expect(el.textContent).not.toMatch(/Clerk|two-step|Everyone has demo admin|Start as demo admin|Present with synthetic|Fictional data/);
+  expect(mount).not.toHaveBeenCalled();
 });

@@ -78,7 +78,7 @@ export class Store {
   private readonly api = inject(Api);
   /** True once a config.json points at a real API. Demo data and browser storage are then never used. */
   readonly live = signal(false);
-  readonly demoAdmin = signal(false);
+  readonly demoMode = signal(false);
   /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
   readonly notice = signal<string | null>(null);
   private liveLoadGeneration = 0;
@@ -106,7 +106,7 @@ export class Store {
 
   /** Until live data loads there is no member; fall back to the least-privileged role. */
   readonly me = computed<Member>(() => this.members().find((m) => m.id === this.sessionId()) ?? this.members()[0] ?? NO_MEMBER);
-  readonly isAdmin = computed(() => (!this.live() && this.demoAdmin()) || this.me().role === 'admin');
+  readonly isAdmin = computed(() => this.me().role === 'admin');
   readonly boardMembers = computed(() => this.members().filter((m) => m.role === 'board' && m.active));
 
   /** Donors this session may see: admins see the organization, board members their own. */
@@ -125,7 +125,8 @@ export class Store {
   readonly communications = computed(() => this.data().communications.filter((c) => this.visibleIds().has(c.donor_id)));
   readonly followUps = computed(() => this.data().followUps.filter((f) => this.visibleIds().has(f.donor_id)));
   readonly drafts = computed(() => this.data().drafts.filter((d) =>
-    this.isAdmin() || d.owner_id === this.me().id || d.recipient_member_id === this.me().id));
+    this.isAdmin() || (d.donor_id ? this.historicalIds().has(d.donor_id)
+      : d.owner_id === this.me().id || d.recipient_member_id === this.me().id)));
 
   /** Every donor regardless of session, for import duplicate checks (admin-only screen). */
   readonly allDonors = computed(() => this.data().donors.filter((d) => !d.archived_at));
@@ -170,7 +171,7 @@ export class Store {
 
   enableDemo(entering: boolean) {
     if (this.live()) return;
-    this.demoAdmin.set(true);
+    this.demoMode.set(true);
     if (entering) this.data.set(buildDemoDataset());
     if (entering || !this.members().some(m => m.active && m.id === this.sessionId())) this.sessionId.set('m-ceo');
     if (entering) this.signInDemo('m-ceo');
@@ -204,7 +205,7 @@ export class Store {
 
   /** Switches to live mode and loads the signed-in member's data once Clerk has a session. */
   connect(config: LiveConfig) {
-    if (this.demoAdmin()) return;
+    if (this.demoMode()) return;
     this.liveLoadGeneration++;
     this.live.set(true);
     this.data.set(this.emptyDataset([], []));
@@ -398,7 +399,13 @@ export class Store {
         if (epoch === this.sessionEpoch()) this.putDonor(donor);
       });
     }
-    this.mutate((d) => { d.donors.find((x) => x.id === id)!.owner_id = ownerId; }, 'donor.reassign', id);
+    this.mutate((d) => {
+      d.donors.find((x) => x.id === id)!.owner_id = ownerId;
+      for (const draft of d.drafts)
+        if (draft.donor_id === id && (draft.status === 'pending' || draft.status === 'approved')) draft.owner_id = ownerId;
+      for (const task of d.followUps)
+        if (task.donor_id === id && task.status === 'open') task.owner_id = ownerId;
+    }, 'donor.reassign', id);
     return true;
   }
 
