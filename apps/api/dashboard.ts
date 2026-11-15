@@ -5,7 +5,6 @@ import {
 } from '../../packages/reporting/summary.ts';
 import { HttpError } from './env.ts';
 import type { Client, Database } from './db.ts';
-import { RateLimiter } from './rate-limit.ts';
 import { checkGift, netCents } from '../../packages/reporting/retention.ts';
 
 export type DashboardOptions = {
@@ -15,9 +14,6 @@ export type DashboardOptions = {
   minDonors: number;
   /** Requests per key per minute. */
   limitPerMinute: number;
-  now?: () => number;
-  /** Injectable for tests; defaults to a bounded per-key limiter. */
-  limiter?: RateLimiter;
 };
 
 // Bigint amounts are read as text and checked by summarize()/recentActivity().
@@ -58,8 +54,6 @@ async function asRuntime<T>(db: Database, action: (client: Client) => Promise<T>
  */
 export function createDashboardRouter(db: Database, options: DashboardOptions) {
   const router = express.Router();
-  const limiter = options.limiter ?? new RateLimiter({ limit: options.limitPerMinute, windowMs: 60_000,
-    maxEntries: 1000, now: options.now });
 
   const authenticate = (req: express.Request, res: express.Response) => {
     res.set('Cache-Control', 'no-store');
@@ -71,19 +65,24 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
       throw error instanceof ApiKeyError ? new HttpError(401) : error;
     }
   };
-  const rateLimit = (hash: string, res: express.Response) => {
-    const result = limiter.hit(hash);
-    if (!result.ok) {
-      res.set('Retry-After', String(result.retryAfterSeconds));
+  const forKey = async <T>(hash: string, res: express.Response, action: (client: Client) => Promise<T>) => {
+    const result = await asRuntime(db, async client => {
+      // Authenticate before allocating a bucket, including keys for organizations with no programs.
+      await client.query('SELECT 1 FROM public.cic_reporting_programs($1) LIMIT 1', [hash]);
+      const quota = (await client.query(`SELECT public.cic_consume_limit($1,$2) AS allowed,
+        greatest(1,ceil(extract(epoch FROM date_trunc('minute',clock_timestamp()) + interval '1 minute'
+          - clock_timestamp())))::int AS retry_after_seconds`, [`aggregate:${hash}`, options.limitPerMinute])
+        .catch(() => { throw new HttpError(503); })).rows[0];
+      if (typeof quota?.allowed !== 'boolean') throw new HttpError(503);
+      if (!quota.allowed) return { allowed: false as const, retryAfter: quota.retry_after_seconds };
+      return { allowed: true as const, value: await action(client) };
+    });
+    // Return a quota rejection only after COMMIT so its consumed count cannot be rolled back.
+    if (!result.allowed) {
+      res.set('Retry-After', String(result.retryAfter));
       throw new HttpError(429);
     }
-  };
-  /** Run a key-scoped query; an unknown or revoked key leaves no limiter state behind. */
-  const forKey = async <T>(hash: string, action: (client: Client) => Promise<T>) => {
-    try { return await asRuntime(db, action); } catch (error) {
-      if (error instanceof HttpError && error.status === 401) limiter.forget(hash);
-      throw error;
-    }
+    return result.value;
   };
 
   router.get('/api/v1/summary', async (req, res) => {
@@ -92,7 +91,6 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     try { query = parseSummaryQuery(req.query as Record<string, string>, options.offset); } catch (error) {
       throw error instanceof QueryError ? new HttpError(400) : error;
     }
-    rateLimit(hash, res);
     const current = query.window;
     const previousYear = (value: string) => {
       const year = Number(value.slice(0, 4)) - 1;
@@ -107,7 +105,7 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     const priorEnd = new Date(`${priorLastDay.slice(0, 10)}T00:00:00Z`);
     priorEnd.setUTCDate(priorEnd.getUTCDate() + 1);
     const prior = { from: previousYear(current.from), to: priorEnd.toISOString().slice(0, 10) + current.to.slice(10) };
-    const { gifts, priorGifts, titles } = await forKey(hash, async (client) => ({
+    const { gifts, priorGifts, titles } = await forKey(hash, res, async (client) => ({
       gifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
         [hash, query.window.from, query.window.to])).rows.map(toGift),
       priorGifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
@@ -143,8 +141,7 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     const hash = authenticate(req, res);
     const parsed = ActivityQuery.safeParse(req.query);
     if (!parsed.success) throw new HttpError(400);
-    rateLimit(hash, res);
-    const { rows, titles } = await forKey(hash, async (client) => ({
+    const { rows, titles } = await forKey(hash, res, async (client) => ({
       rows: (await client.query(`SELECT ${ROW} FROM cic_reporting_recent($1, $2)`, [hash, parsed.data.limit])).rows.map(toGift),
       titles: Object.fromEntries((await client.query('SELECT id, title FROM cic_reporting_programs($1)', [hash])).rows
         .map((r) => [String(r.id), String(r.title)])),
