@@ -35,3 +35,21 @@ npm ci
 node --test packages/reporting/*.test.ts
 npx tsc -p packages/reporting
 ```
+
+## Funder packet (`funder-packet.ts`, issue #28)
+
+`buildFunderPacket({ funder, program, period, gifts, outcomes })` takes one funder's
+gifts (already scoped by an authorized query) and returns:
+
+- **gifts** in the half-open period, labeled `program` (the gift funds the chosen
+  program) or `unattributed` (no program). Gifts for other programs are left out.
+- **totals** per attribution and per currency: gift count, gross, refunds and net,
+  in integer cents. Pending and void gifts are listed but add nothing.
+- **outcomes**: only **approved** rows for that program whose period overlaps. A
+  `null` value is `not_reported`, which is never the same as a reported `0`.
+  `outcomes_status: 'unavailable'` when nothing approved applies.
+
+`packetCsv(packet)` writes a spreadsheet-safe CSV (header, gifts, totals, outcomes).
+Every cell starting with `=`, `+`, `-`, `@`, tab or CR is prefixed with `'` (CSV/formula
+injection), and fields are quoted per RFC 4180. Money uses `formatCents` (exact
+`1234.56`, no floating point). Exporting is admin-only; enforce that in the route.
