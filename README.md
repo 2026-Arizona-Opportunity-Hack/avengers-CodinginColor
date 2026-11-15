@@ -181,7 +181,8 @@ For ambiguous headers, pass an optional JSON mapping file as the final argument:
 `node tools/import-preview.ts spreadsheet export.csv mapping.json`.
 Keys must exactly match source headers. Targets are `first_name`, `last_name`,
 `email`, `phone`, `company`, `contact_person`, `campaign`, `occurred_at`,
-`currency`, `external_id`, `amount_decimal`, or `amount_cents`; null explicitly
+`currency`, `external_id`, `amount_decimal`, `amount_cents`, `status`,
+`refund_decimal`, or `refund_cents`; null explicitly
 ignores a column while retaining its raw cells. Unknown targets/headers and
 multiple columns targeting the same field are rejected.
 
@@ -238,6 +239,13 @@ then validated, together with timestamps and optional external IDs, using the
 shared schemas from contract PR #8. Missing/invalid facts remain review issues.
 Mappings are explicit input choices, not final approval: previews still report
 `needs_review`, and donor IDs, refunds, gift status and persistence are not inferred.
+
+Refund mappings follow the same unit rule: `refund_decimal` and the known
+`refunded amount` header consume major units, while `refund_cents` consumes integer
+cents. Mapped statuses must be `settled`, `pending` or `void` (case-insensitive).
+Invalid/missing mapped facts and refunds exceeding gift amounts require review.
+Batch status/refund values are only requested when those columns are unmapped;
+they never replace the financial facts in a mapped row.
 
 ## Reconciliation planning (Data)
 
