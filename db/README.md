@@ -85,3 +85,24 @@ lapsed, plus dormant). It also includes a fully refunded gift, pending gifts, gi
 with no campaign, three sources, and two foundations with program-restricted gifts
 for the funder packet. It **refuses** to run against an organization that already has
 any non-demo donor, and it refuses the runtime login. Tests: `node --test tests/seed-demo.test.ts`.
+
+## Dashboard API keys (`004_reporting_api.sql`, #29)
+
+- **`api_keys`** stores only a SHA-256 `key_hash`, a short `hint`, `scopes`
+  (`read:aggregates`) and `revoked_at`.
+  - Admins create and revoke keys through `cic_runtime`.
+  - Revocation is one-way, and there's no delete.
+  - **Runtime can never select `key_hash`.**
+- **`cic_reporting`** is a non-login definer role.
+  - The migration fails if it already exists with unsafe attributes or memberships.
+  - Its column grants exclude every donor contact field.
+- It owns three functions, executable only by `cic_runtime`:
+  - `cic_reporting_gifts(key_hash, from, to)` (window ≤ 1830 days)
+  - `cic_reporting_recent(key_hash, limit 1-100)`
+  - `cic_reporting_programs(key_hash)`
+
+  Each resolves the organization from an active key with the right scope, returns that
+  org's non-void gift rows (internal UUIDs and amounts only), and raises `Invalid API
+  key` otherwise.
+- The API turns those rows into suppressed aggregates with `packages/reporting/summary.ts`;
+  per-gift rows never leave the server. Tests: `node --test tests/reporting-api.test.ts`.

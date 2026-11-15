@@ -78,3 +78,40 @@ route and the `api_keys` table come in a later slice.
   the newest non-void gifts as `{date, program, source, status, currency, net_cents}`,
   with **no donor or owner identifiers**. Exact amounts and dates can still hint at
   identity in a small org, so only expose this feed to the dashboard key.
+
+## Dashboard API for CIC's org dashboard (#29)
+
+Two read-only endpoints for CIC's own dashboard. They need **no sign-in**, only an API
+key, and return **aggregates only**: no donor names, contact details or IDs.
+
+**Issue a key** (a person, on their machine, with `MIGRATION_DATABASE_URL` and `CIC_ORG_ID` set):
+
+```powershell
+node --env-file-if-exists=.env db/api-key.ts create "Org dashboard" user_<admin's Clerk ID>
+node --env-file-if-exists=.env db/api-key.ts list
+node --env-file-if-exists=.env db/api-key.ts revoke cic_live_AbCd   # by the 13-character hint
+```
+
+The full key is printed **once**; only its SHA-256 hash is stored. Keep it in the
+dashboard's secret settings, never in code or chat.
+
+**Call it** with `Authorization: Bearer <key>` (or `X-API-Key: <key>`, but not both):
+
+```bash
+curl -H "Authorization: Bearer $CIC_DASHBOARD_KEY" \
+  "https://<host>/api/v1/summary?from=2026-01-01&to=2026-11-15&groupBy=program"
+curl -H "Authorization: Bearer $CIC_DASHBOARD_KEY" "https://<host>/api/v1/activity?limit=20"
+```
+
+| Endpoint | Query | Returns |
+|---|---|---|
+| `GET /api/v1/summary` | `from`, `to`: CIC-local `YYYY-MM-DD` (`to` exclusive, ≤ 5 years); `groupBy`: `month` (default), `program` or `owner` | `{window, groupBy, totals, groups: [{key, label, suppressed, donors?, currencies?}]}` |
+| `GET /api/v1/activity` | `limit` 1-100 (default 20) | `{items: [{date, program, source, status, currency, net_cents}]}`, newest first |
+
+- Amounts are integer cents, kept separate per currency.
+- Any group, or the totals, with fewer than **3** donors comes back as
+  `{key, label, suppressed: true}` with no numbers.
+- `owner` keys are membership IDs.
+- **Errors:** `401` for a missing, malformed, unknown or revoked key; `400` for a bad
+  query; `429` after 60 requests per minute per key (honor `Retry-After`); `503` if
+  the database is unavailable.
