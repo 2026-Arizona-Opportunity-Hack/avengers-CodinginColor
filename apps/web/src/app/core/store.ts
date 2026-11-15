@@ -231,7 +231,7 @@ export class Store {
       this.api.status.set('ready');
     } catch (e) {
       if (generation !== this.liveLoadGeneration) return;
-      this.api.fail(e instanceof ApiError ? e.message : 'Could not load your data.');
+      this.api.fail(e instanceof ApiError ? e.message : 'Could not load your data.', e instanceof ApiError ? e.code : undefined);
     }
   }
 

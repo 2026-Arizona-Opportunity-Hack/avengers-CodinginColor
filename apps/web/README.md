@@ -1,5 +1,11 @@
 # Coding in Color web app
 
+Admin first sign-in can require two-step enrollment before staff data loads. The explicit
+setup action opens `/setup-security`, embeds Clerk Security, and guides authenticator verification
+and private recovery-code handling. Finish setup checks enrollment, signs out, and returns to
+a fresh sign-in; only the server's normal MFA check can grant workspace access. Board accounts
+do not acquire an MFA requirement from this flow. Actual enrollment must be completed by the user.
+
 Angular 22 interface for the CIC donor platform. Owner: UI (@ashworks1706).
 
 The interface uses Coding in Color's supplied nonprofit logo and product name on

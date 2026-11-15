@@ -34,7 +34,7 @@ export interface ApiRetention {
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code?: string) {
     super(status === 403 && code === 'admin_mfa_required'
-      ? 'Your admin account needs two-step verification. Open Manage sign-in security, add an authenticator under Security, then sign out and sign in again.'
+      ? 'Your admin account needs two-step verification. Set up an authenticator, then sign in again to finish.'
       : status === 401 ? 'Your session ended. Sign in again.'
       : status === 403 ? 'You do not have access to that.'
       : status === 404 ? 'That record was not found or is not yours.'
@@ -65,6 +65,7 @@ export async function loadLiveConfig(): Promise<LiveConfig | null> {
 export class Api {
   readonly status = signal<LiveStatus>('off');
   readonly error = signal<string | null>(null);
+  readonly errorCode = signal<'admin_mfa_required' | null>(null);
   private config: LiveConfig | null = null;
   private clerk: Clerk | null = null;
   get baseUrl() { return this.config?.apiBase ?? ''; }
@@ -88,8 +89,9 @@ export class Api {
     }
   }
 
-  fail(message: string) {
+  fail(message: string, code?: string) {
     this.error.set(message);
+    this.errorCode.set(code === 'admin_mfa_required' ? code : null);
     this.status.set('error');
   }
 
@@ -101,6 +103,12 @@ export class Api {
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
   manageSecurity() { this.clerk?.openUserProfile({ __experimental_startPath: '/security' }); }
+  mountSecurity(node: HTMLDivElement) {
+    this.clerk?.mountUserProfile(node, { routing: 'hash', __experimental_startPath: '/security',
+      appearance: { elements: { rootBox: { width: '100%' }, cardBox: { width: '100%' }, card: { width: '100%' } } } });
+  }
+  unmountSecurity(node: HTMLDivElement) { this.clerk?.unmountUserProfile(node); }
+  async securityEnrolled() { return (await this.clerk?.user?.reload())?.twoFactorEnabled === true; }
 
   async request<T>(path: string, init: RequestInit = {}, parse: 'json' | 'blob' = 'json'): Promise<T> {
     if (!this.config || !this.clerk?.session) throw new ApiError(401);
