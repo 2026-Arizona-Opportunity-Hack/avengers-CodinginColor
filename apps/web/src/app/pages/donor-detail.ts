@@ -4,7 +4,7 @@ import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { GiftEntry } from './gift-entry';
 import { Store } from '../core/store';
-import { date, money, relativeDue, today } from '../core/format';
+import { date, relativeDue, today } from '../core/format';
 import { CommunicationKind, Consent, SOURCE_LABEL } from '../core/models';
 
 type TimelineEntry =
@@ -55,7 +55,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
         @if (flash()) { <p class="notice" role="status">{{ flash() }} @if (flashOutreach()) { <a routerLink="/outreach">Open follow-ups</a> }</p> }
 
         <section class="stats" aria-label="Giving summary">
-          <div class="stat"><p class="label">Lifetime, net</p><p class="value">{{ money(store.lifetime(d.id)) }}</p></div>
+          <div class="stat"><p class="label">Lifetime, net · {{ store.currency() }}</p><p class="value">{{ money(lifetime()) }}</p></div>
           <div class="stat"><p class="label">This year</p><p class="value">{{ money(thisYear()) }}</p></div>
           <div class="stat"><p class="label">Gifts</p><p class="value">{{ gifts().length }}</p></div>
           <div class="stat"><p class="label">Last contact</p><p class="value small">{{ lastContact() ? date(lastContact()!) : 'Never' }}</p></div>
@@ -97,32 +97,34 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
 
             <section class="section" aria-labelledby="tl-h">
               <div class="section-head">
-                <h2 id="tl-h">Timeline</h2>
-                <div class="segmented" role="group" aria-label="Filter timeline">
-                  @for (f of filters; track f.value) {
-                    <button type="button" [attr.aria-pressed]="filter() === f.value" (click)="filter.set(f.value)">{{ f.label }}</button>
-                  }
-                </div>
+                <h2 id="tl-h">Donation history · {{ store.currency() }}</h2>
               </div>
-              <ol class="timeline" aria-label="Gifts and communications, newest first">
-                @for (e of timeline(); track e.id) {
+              <ol class="timeline" aria-label="Donations, newest first">
+                @for (e of giftTimeline(); track e.id) {
                   <li>
                     <span class="node" [attr.data-type]="e.type" aria-hidden="true"><ng-icon [name]="icons[e.type]" size="15" /></span>
                     <div class="what">
-                      <p class="when"><span class="kind-label">{{ e.type === 'gift' ? 'Gift' : kindLabel[e.type] }}</span> · <time [attr.datetime]="e.at">{{ date(e.at) }}</time></p>
-                      @if (e.type === 'gift') {
+                      <p class="when"><span class="kind-label">Gift</span> · <time [attr.datetime]="e.at">{{ date(e.at) }}</time></p>
                         <p class="strong"><span class="amount">{{ money(e.amount) }}</span> {{ e.title }}</p>
                         <p>{{ e.detail }} · via {{ e.source }} @if (e.status !== 'settled') { <span class="tag dashed">{{ e.status }}</span> }</p>
-                      } @else {
-                        <p class="strong">{{ e.title }}</p>
-                        <p class="body">{{ e.detail }}</p>
-                        <p class="by">{{ e.direction === 'inbound' ? 'Received by' : 'By' }} {{ e.by }}@if (e.viaDraft) { · approved draft }</p>
-                      }
                     </div>
                   </li>
                 } @empty {
-                  <li class="none">Nothing recorded yet.</li>
+                  <li class="none">No donations recorded in {{ store.currency() }}.</li>
                 }
+              </ol>
+            </section>
+            <section class="section" aria-labelledby="communications-h">
+              <div class="section-head"><h2 id="communications-h">Communications log</h2><p>Recorded contacts and internal notes</p></div>
+              <ol class="timeline" aria-label="Communications, newest first">
+                @for (e of contactTimeline(); track e.id) {
+                  <li><span class="node" [attr.data-type]="e.type" aria-hidden="true"><ng-icon [name]="icons[e.type]" size="15" /></span>
+                    <div class="what"><p class="when">{{ kindLabel[e.type] }} · <time [attr.datetime]="e.at">{{ date(e.at) }}</time></p>
+                      <p class="strong">{{ e.title }}</p><p class="body">{{ e.detail }}</p>
+                      <p class="by">{{ e.direction === 'inbound' ? 'Received by' : 'By' }} {{ e.by }}@if (e.viaDraft) { · approved draft }</p>
+                    </div>
+                  </li>
+                } @empty { <li class="none">No communications recorded.</li> }
               </ol>
             </section>
           </div>
@@ -266,19 +268,15 @@ export class DonorDetailPage {
   private readonly router = inject(Router);
   readonly id = input.required<string>();
 
-  protected readonly money = (cents: number) => money(cents, this.store.currency());
+  protected readonly money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: this.store.currency(), minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(cents / 100);
   protected readonly date = date;
   protected readonly relativeDue = relativeDue;
   protected readonly kindLabel = KIND_LABEL;
   protected readonly icons = KIND_ICON;
   protected readonly kinds = computed<CommunicationKind[]>(() => this.store.live() ? ['text', 'email', 'call', 'meeting'] : ['text', 'email', 'call', 'meeting', 'note']);
   protected readonly consents: Consent[] = ['unknown', 'granted', 'denied'];
-  protected readonly filters = [
-    { value: 'all', label: 'All' }, { value: 'gifts', label: 'Gifts' }, { value: 'comms', label: 'Communications' },
-  ] as const;
   protected readonly now = today();
 
-  protected readonly filter = signal<'all' | 'gifts' | 'comms'>('all');
   protected readonly editing = signal(false);
   protected readonly flash = signal('');
   protected readonly flashOutreach = computed(() => this.flash().startsWith('Thank-you drafted'));
@@ -288,8 +286,9 @@ export class DonorDetailPage {
   protected readonly logOpen = signal(false);
   private readonly logDialog = viewChild<ElementRef<HTMLDialogElement>>('logDialog');
 
-  protected readonly donor = computed(() => this.store.donor(this.id()));
-  protected readonly gifts = computed(() => this.store.giftsFor(this.id()));
+  protected readonly donor = computed(() => this.store.historicalDonor(this.id()));
+  protected readonly gifts = computed(() => this.store.ledgerGifts().filter(g => g.donor_id === this.id()));
+  protected readonly lifetime = computed(() => this.gifts().reduce((s, g) => s + this.store.netCents(g), 0));
   protected readonly thisYear = computed(() =>
     this.gifts().filter((g) => g.occurred_at.startsWith(this.now.slice(0, 4))).reduce((s, g) => s + this.store.netCents(g), 0));
   protected readonly since = computed(() => {
@@ -300,11 +299,11 @@ export class DonorDetailPage {
   protected readonly steps = computed(() =>
     this.store.followUps().filter((f) => f.donor_id === this.id() && f.status === 'open').sort((a, b) => a.due_on.localeCompare(b.due_on)));
   protected readonly lastContact = computed(() =>
-    this.store.communicationsFor(this.id()).filter((c) => c.direction !== 'internal' && c.status !== 'failed').map((c) => c.occurred_at).sort().at(-1) ?? null);
+    this.store.historicalContacts(this.id()).filter((c) => c.direction !== 'internal' && c.status !== 'failed').map((c) => c.occurred_at).sort().at(-1) ?? null);
 
   protected readonly timeline = computed<TimelineEntry[]>(() => {
     const entries: TimelineEntry[] = [];
-    if (this.filter() !== 'comms') {
+    {
       for (const g of this.gifts()) {
         const campaign = this.store.campaign(g.campaign_id);
         const program = this.store.program(campaign?.program_id ?? null);
@@ -315,8 +314,8 @@ export class DonorDetailPage {
         });
       }
     }
-    if (this.filter() !== 'gifts') {
-      for (const c of this.store.communicationsFor(this.id())) {
+    {
+      for (const c of this.store.historicalContacts(this.id())) {
         entries.push({
           type: c.kind, at: c.occurred_at, id: c.id, title: c.summary, detail: c.body,
           by: this.store.member(c.member_id)?.name ?? 'Unknown', direction: c.direction, viaDraft: !!c.draft_id,
@@ -325,6 +324,8 @@ export class DonorDetailPage {
     }
     return entries.sort((a, b) => b.at.localeCompare(a.at));
   });
+  protected readonly giftTimeline = computed(() => this.timeline().filter(e => e.type === 'gift'));
+  protected readonly contactTimeline = computed(() => this.timeline().filter(e => e.type !== 'gift'));
 
   protected openLog(kind?: CommunicationKind) {
     this.logKind.set(kind ?? this.donor()?.preferred_channel ?? 'text');
@@ -343,7 +344,7 @@ export class DonorDetailPage {
     })) return;
     (event.target as HTMLFormElement).reset();
     this.logDialog()?.nativeElement.close();
-    this.flash.set(`${KIND_LABEL[this.logKind()]} logged on the timeline.`);
+    this.flash.set(`${KIND_LABEL[this.logKind()]} saved to the communications log.`);
   }
 
   protected async addStep(event: Event) {
@@ -358,7 +359,7 @@ export class DonorDetailPage {
     if (!d) return;
     const template = d.preferred_channel === 'text' && d.phone ? 't-thanks-text' : 't-thanks-email';
     const last = this.store.lastGift(d.id);
-    if (!await this.store.createDraft(d.id, template, last ? `${money(last.amount_cents)} gift on ${last.occurred_at.slice(0, 10)}` : 'Manual thank-you')) return;
+    if (!await this.store.createDraft(d.id, template, last ? `${this.money(last.amount_cents)} gift on ${last.occurred_at.slice(0, 10)}` : 'Manual thank-you')) return;
     this.flash.set('Thank-you drafted. It waits for approval before anyone sends it.');
   }
 
