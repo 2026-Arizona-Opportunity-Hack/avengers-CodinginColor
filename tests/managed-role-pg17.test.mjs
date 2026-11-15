@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import pg from 'pg';
+import { readdir,readFile } from 'node:fs/promises';
 
 // This URL must point only to a disposable PostgreSQL 17 database.
 test('a separate grantor can harden a definer function without removing managed membership', { skip: !process.env.CIC_PG17_REHEARSAL_URL }, async () => {
@@ -57,4 +58,40 @@ test('a separate grantor can harden a definer function without removing managed 
   } finally {
     await db.end();
   }
+});
+
+test('019 preserves native PG17 managed membership grantors/options and schema CREATE', {skip:!process.env.CIC_PG17_REHEARSAL_URL}, async()=>{
+  const db=new pg.Client({connectionString:process.env.CIC_PG17_REHEARSAL_URL}); await db.connect();
+  const body=source=>source.replace(/^\s*BEGIN;/,'').replace(/COMMIT;\s*$/,'');
+  try {
+    assert.equal(Math.floor(Number((await db.query('SHOW server_version_num')).rows[0].server_version_num)/10000),17);
+    await db.query('BEGIN');
+    const names=(await readdir('db/migrations')).filter(n=>/^\d{3}_.*\.sql$/.test(n)).sort();
+    for(const name of names.filter(n=>n<'019_')) await db.query(body(await readFile(`db/migrations/${name}`,'utf8')));
+    await db.query(`CREATE ROLE audit_owner NOLOGIN CREATEROLE; CREATE ROLE audit_cloud NOLOGIN;
+      GRANT cic_reporting TO audit_cloud WITH ADMIN TRUE; SET LOCAL ROLE audit_cloud;
+      GRANT cic_reporting TO audit_owner WITH ADMIN TRUE, INHERIT FALSE, SET FALSE; RESET ROLE;
+      GRANT CREATE ON SCHEMA public TO audit_owner WITH GRANT OPTION;
+      GRANT REFERENCES ON public.organizations,public.api_keys TO audit_owner;
+      GRANT SELECT(id) ON public.api_keys TO audit_owner WITH GRANT OPTION;`);
+    const catalog=async()=>({
+      members:(await db.query(`SELECT * FROM pg_auth_members WHERE roleid='cic_reporting'::regrole ORDER BY member,grantor`)).rows,
+      schema:(await db.query("SELECT nspacl FROM pg_namespace WHERE oid='public'::regnamespace")).rows,
+    });
+    const source=body(await readFile('db/migrations/019_aggregate_access_audit.sql','utf8'));
+    for(const existingCreate of [false,true]) {
+      if(existingCreate) await db.query('GRANT CREATE ON SCHEMA public TO cic_reporting WITH GRANT OPTION');
+      const before=await catalog(); await db.query('SAVEPOINT before_audit');
+      await db.query('SET SESSION AUTHORIZATION audit_owner'); await db.query(source);
+      assert.deepEqual(await catalog(),before);
+      await db.query('RESET SESSION AUTHORIZATION; RESET ROLE');
+      const result=(await db.query(`SELECT pg_get_userbyid(proowner) owner,prosecdef,proconfig,
+        has_function_privilege('cic_runtime',oid,'EXECUTE') runtime,
+        EXISTS(SELECT FROM aclexplode(proacl) a WHERE a.grantee=0) public
+        FROM pg_proc WHERE oid='public.cic_record_aggregate_access(text,text,integer)'::regprocedure`)).rows[0];
+      assert.deepEqual(result,{owner:'cic_reporting',prosecdef:true,proconfig:['search_path=pg_catalog'],runtime:true,public:false});
+      await db.query('ROLLBACK TO SAVEPOINT before_audit');
+    }
+    await db.query('ROLLBACK');
+  } finally { await db.query('RESET SESSION AUTHORIZATION; RESET ROLE; ROLLBACK').catch(()=>{}); await db.end(); }
 });
