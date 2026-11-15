@@ -5,17 +5,27 @@ import { planDonorMatches, planGiftChanges } from './import-reconcile.ts';
 
 type Kind = 'donor' | 'gift';
 type Row = { row: number; action: string; reason: string; existingIds: string[]; matchingRows: number[] };
+type DonorResolution = { plan_hash: string; operations: Operation[] };
 export type ReviewPlan = { status: 'needs_review'; org_id: string; batch_id: string; file_sha256: string; plan_hash: string;
-  donors: { drafts: unknown[]; rows: Row[]; reviewed: unknown[] }; gifts: { drafts: unknown[]; rows: Row[]; reviewed: unknown[] } };
+  donors: { drafts: unknown[]; rows: Row[]; reviewed: unknown[] }; gifts: { drafts: unknown[]; rows: Row[]; reviewed: unknown[] };
+  donor_resolution?: DonorResolution };
 export type Operation = { kind: Kind; row: number; op: 'create' | 'link' | 'insert' | 'correct';
-  reviewer_id: string | null; draft?: unknown; donor_id?: string; gift_id?: string };
+  reviewer_id: string | null; draft?: unknown; donor_id?: string; gift_id?: string; donor_row?: number };
 
 const Sha256Schema = z.string().regex(/^sha256:[0-9a-f]{64}$/);
 const PriorImportSchema = z.strictObject({ org_id: IdSchema, batch_id: IdSchema, file_sha256: Sha256Schema,
   status: z.enum(['reviewing', 'committed', 'abandoned']) });
 const PlanInputSchema = z.strictObject({ org_id: IdSchema, batch_id: IdSchema, file_sha256: Sha256Schema,
   donors: z.array(z.unknown()), gifts: z.array(z.unknown()),
-  existing_donors: z.array(z.unknown()), existing_gifts: z.array(z.unknown()) });
+  existing_donors: z.array(z.unknown()), existing_gifts: z.array(z.unknown()),
+  donor_resolution: z.unknown().optional() });
+const DonorOperationSchema = z.discriminatedUnion('op', [
+  z.strictObject({ kind: z.literal('donor'), row: z.int().nonnegative(), op: z.literal('create'),
+    reviewer_id: IdSchema.nullable(), draft: DonorWriteSchema }),
+  z.strictObject({ kind: z.literal('donor'), row: z.int().nonnegative(), op: z.literal('link'),
+    reviewer_id: IdSchema.nullable(), donor_id: IdSchema })]);
+const ResolutionSchema = z.strictObject({ status: z.literal('ready'), org_id: IdSchema, batch_id: IdSchema,
+  file_sha256: Sha256Schema, plan_hash: Sha256Schema, operations: z.array(DonorOperationSchema) });
 const DecisionSchema = z.strictObject({ plan_hash: Sha256Schema, kind: z.enum(['donor', 'gift']), row: z.int().nonnegative(),
   action: z.enum(['new', 'link', 'insert', 'correct', 'skip']), reviewer_id: IdSchema,
   donor_id: IdSchema.optional(), gift_id: IdSchema.optional() });
@@ -27,7 +37,35 @@ const stable = (value: unknown): unknown => Array.isArray(value) ? value.map(sta
     .filter(([, item]) => item !== undefined).sort(([a], [b]) => a < b ? -1 : 1).map(([k, item]) => [k, stable(item)]))
   : value;
 const hashPlan = (plan: Omit<ReviewPlan, 'status' | 'plan_hash'>) => sha256(JSON.stringify(stable(
-  [plan.org_id, plan.batch_id, plan.file_sha256, plan.donors, plan.gifts])));
+  [plan.org_id, plan.batch_id, plan.file_sha256, plan.donors, plan.gifts,
+    ...(plan.donor_resolution === undefined ? [] : [plan.donor_resolution])])));
+
+// A created donor has no stored id yet, so a namespaced placeholder keeps its gifts off stored gifts.
+const placeholderDonor = (row: number) => {
+  const hex = createHash('sha256').update(`donor_row:${row}`).digest('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+};
+// A donor_row gift resolves through the phase-one donor operation before matching.
+const resolveDonor = (resolution: DonorResolution | undefined, draft: unknown):
+  { gift: Record<string, unknown>; donorRow?: number; unresolved?: boolean } => {
+  if (!resolution) return { gift: draft as Record<string, unknown> };
+  const { donor_row: donorRow, ...gift } = draft as Record<string, unknown> & { donor_row?: number };
+  if (donorRow === undefined) return { gift };
+  const op = resolution?.operations.find(item => item.row === donorRow);
+  if (op?.op === 'link') return { gift: { ...gift, donor_id: op.donor_id } };
+  if (op?.op === 'create') return { gift: { ...gift, donor_id: placeholderDonor(donorRow) }, donorRow };
+  return { gift, unresolved: true };
+};
+const donorResolution = (raw: unknown, input: z.infer<typeof PlanInputSchema>): DonorResolution | undefined => {
+  if (raw === undefined) return undefined;
+  const parsed = ResolutionSchema.safeParse(raw);
+  if (!parsed.success) throw new Error('Donor resolution must be a ready review result');
+  if (new Set(parsed.data.operations.map(op => op.row)).size !== parsed.data.operations.length)
+    throw new Error('Donor resolution has duplicate donor operations');
+  if (parsed.data.org_id !== input.org_id || parsed.data.batch_id !== input.batch_id ||
+      parsed.data.file_sha256 !== input.file_sha256) throw new Error('Donor resolution belongs to a different import');
+  return { plan_hash: parsed.data.plan_hash, operations: parsed.data.operations };
+};
 
 export function fingerprintFile(bytes: Uint8Array) {
   return sha256(bytes);
@@ -55,17 +93,26 @@ const referenced = <T extends { id: string }>(records: T[], rows: Row[]) => {
 
 export function createReviewPlan(input: Record<string, unknown>): ReviewPlan {
   const value = PlanInputSchema.parse(input);
+  const resolution = donorResolution(value.donor_resolution, value);
+  if (resolution && value.donors.length) throw new Error('A donor resolution plans gifts only; pass no donors');
   for (const gift of value.gifts) {
-    const batch = (gift as { source_row?: { batch_id?: unknown } } | null)?.source_row?.batch_id;
+    const draft = gift as { donor_row?: unknown; donor_id?: unknown; source_row?: { batch_id?: unknown } } | null;
+    if (resolution ? draft?.donor_id !== undefined || !z.int().nonnegative().safeParse(draft?.donor_row).success
+      : draft?.donor_row !== undefined) throw new Error('Gift drafts need exactly one donor reference');
+    const batch = draft?.source_row?.batch_id;
     if (batch !== undefined && batch !== value.batch_id) throw new Error('Gift provenance must belong to the reviewed batch');
   }
+  const resolved = resolution ? value.gifts.map(gift => resolveDonor(resolution, gift)) : [];
   const donorRows = planDonorMatches(value.org_id, value.donors, value.existing_donors).rows;
-  const giftRows = planGiftChanges(value.org_id, value.gifts, value.existing_gifts).rows;
+  const giftRows = planGiftChanges(value.org_id, resolution ? resolved.map(item => item.gift) : value.gifts,
+    value.existing_gifts).rows.map((row, index) => resolved[index]?.unresolved
+      ? { row: index, action: 'review', reason: 'donor_unresolved', existingIds: [], matchingRows: [] } : row);
   const body = { org_id: value.org_id, batch_id: value.batch_id, file_sha256: value.file_sha256,
     donors: { drafts: value.donors, rows: donorRows,
       reviewed: referenced(z.array(DonorSchema).parse(value.existing_donors), donorRows) },
     gifts: { drafts: value.gifts, rows: giftRows,
-      reviewed: referenced(z.array(GiftSchema).parse(value.existing_gifts), giftRows) } };
+      reviewed: referenced(z.array(GiftSchema).parse(value.existing_gifts), giftRows) },
+    ...(resolution ? { donor_resolution: resolution } : {}) };
   return { status: 'needs_review', ...body, plan_hash: hashPlan(body) };
 }
 
@@ -86,20 +133,28 @@ export function resolveReview(plan: ReviewPlan, decisions: unknown[]):
   const pending: { kind: Kind; row: number }[] = [], operations: Operation[] = [];
   for (const kind of ['donor', 'gift'] as const) {
     const { drafts, rows } = plan[`${kind}s`];
-    const schema = kind === 'donor' ? DonorWriteSchema : GiftWriteSchema;
     for (const row of rows) {
       const decision = chosen.get(`${kind}:${row.row}`);
       const by = decision?.reviewer_id ?? null;
-      const draft = () => schema.parse(drafts[row.row]);
+      const { gift, donorRow } = kind === 'gift' ? resolveDonor(plan.donor_resolution, drafts[row.row])
+        : { gift: drafts[row.row] as Record<string, unknown>, donorRow: undefined };
+      const draft = () => (kind === 'donor' ? DonorWriteSchema : GiftWriteSchema).parse(gift);
+      const giftOp = (op: 'insert' | 'correct', reviewerId: string | null, giftId?: string): Operation => {
+        const parsed = GiftWriteSchema.parse(gift), { donor_id: _placeholder, ...facts } = parsed;
+        return { kind: 'gift', row: row.row, op, ...(giftId ? { gift_id: giftId } : {}),
+          ...(donorRow === undefined ? {} : { donor_row: donorRow }), draft: donorRow === undefined ? parsed : facts,
+          reviewer_id: reviewerId };
+      };
       if (decision?.action === 'skip') continue;
       if (row.action !== 'review') {
         if (decision) throw new Error('Automatic rows accept only a skip decision');
         if (row.action === 'new') operations.push({ kind, row: row.row, op: 'create', draft: draft(), reviewer_id: null });
         if (row.action === 'link') operations.push({ kind, row: row.row, op: 'link', donor_id: row.existingIds[0], reviewer_id: null });
-        if (row.action === 'insert') operations.push({ kind, row: row.row, op: 'insert', draft: draft(), reviewer_id: null });
+        if (row.action === 'insert') operations.push(giftOp('insert', null));
         continue;
       }
       if (!decision) { pending.push({ kind, row: row.row }); continue; }
+      if (row.reason === 'donor_unresolved') throw new Error('Only a skip decision is allowed for an unresolved donor row');
       if (row.reason === 'invalid_donor' || row.reason === 'invalid_gift') throw new Error('Invalid drafts can only be skipped');
       // Any write would duplicate one identity or rewrite a stored one, so only skip is allowed.
       if (row.reason === 'conflicting_identity') throw new Error('Decision is not allowed for conflicting identities');
@@ -109,9 +164,9 @@ export function resolveReview(plan: ReviewPlan, decisions: unknown[]):
       } else if (kind === 'donor' && decision.action === 'link' && row.existingIds.includes(decision.donor_id ?? '')) {
         operations.push({ kind, row: row.row, op: 'link', donor_id: decision.donor_id, reviewer_id: by });
       } else if (kind === 'gift' && decision.action === 'insert' && !conflict) {
-        operations.push({ kind, row: row.row, op: 'insert', draft: draft(), reviewer_id: by });
+        operations.push(giftOp('insert', by));
       } else if (kind === 'gift' && decision.action === 'correct' && conflict && row.existingIds.includes(decision.gift_id ?? '')) {
-        operations.push({ kind, row: row.row, op: 'correct', gift_id: decision.gift_id, draft: draft(), reviewer_id: by });
+        operations.push(giftOp('correct', by, decision.gift_id));
       } else {
         throw new Error('Decision is not allowed for this row');
       }
