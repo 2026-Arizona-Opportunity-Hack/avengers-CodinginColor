@@ -197,6 +197,19 @@ export async function previewXlsx(bytes: Uint8Array, source: string, file: strin
   }
   const headers = rows[0].map(text);
   if (!headers.some(value => value.trim())) fail('header is missing');
+  // Mapping is keyed by label; preserve repeated source columns under distinct review labels.
+  const key = (header: string) => header.trim().toLowerCase().replace(/[_-]/g, ' ');
+  const reserved = new Set(headers.map(key)), used = new Set<string>();
+  for (let i = 0; i < headers.length; i++) {
+    const original = headers[i];
+    if (used.has(key(original))) {
+      let suffix = 2;
+      do { headers[i] = `${original.trim()} (${suffix++})`; }
+      while (reserved.has(key(headers[i])) || used.has(key(headers[i])));
+    }
+    used.add(key(headers[i]));
+  }
+  rows[0] = headers;
   const quote = (value: string) => /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
   const csv = rows.map(row => {
     const cells = row.map(text);

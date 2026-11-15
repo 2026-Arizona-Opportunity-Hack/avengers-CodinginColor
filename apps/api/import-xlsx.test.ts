@@ -8,9 +8,9 @@ const headers = { 'Content-Type': 'application/vnd.openxmlformats-officedocument
   'X-Import-Source': 'zeffy', 'X-Import-Filename': 'synthetic.xlsx' };
 const layout = { mapping: {}, batch_values: { currency: 'USD', occurred_at: '2026-11-01T12:00:00-07:00',
   status: 'settled', refund_cents: 0 } };
-function workbook(extra: Record<string, string> = {}) {
-  const rows = [['first name', 'last name', 'email', 'donation amount', 'external id'],
-    ['Avery', 'Example, "CIC"', 'avery@example.org', '12.34', 'tx-xlsx']];
+function workbook(extra: Record<string, string> = {}, rows = [
+  ['first name', 'last name', 'email', 'donation amount', 'external id'],
+  ['Avery', 'Example, "CIC"', 'avery@example.org', '12.34', 'tx-xlsx']]) {
   const files = { '[Content_Types].xml': '<Types/>',
     'xl/workbook.xml': '<workbook xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Donors" sheetId="1" r:id="rId1"/></sheets></workbook>',
     'xl/_rels/workbook.xml.rels': '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
@@ -19,6 +19,45 @@ function workbook(extra: Record<string, string> = {}) {
     ...extra };
   return Buffer.from(zipSync(Object.fromEntries(Object.entries(files).map(([path, xml]) => [path, Buffer.from(xml)]))));
 }
+
+test('Zeffy summary columns stage intact and retain financial review blockers', async t => {
+  const { call, sql } = await importFixture(t);
+  const columns = ['First name', 'Last name', 'Email', 'Secondary email', 'Amount',
+    'First payment date (America/Phoenix)', 'Last payment date (America/Phoenix)',
+    'Language', 'Address', 'City', 'Postal code', 'Country', 'Region', 'Phone', 'Company name',
+    'Notes', 'Manual lists', 'Unsubscribed', 'Interested in volunteering?', 'Notes'];
+  const row = ['Avery', 'Example', 'avery@example.org', '', '12.34', '11/01/2026, 1:05 PM',
+    '11/01/2026, 1:05 PM', 'en', '', '', '', '', '', '', 'Example company', 'First note', '', 'No', '', 'Second note'];
+  const bytes = workbook({}, [columns, row]);
+  const uploaded = await call('POST', '', bytes, 'admin', headers);
+  assert.equal(uploaded.status, 201);
+  const batch = await uploaded.json() as { batch_id: string; preview: { headers: string[] } };
+  assert.equal(batch.preview.headers.at(-1), 'Notes (2)');
+  const unreviewed = await (await call('POST', `/${batch.batch_id}/donors/plan`)).json() as { unresolved: { field: string }[] };
+  for (const field of ['currency', 'occurred_at', 'status', 'refund_cents'])
+    assert.ok(unreviewed.unresolved.some(i => i.field === field), field);
+  const mapping: Record<string, string | null> = Object.fromEntries(batch.preview.headers.map(h => [h, null]));
+  Object.assign(mapping, { 'First name': 'first_name', 'Last name': 'last_name', Email: 'email',
+    Amount: 'amount_decimal', 'Company name': 'company', 'Last payment date (America/Phoenix)': 'occurred_at' });
+  const applied = await call('POST', `/${batch.batch_id}/layout`, { mapping,
+    date_format: 'MM/DD/YYYY, h:mm A', utc_offset: '-07:00',
+    batch_values: { currency: 'USD', status: 'settled', refund_cents: 0 } });
+  assert.equal(applied.status, 200);
+  const result = await applied.json() as { preview: { issues: unknown[]; counts: { rows: number; excluded: number } } };
+  assert.deepEqual(result.preview.issues, []);
+  assert.equal(result.preview.counts.rows, 1);
+  assert.equal(result.preview.counts.excluded, 0);
+  const drafts = await (await call('GET', `/${batch.batch_id}/rows?kind=gift`)).json() as {
+    items: { amount_cents: number; occurred_at: string }[] };
+  assert.equal(drafts.items[0].amount_cents, 1234);
+  assert.equal(drafts.items[0].occurred_at, '2026-11-01T13:05:00-07:00');
+  const previewRows = await (await call('GET', `/${batch.batch_id}/rows`)).json() as { items: { raw: string[] }[] };
+  assert.equal(previewRows.items[0].raw[15], 'First note');
+  assert.equal(previewRows.items[0].raw[19], 'Second note');
+  await sql.exec('SET SESSION AUTHORIZATION postgres; RESET ROLE');
+  assert.equal((await sql.query<{ n: number }>('SELECT count(*)::int AS n FROM donors')).rows[0].n, 0);
+  assert.equal((await sql.query<{ n: number }>('SELECT count(*)::int AS n FROM gifts')).rows[0].n, 0);
+});
 
 test('XLSX uploads retain original fingerprints, reuse review/commit, replay safely and purge private cells', async t => {
   const { call, sql } = await importFixture(t);

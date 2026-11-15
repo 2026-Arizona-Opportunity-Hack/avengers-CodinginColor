@@ -83,7 +83,7 @@ What's built on `main` (API, database and rules):
   read-only, hashed API key gives CIC's dashboard aggregate totals, and that summary API hides any
   group smaller than three donors. `GET /api/v1/summary?from=2026-01-01&to=2027-01-01`
   also returns `retention: { windows, byCurrency }`: the selected half-open Phoenix window versus
-  the immediately preceding window of equal duration. Each currency returns `retained_donors`
+  the matching calendar window one year earlier. Each currency returns `retained_donors`
   (positive settled net giving in both windows) and `prior_donors`, or `{ suppressed: true }`.
   Prior cohorts below three, and nonzero retained, lapsed or current-only cohorts below three, are suppressed;
   no donor identities or individual retention segments are returned. Retention covers the whole
@@ -107,6 +107,14 @@ excluded for explicit review, and stale/foreign alias IDs are rejected before pe
 Unmapped headers can request optional Jev suggestions. Only the selected header leaves the server;
 the reviewer must explicitly accept a suggestion and apply the mapping. Without a configured key
 or when the provider is unavailable, deterministic aliases and manual mapping continue to work.
+
+Zeffy XLSX exports with repeated labels now reach review with distinct names, such as
+`Notes` and `Notes (2)`, retaining both source columns. `Amount` is read in major currency
+units and `Company name` maps to company. For Phoenix text timestamps, explicitly choose
+the appropriate payment-date column, `MM/DD/YYYY, h:mm A`, and UTC offset `-07:00`.
+Review or ignore unsupported columns individually. Currency, status and refunds still
+require confirmation. A donor-summary Amount is not proof of an individual transaction;
+confirm its meaning before committing gifts. Parsing and Jev suggestions never save gifts.
 
 The live admin Import screen uses the API for upload, mapping, donor/gift review
 and atomic commit. It requires explicit status/refund and missing date/currency

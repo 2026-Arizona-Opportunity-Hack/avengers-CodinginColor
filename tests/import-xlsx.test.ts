@@ -40,6 +40,35 @@ const preview = (bytes: Uint8Array, mapping: unknown = {}, options?: unknown) =>
 const header = ['first name', 'last name', 'email', 'phone', 'company', 'donation amount', 'contact person', 'campaign'];
 const data = ['Avery', 'Smith', 'avery@example.org', '6025551000', 'Example', '10.25', 'Jordan', 'AI Academy'];
 
+test('Zeffy repeated labels retain separate columns and require financial review', async () => {
+  const bytes = xlsx([
+    ['First name', 'Email', 'Amount', 'Company name', 'Notes', 'Notes'],
+    ['Avery', 'avery@example.org', '12.34', 'Example', 'First note', 'Second note'],
+  ]);
+  const before = Uint8Array.from(bytes);
+  const result = await previewXlsx(bytes, 'zeffy', 'synthetic.xlsx');
+  assert.deepEqual(result.headers, ['First name', 'Email', 'Amount', 'Company name', 'Notes', 'Notes (2)']);
+  assert.equal(result.rows[0].values.amount_cents, 1234);
+  assert.equal(result.rows[0].values.company, 'Example');
+  assert.deepEqual(result.rows[0].raw.slice(-2), ['First note', 'Second note']);
+  assert.deepEqual(bytes, before);
+  const reviewed = await previewXlsx(bytes, 'zeffy', 'synthetic.xlsx', { Notes: null, 'Notes (2)': 'campaign' });
+  assert.equal(reviewed.rows[0].values.campaign, 'Second note');
+  const drafts = buildImportDrafts(result, { batch_id: '550e8400-e29b-41d4-a716-446655440003' });
+  for (const field of ['currency', 'occurred_at', 'status', 'refund_cents'])
+    assert.ok(drafts.unresolved.some(i => i.field === field), field);
+});
+
+test('XLSX repeated labels avoid existing suffixes and normalized-name collisions', async () => {
+  const result = await preview(xlsx([
+    ['First name', 'Email', 'Donation amount', 'Notes', ' NOTES ', 'Notes (2)', 'My-Notes', 'my_notes'],
+    ['Avery', 'avery@example.org', '12.34', 'one', 'two', 'three', 'four', 'five'],
+  ]));
+  assert.deepEqual(result.headers.slice(3), ['Notes', 'NOTES (3)', 'Notes (2)', 'My-Notes', 'my_notes (2)']);
+  assert.deepEqual(result.rows[0].raw.slice(3), ['one', 'two', 'three', 'four', 'five']);
+  await assert.rejects(preview(xlsx([['First name', '', 'Amount'], ['Avery', 'x', '12.34']])), /header/i);
+});
+
 test('matches the canonical CSV preview, exact cents and raw text cells', async () => {
   const rows: Cell[][] = [header,
     [' Avery ', 'Smith', ' AVERY@example.com ', '(602) 555-1000', 'Example', { n: '90071992547409.91' }, 'Jordan', 'AI Academy'],

@@ -3,6 +3,21 @@ import test from 'node:test';
 import { importFixture, iid } from './import-fixture.ts';
 export const csv='first name,last name,email,donation amount,external id\nAvery,Example,avery@example.org,12.34,tx-1';
 export const layout={mapping:{},batch_values:{currency:'USD',occurred_at:'2026-01-01T01:00:00.123456Z',status:'settled',refund_cents:0}};
+test('review layout accepts confirmed Zeffy clock format without losing row times',async t=>{
+  const {call}=await importFixture(t);
+  const staged=await call('POST','','first name,email,donation amount,donation date\nAvery,avery@example.org,12.34,"11/14/2026, 12:05 PM"');
+  assert.equal(staged.status,201);
+  const {batch_id}=await staged.json() as {batch_id:string};
+  const response=await call('POST',`/${batch_id}/layout`,{mapping:{},date_format:'MM/DD/YYYY, h:mm A',utc_offset:'-07:00',
+    batch_values:{currency:'USD',status:'settled',refund_cents:0}});
+  assert.equal(response.status,200);
+  const reviewed=await response.json() as {preview:{counts:{gifts:number;excluded:number};issues:unknown[]}};
+  assert.equal(reviewed.preview.counts.gifts,1); assert.equal(reviewed.preview.counts.excluded,0);
+  assert.deepEqual(reviewed.preview.issues,[]);
+  const rows=await (await call('GET',`/${batch_id}/rows`)).json() as {items:{values:{occurred_at:string}}[]};
+  assert.equal(rows.items[0].values.occurred_at,'2026-11-14T12:05:00-07:00');
+});
+
 test('imports stage exact bytes with server identity, resume safely, validate layout and purge abandoned data',async t=>{
   const {call,sql}=await importFixture(t);
   const preflight=await call('OPTIONS','',undefined,null,{Origin:'http://localhost:4200'});
