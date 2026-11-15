@@ -101,3 +101,9 @@ The overview uses scoped persisted gifts and outreach, the selected currency, ne
 
 Overview and Retention read server retention KPIs for the selected currency.
 Currency changes select the matching server bucket; sign-out clears loaded reports.
+
+Overview and Retention share period/program/owner/campaign/acquisition-year controls.
+Gift widgets compare the selected Phoenix calendar range with the matching prior
+year; current follow-ups keep their own due dates while following the donor scope.
+Acquisition year uses first positive settled giving across currencies. Filters
+intersect server authorization and clear private dimensions when the session changes.
