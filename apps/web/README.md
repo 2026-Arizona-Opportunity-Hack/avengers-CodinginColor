@@ -93,3 +93,14 @@ Lighthouse accessibility is 100 on every route (checked against the production b
   cells are excluded; duplicates are merged only by explicit choice.
 - Outreach: Cadence drafts. A person approves, sends from their own email or
   phone, then records it. Nothing is sent automatically.
+
+The overview uses scoped persisted gifts and outreach, the selected currency, net settled amounts, and Phoenix calendar boundaries.
+
+Overview and Retention read server retention KPIs for the selected currency.
+Currency changes select the matching server bucket; sign-out clears loaded reports.
+
+Overview and Retention share period/program/owner/campaign/acquisition-year controls.
+Gift widgets compare the selected Phoenix calendar range with the matching prior
+year; current follow-ups keep their own due dates while following the donor scope.
+Acquisition year uses first positive settled giving across currencies. Filters
+intersect server authorization and clear private dimensions when the session changes.

@@ -6,7 +6,6 @@ import { Store } from './core/store';
 const adminOnly: CanMatchFn = () => inject(Store).isAdmin() || inject(Router).parseUrl('/');
 /** Screens whose server routes have not landed yet stay demo-only, so live mode never shows invented data. */
 const demoOnly: CanMatchFn = () => !inject(Store).live() || inject(Router).parseUrl('/not-connected');
-const overview: CanMatchFn = () => !inject(Store).live() || inject(Router).parseUrl('/donors');
 
 /** Every app screen needs a signed-in member; the server checks again on every request. */
 const signedIn: CanMatchFn = (_route, segments: UrlSegment[]) => inject(Store).signedIn()
