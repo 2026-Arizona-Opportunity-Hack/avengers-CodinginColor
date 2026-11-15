@@ -4,7 +4,7 @@ import { readSuggestion, suggestionRequest, suggestColumn, suggestAmbiguous } fr
 import { previewCsv } from '../tools/import-preview.ts';
 
 const targets = ['first_name', 'last_name', 'email', 'phone', 'company', 'amount_cents', 'amount_decimal',
-  'contact_person', 'campaign', 'occurred_at', 'currency', 'external_id', 'ignore', 'unknown'];
+  'contact_person', 'campaign', 'occurred_at', 'currency', 'external_id', 'status', 'refund_decimal', 'refund_cents', 'ignore', 'unknown'];
 
 test('a suggestion request asks one choice question and sends no donor rows', () => {
   const body = suggestionRequest([{ header: 'Contribution Value', samples: ['12.34', '40.00'] }]);

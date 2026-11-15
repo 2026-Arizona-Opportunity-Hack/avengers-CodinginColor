@@ -50,6 +50,8 @@ const NOT_CONNECTED = 'This action is not connected to the server yet, so nothin
 const uid = (prefix: string) => `${prefix}-${crypto.randomUUID().slice(0, 8)}`;
 const nowIso = () => new Date().toISOString();
 
+export type ManualSave<T> = { kind: 'saved'; value: T } | { kind: 'invalid' | 'retry' };
+
 export interface NewDonorInput {
   name: string; email: string | null; phone: string | null; company: string | null;
   kind: Donor['kind']; consent: Donor['consent']; preferred_channel: Channel;
@@ -208,17 +210,18 @@ export class Store {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
       if (generation !== this.liveLoadGeneration) return;
       const request: outreach.Request = (path, init) => this.api.request(path, init);
-      const [followUps, drafts, apiKeys, gifts, communications, catalog] = await Promise.all([
+      const [followUps, drafts, apiKeys, gifts, communications, catalog, owners] = await Promise.all([
         outreach.loadFollowUps(request, me.role === 'admin' ? 'all' : 'mine'),
         outreach.loadDrafts(request),
         me.role === 'admin' ? outreach.loadApiKeys(request) : Promise.resolve([]),
         history.loadGifts(request), history.loadContacts(request), history.loadCatalog(request),
+        me.role === 'admin' ? request<{ items: Array<{ id: string }> }>('/api/v1/owners').then(r => r.items) : Promise.resolve([]),
       ]);
       if (generation !== this.liveLoadGeneration) return;
       const current = this.data();
       const queues = outreachGeneration === this.outreachLoadGeneration ? { followUps, drafts, communications }
         : { followUps: current.followUps, drafts: current.drafts, communications: current.communications };
-      this.loadLive(me, donors);
+      this.loadLive(me, donors, owners);
       this.data.update((d) => ({ ...d, ...queues, ...catalog, gifts, apiKeys }));
       this.api.status.set('ready');
     } catch (e) {
@@ -237,14 +240,15 @@ export class Store {
   }
 
   /**
-   * There is no member directory route yet, so other owners show a short ID until one exists.
+   * The owner directory exposes IDs only; names and contacts are not inferred from identities.
    * Visibility comes from the server: board members only ever receive their own donors.
    */
-  private loadLive(me: ApiMe, donors: ApiDonor[]) {
+  private loadLive(me: ApiMe, donors: ApiDonor[], owners: Array<{ id: string }> = []) {
     const newSession = !this.members().length || this.sessionId() !== me.id;
     this.rawMetadata.clear();
     for (const d of donors) this.rawMetadata.set(d.id, d.metadata ?? {});
-    const others = [...new Set(donors.map((d) => d.owner_id).filter((id): id is string => !!id && id !== me.id))];
+    const others = [...new Set([...owners.map(o => o.id), ...donors.map(d => d.owner_id)]
+      .filter((id): id is string => !!id && id !== me.id))];
     const members: Member[] = [
       { id: me.id, name: 'You', email: '', role: me.role, title: me.role === 'admin' ? 'Administrator' : 'Board member', active: true },
       ...others.map((id) => ({ id, name: `Member ${id.slice(0, 6)}`, email: '', role: 'board' as const, title: 'Board member', active: true })),
@@ -256,7 +260,7 @@ export class Store {
 
   private putDonor(saved: ApiDonor) {
     this.rawMetadata.set(saved.id, saved.metadata ?? {});
-    this.data.update((d) => ({ ...d, donors: d.donors.map((x) => (x.id === saved.id ? fromApiDonor(saved) : x)) }));
+    this.data.update((d) => ({ ...d, donors: [...d.donors.filter(x => x.id !== saved.id), fromApiDonor(saved)] }));
   }
 
   private mutate(fn: (d: Dataset) => void, action: string, target: string) {
@@ -281,7 +285,25 @@ export class Store {
     return pick.id;
   }
 
-  addDonor(input: NewDonorInput): Donor {
+  async addDonor(input: NewDonorInput, requestId: string): Promise<ManualSave<{ id: string; owner_id: string | null }>> {
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      let result: { id: string; owner_id: string | null } | null = null;
+      return this.manualWrite(async () => {
+        result = await this.api.request('/api/v1/donors', { method: 'POST', body: JSON.stringify({
+          request_id: requestId, name: input.name, email: input.email, phone: input.phone, consent: input.consent,
+          metadata: { company: input.company, kind: input.kind, preferred_channel: input.preferred_channel,
+            custom: input.custom, sources: ['manual'] },
+        }) });
+        const assigned = result!;
+        if (epoch !== this.sessionEpoch()) return assigned;
+        if (this.isAdmin() || assigned.owner_id === this.me().id) {
+          const donor = await this.api.request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(assigned.id)}`);
+          if (epoch === this.sessionEpoch()) this.putDonor(donor);
+        }
+        return assigned;
+      }, () => result === null);
+    }
     let created!: Donor;
     this.mutate((d) => {
       created = {
@@ -291,7 +313,7 @@ export class Store {
       };
       d.donors.push(created);
     }, 'donor.create', input.name);
-    return created;
+    return { kind: 'saved', value: created };
   }
 
   /** Owner the next new donor would get, for previews. Does not advance the cursor. */
@@ -301,10 +323,37 @@ export class Store {
     return this.member(this.nextOwner(copy));
   }
 
-  addGift(input: { donor_id: string; amount_cents: number; campaign_id: string | null; occurred_at: string; source: Source }) {
-    this.mutate((d) => d.gifts.push({
-      id: uid('g'), refund_cents: 0, currency: 'USD', status: 'settled', external_id: null, ...input,
-    }), 'gift.create', input.donor_id);
+  async addGift(input: { donor_id: string; amount_cents: number; campaign_id: string | null; occurred_at: string;
+    source: Source; refund_cents?: number; currency?: string; status?: Gift['status'] }, requestId: string): Promise<ManualSave<Gift>> {
+    const gift = { refund_cents: 0, currency: 'USD', status: 'settled' as const, ...input, external_id: `manual:${requestId}` };
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      return this.manualWrite(async () => {
+        const { source, ...body } = gift;
+        const saved = await this.api.request<Gift>('/api/v1/gifts', { method: 'POST', body: JSON.stringify(body) });
+        if (epoch === this.sessionEpoch()) this.data.update(d => ({ ...d,
+          gifts: [...d.gifts.filter(g => g.id !== saved.id), saved] }));
+        return saved;
+      });
+    }
+    const saved = { id: uid('g'), ...gift };
+    this.mutate(d => d.gifts.push(saved), 'gift.create', input.donor_id);
+    return { kind: 'saved', value: saved };
+  }
+
+  /** Only a definitive validation rejection permits changing a submitted payload. */
+  private async manualWrite<T>(run: () => Promise<T>, editable = () => true): Promise<ManualSave<T>> {
+    const epoch = this.sessionEpoch();
+    try {
+      const value = await run();
+      if (epoch !== this.sessionEpoch()) return { kind: 'retry' };
+      this.notice.set(null);
+      return { kind: 'saved', value };
+    } catch (e) {
+      if (epoch !== this.sessionEpoch()) return { kind: 'retry' };
+      this.notice.set(e instanceof ApiError ? e.message : 'The change could not be saved.');
+      return { kind: e instanceof ApiError && e.status === 400 && editable() ? 'invalid' : 'retry' };
+    }
   }
 
   /** Resolves true when saved. In live mode the API validates, scopes and audits the change. */
@@ -324,7 +373,16 @@ export class Store {
 
   async reassign(id: string, ownerId: string): Promise<boolean> {
     if (!this.isAdmin()) return false;
-    if (this.live()) { this.notice.set(NOT_CONNECTED); return false; }
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      return this.outreachWrite(async request => {
+        await request(`/api/v1/donors/${encodeURIComponent(id)}/owner`, {
+          method: 'POST', body: JSON.stringify({ owner_id: ownerId }),
+        });
+        const donor = await request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(id)}`);
+        if (epoch === this.sessionEpoch()) this.putDonor(donor);
+      });
+    }
     this.mutate((d) => { d.donors.find((x) => x.id === id)!.owner_id = ownerId; }, 'donor.reassign', id);
     return true;
   }

@@ -1,7 +1,7 @@
 const targets = [
   'first_name', 'last_name', 'email', 'phone', 'company', 'amount_cents',
   'amount_decimal', 'contact_person', 'campaign', 'occurred_at', 'currency',
-  'external_id', 'ignore', 'unknown',
+  'external_id', 'status', 'refund_decimal', 'refund_cents', 'ignore', 'unknown',
 ] as const;
 
 type Column = { header: string; samples: string[] };

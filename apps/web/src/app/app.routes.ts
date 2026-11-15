@@ -20,11 +20,11 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', title: 'Overview · Cadence', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
       { path: 'donors', title: 'Donors · Cadence', loadComponent: () => import('./pages/donors').then((m) => m.DonorsPage) },
-      { path: 'donors/new', canMatch: [demoOnly], title: 'Add donor · Cadence', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
+      { path: 'donors/new', title: 'Add donor · Cadence', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
       { path: 'donors/:id', title: 'Donor · Cadence', loadComponent: () => import('./pages/donor-detail').then((m) => m.DonorDetailPage) },
       { path: 'donations', canMatch: [demoOnly], title: 'Donations · Cadence', loadComponent: () => import('./pages/donations').then((m) => m.DonationsPage) },
       { path: 'outreach', title: 'Follow-ups · Cadence', loadComponent: () => import('./pages/outreach').then((m) => m.OutreachPage) },
-      { path: 'import', title: 'Import · Cadence', canMatch: [adminOnly, demoOnly], loadComponent: () => import('./pages/import').then((m) => m.ImportPage) },
+      { path: 'import', title: 'Import · Cadence', canMatch: [adminOnly], loadComponent: () => import('./pages/import').then((m) => m.ImportPage) },
       { path: 'retention', title: 'Retention · Cadence', loadComponent: () => import('./pages/retention').then((m) => m.RetentionPage) },
       { path: 'funders', title: 'Funder reports · Cadence', canMatch: [adminOnly], loadComponent: () => import('./pages/funders').then((m) => m.FundersPage) },
       { path: 'api', title: 'Read API · Cadence', canMatch: [adminOnly], loadComponent: () => import('./pages/api-access').then((m) => m.ApiAccessPage) },

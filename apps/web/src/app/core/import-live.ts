@@ -2,7 +2,7 @@ import type { Request } from './outreach-live';
 
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 export const IMPORT_FIELDS = ['first_name', 'last_name', 'email', 'phone', 'company', 'contact_person',
-  'campaign', 'occurred_at', 'currency', 'external_id', 'amount_decimal', 'amount_cents'];
+  'campaign', 'occurred_at', 'currency', 'external_id', 'amount_decimal', 'amount_cents', 'status', 'refund_decimal', 'refund_cents'];
 export interface ImportIssue { recordNumber?: number | null; field: string; code: string }
 export interface ImportPreview {
   headers: string[]; mapping: Array<string | null>; issues: ImportIssue[];
@@ -27,6 +27,7 @@ export interface PlanRow {
 export interface ImportPlan { plan_hash: string; donor_plan_hash: string; counts: Record<string, number>; excluded: number; unresolved: ImportIssue[] }
 export interface ImportDecision { kind: 'donor' | 'gift'; row: number; action: 'new' | 'link' | 'insert' | 'correct' | 'skip'; donor_id?: string; gift_id?: string }
 export interface ImportReview { status: 'ready' | 'needs_review'; total_pending?: number }
+export interface ImportSuggestion { approval_required: true; target: string; confidence: number }
 
 const post = (body?: unknown): RequestInit => ({ method: 'POST', ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 const path = (batch: string) => `/api/v1/imports/${encodeURIComponent(batch)}`;
@@ -53,6 +54,10 @@ export class LiveImports {
   }
 
   details(batch: string): Promise<ImportResult> { return this.request(path(batch)); }
+
+  suggest(batch: string, header: string): Promise<{ suggestion: ImportSuggestion | null }> {
+    return this.request(`${path(batch)}/suggestion`, post({ header }));
+  }
 
   async rows<T>(batch: string, kind: 'preview' | 'donor' | 'gift', planned = false): Promise<T[]> {
     const rows: T[] = [];
