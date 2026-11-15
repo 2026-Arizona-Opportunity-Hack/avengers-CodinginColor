@@ -6,7 +6,9 @@ test('the initial document contains a styled public sign-in card and native demo
   const html = await readFile(new URL('../apps/web/src/index.html', import.meta.url), 'utf8');
   const root = html.slice(html.indexOf('<body>'), html.indexOf('<app-root>'));
   assert.match(root, /<main id="startup-card" aria-labelledby="startup-signin">/);
-  assert.match(root, /href="\/sign-in\?demo=1">Try Now<\/a>/);
+  assert.match(root, /href="\/sign-in\?demo=1">Try Now /);
+  assert.doesNotMatch(root, /Everyone has demo admin|No account or two-step|Present with synthetic/);
+  assert.match(html, /min-height: 64px/);
   assert.match(root, /role="status">Opening your workspace/);
   assert.match(html, /<style>[\s\S]*?#startup-card\s*\{[^}]*background:/);
   assert.doesNotMatch(root, /<script|<input|password|token|donor_id/i);
