@@ -105,13 +105,17 @@ curl -H "Authorization: Bearer $CIC_DASHBOARD_KEY" "https://<host>/api/v1/activi
 
 | Endpoint | Query | Returns |
 |---|---|---|
-| `GET /api/v1/summary` | `from`, `to`: CIC-local `YYYY-MM-DD` (`to` exclusive, ≤ 5 years); `groupBy`: `month` (default), `program` or `owner` | `{window, groupBy, totals, groups: [{key, label, suppressed, donors?, currencies?}]}` |
+| `GET /api/v1/summary` | `from`, `to`: CIC-local `YYYY-MM-DD` (`to` exclusive, ≤ 5 years); `groupBy`: `month` (default), `program` or `owner` | `{window, groupBy, totals, groups: [{key, label, suppressed, donors?, currencies?}], retention: {windows: {current, prior}, byCurrency: {[currency]: {suppressed, retained_donors?, prior_donors?}}}}` |
 | `GET /api/v1/activity` | `limit` 1-100 (default 20) | `{items: [{date, program, source, status, currency, net_cents}]}`, newest first |
 
 - Amounts are integer cents, kept separate per currency.
 - Any group, or the totals, with fewer than **3** donors comes back as
   `{key, label, suppressed: true}` with no numbers.
 - `owner` keys are membership IDs.
+- Retention compares positive settled net giving in the selected window with the immediately
+  preceding window of equal duration, independently of `groupBy`. Each currency is separate;
+  prior cohorts below **3**, or nonzero retained, lapsed or current-only cohorts below **3**,
+  return only `{suppressed: true}`. Donor identities and individual segments are never returned.
 - **Errors:** `401` for a missing, malformed, unknown or revoked key; `400` for a bad
   query; `429` after 60 requests per minute per key (honor `Retry-After`); `503` if
   the database is unavailable.

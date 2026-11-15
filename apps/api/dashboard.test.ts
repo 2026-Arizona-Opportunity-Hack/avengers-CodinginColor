@@ -75,6 +75,39 @@ test('summary returns suppressed, per-currency aggregates for a valid key and no
     [['2026-01', true], ['2026-02', true], ['2026-03', true]]);
 });
 
+test('summary retention compares adjacent windows per currency and suppresses small cohorts', async (t) => {
+  const { db, key, otherKey, get } = await setup(t);
+  await db.exec(`SET SESSION AUTHORIZATION postgres;
+    INSERT INTO donors(id,org_id,owner_id,name) VALUES
+      ${[70, 71, 72, 73].map(n => `('${id(n)}','${ORG}','${BOARD}','Prior donor')`).join(',')};
+    INSERT INTO gifts(org_id,donor_id,amount_cents,refund_cents,currency,occurred_at,status,source) VALUES
+      ${[40, 41, 42, 70, 71, 72].map(n => `('${ORG}','${id(n)}',100,0,'USD','2025-12-15T12:00:00-07:00','settled','sheet')`).join(',')},
+      ('${ORG}','${id(40)}',100,0,'EUR','2025-12-15T12:00:00-07:00','settled','sheet'),
+      ('${ORG}','${id(73)}',100,0,'USD','2026-02-15T12:00:00-07:00','settled','sheet'),
+      ('${ORG}','${id(40)}',100,0,'EUR','2026-02-15T12:00:00-07:00','settled','sheet');
+    SET SESSION AUTHORIZATION cic_app_test;`);
+  const path = '/api/v1/summary?from=2026-01-01&to=2027-01-01';
+  const body = await (await get(path, { 'X-API-Key': key.key })).json();
+  assert.deepEqual(body.retention, {
+    windows: { current: body.window, prior: { from: '2025-01-01T07:00:00.000Z', to: body.window.from } },
+    byCurrency: { USD: { suppressed: false, retained_donors: 3, prior_donors: 6 }, EUR: { suppressed: true } },
+  });
+  const other = await (await get(path, { 'X-API-Key': otherKey.key })).json();
+  assert.deepEqual(other.retention.byCurrency, { USD: { suppressed: true } });
+  await db.exec(`SET SESSION AUTHORIZATION postgres;
+    UPDATE gifts SET status='pending' WHERE donor_id='${id(73)}';
+    SET SESSION AUTHORIZATION cic_app_test;`);
+  const currentOnly = await (await get(path, { 'X-API-Key': key.key })).json();
+  assert.deepEqual(currentOnly.retention.byCurrency.USD, { suppressed: true });
+  await db.exec(`SET SESSION AUTHORIZATION postgres;
+    UPDATE gifts SET status='settled' WHERE donor_id='${id(73)}';
+    DELETE FROM gifts WHERE donor_id='${id(42)}' AND occurred_at >= '2026-01-01';
+    SET SESSION AUTHORIZATION cic_app_test;`);
+  const small = await (await get(path, { 'X-API-Key': key.key })).json();
+  assert.deepEqual(small.retention.byCurrency.USD, { suppressed: true });
+  for (const leak of ['Prior donor', id(40), id(70)]) assert.ok(!JSON.stringify(body).includes(leak));
+});
+
 test('activity is newest-first, bounded, and donor-free; each key sees only its own org', async (t) => {
   const { key, otherKey, get } = await setup(t);
   const items = await (await get('/api/v1/activity?limit=2', { Authorization: `Bearer ${key.key}` })).json();
