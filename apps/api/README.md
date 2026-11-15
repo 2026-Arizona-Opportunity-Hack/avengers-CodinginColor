@@ -136,8 +136,19 @@ Self-admin removal, last-admin removal and making an active donor owner ineligib
 return409; reassign the portfolio first. Unknown/foreign IDs return404. Changes
 and audit events commit together; Clerk invitations remain a separate workflow.
 
+<<<<<<< HEAD
 Optional AI suggestions use server-only OPENAI_BASE_URL, OPENAI_API_KEY and
 OPENAI_MODEL. Missing key/model, timeout or invalid output uses deterministic
 templates. Grounded update proposals expose only synthetic fact categories to the
 provider; donor details, gift amounts and outcome text stay local. Reviewed drafts
 remain unapproved until the existing exact-content approval flow is completed.
+=======
+Admin/MFA `POST /api/v1/invitations` accepts `{request_id,email,role?}` (default
+board), saves role intent, then sends one Clerk invitation outside SQL. Identical
+sent retries return200 without another email. Failed/queued delivery never grants
+access; explicit retry of a failed request may send again. Ten attempts per admin
+per hour are allowed. GET lists up to200; POST `/:id/revoke` closes database intent
+before provider cleanup. Only sent/unexpired intent may be claimed from a verified
+primary Clerk email at /me. Existing inactive memberships stay inactive. Roles
+never come from client email, query parameters or Clerk public metadata.
+>>>>>>> c187e75 (Send staff invitations only after persisting reviewed access intent)
