@@ -24,4 +24,3 @@ export function retentionFromServer(report: ApiRetention, currency: string): Ret
     totals: { prior: c?.totals.prior_cents ?? 0, current: c?.totals.current_cents ?? 0 },
   };
 }
-

@@ -127,3 +127,15 @@ test('read API preflight allows X-API-Key only on aggregate routes from the conf
   }
   assert.equal(db.calls.length, 0);
 });
+
+test('an authenticated admin without MFA receives actionable denial and no workspace data', async t => {
+  const db = database([{ ...member, role: 'admin' }]);
+  const server = createApp(env, db, async () => ({ subject: claims.sub, mfa: false })).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise<void>(resolve => { server.closeAllConnections(); server.close(() => resolve()); }));
+  const address = server.address(); assert.ok(address && typeof address !== 'string');
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/me`, { headers: { Authorization: 'Bearer fixture' } });
+  assert.equal(response.status, 403);
+  assert.deepEqual(await response.json(), { error: 'Request rejected', code: 'admin_mfa_required' });
+  assert.equal(db.calls.at(-1)?.sql, 'ROLLBACK');
+});

@@ -9,7 +9,8 @@ import type { Identity } from './auth.ts';
 /** CIC reports in Phoenix time, which has no daylight saving. */
 const OFFSET = '-07:00';
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-const RetentionQuery = z.strictObject({ asOf: day });
+const RetentionQuery = z.strictObject({ asOf: day, from: day.optional(), programId: z.uuid().optional(),
+  ownerId: z.uuid().optional(), campaignId: z.uuid().optional(), cohort: z.string().regex(/^\d{4}$/).optional() });
 const PacketQuery = z.strictObject({
   funderId: z.uuid(), programId: z.uuid(), from: day, to: day, format: z.enum(['json', 'csv']).default('json'),
 });
@@ -69,12 +70,29 @@ export function createReportingRouter(env: Env, db: Database, verify: (header: s
 
   router.get('/api/v1/reports/retention', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
-    const { asOf } = parse(RetentionQuery, req.query);
+    const q = parse(RetentionQuery, req.query), { asOf } = q;
     let windows;
-    try { windows = ytdWindows(asOf, OFFSET); } catch { throw new HttpError(400); }
+    try {
+      windows = ytdWindows(asOf, OFFSET);
+      if (q.from) {
+        ytdWindows(q.from, OFFSET); // Validate the actual calendar day, including leap years.
+        if (q.from > asOf || q.from.slice(0, 4) !== asOf.slice(0, 4)) throw new Error();
+        const prior = Number(q.from.slice(0, 4)) - 1;
+        const suffix = q.from.slice(5) === '02-29' ? '02-28' : q.from.slice(5);
+        windows.current.from = `${q.from}T00:00:00${OFFSET}`;
+        windows.prior.from = `${prior}-${suffix}T00:00:00${OFFSET}`;
+      }
+    } catch { throw new HttpError(400); }
     const { gifts, names } = await withMember(db, env.CIC_ORG_ID, identity, async (client) => ({
-      gifts: (await client.query(`SELECT ${GIFT_COLUMNS} FROM gifts g WHERE g.occurred_at < $1::timestamptz`,
-        [windows.current.to])).rows.map(toGift),
+      gifts: (await client.query(`SELECT ${GIFT_COLUMNS} FROM gifts g
+        JOIN donors d ON d.id = g.donor_id AND d.org_id = g.org_id
+        LEFT JOIN campaigns c ON c.id = g.campaign_id AND c.org_id = g.org_id
+        WHERE g.occurred_at < $1::timestamptz AND ($2::uuid IS NULL OR c.program_id = $2)
+          AND ($3::uuid IS NULL OR d.owner_id = $3) AND ($4::uuid IS NULL OR g.campaign_id = $4)
+          AND ($5::integer IS NULL OR $5 = (SELECT extract(year FROM min(first_gift.occurred_at) AT TIME ZONE 'America/Phoenix')
+            FROM gifts first_gift WHERE first_gift.donor_id = g.donor_id AND first_gift.org_id = g.org_id
+              AND first_gift.status = 'settled' AND first_gift.amount_cents > first_gift.refund_cents))`,
+        [windows.current.to, q.programId ?? null, q.ownerId ?? null, q.campaignId ?? null, q.cohort ?? null])).rows.map(toGift),
       names: new Map((await client.query('SELECT id, name FROM donors')).rows.map((r) => [String(r.id), String(r.name)])),
     }));
     const report = retentionReport(gifts, windows);

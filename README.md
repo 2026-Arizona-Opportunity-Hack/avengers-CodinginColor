@@ -52,7 +52,7 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 ## What we built
 
 Coding in Color keeps its donors in spreadsheets and platform exports (Zeffy, Benevity, AZ Gives), and
-follow-ups live in people's heads. **Cadence** gives the CEO and the board one place to see every
+follow-ups live in people's heads. **Coding in Color** gives the CEO and the board one place to see every
 donor and gift, know who owns each relationship, and keep the next touch from slipping. It also
 produces the funder report CIC needs, without re-keying anything.
 
@@ -63,6 +63,9 @@ What's built on `main` (API, database and rules):
   same reviewed API flow, with bounded workbook parsing and original-file fingerprints (#105).
 - **Donors and gifts:** one record per donor with an owner, a gift ledger with audited corrections,
   and admin reassignment that moves open follow-ups along with the donor.
+  The live Donations screen keeps currencies separate and limits CSV download to admins.
+  Archived donors retain their gift/contact history; donor records show separate donation history,
+  communications and future-task sections.
 - **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
   donor. Messages are drafted from templates and need human approval, then go out from the
   person's own email or phone and are logged once. Nothing is sent automatically.
@@ -73,11 +76,11 @@ What's built on `main` (API, database and rules):
 - **Security:** invite-only Clerk sign-in, MFA required for admins, PostgreSQL row-level security
   (board members see only their own donors), and audit events for changes, sends and exports.
 
-The backend above is built and tested. Still in progress is connecting the web screens to it: the
-live import screen (#106), remaining Follow-ups integration (#48), and
-the Funder reports screen, which still builds its CSV in the browser instead of downloading the
-server's audited export. Until a full-stack deploy is live (#30), the hosted app runs on synthetic
-demo data in the browser.
+The live web screens now connect imports, donor/gift history and entry, follow-ups,
+retention, audited funder exports and staff settings to these APIs. Automated tests
+cover the integrated workflows; a deployed signed-in rehearsal remains the release
+gate in #30. Demo mode uses synthetic browser data and does not prove persistence
+or deployed authorization.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
@@ -105,14 +108,21 @@ uses synthetic review state; deployed signed-in acceptance remains pending.
 
 ## Run it locally
 
-Live administrators can reassign a donor to any active same-organization board
-member, including members without donors. Assignment and open-task transfer remain
-server-controlled and audited; board members cannot list other eligible owners.
 Administrators can use the live Funder reports screen to select a donor, program
 and inclusive calendar range, inspect the server packet, then download its audited
 CSV or print it. Gift totals stay separated by currency and attribution. Until
 approved outcomes are uploaded, reports explicitly show that outcome data is
 unavailable.
+
+Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
+`cohort` (acquisition year) filters alongside inclusive `asOf`. Dates compare
+matched Phoenix calendar windows within one year. Cohort is the donor's first
+positive settled gift year across their visible history, before campaign/program
+narrowing. Every filter intersects the caller's existing organization/owner scope.
+
+Live administrators can reassign a donor to any active same-organization board
+member, including members without donors. Assignment and open-task transfer remain
+server-controlled and audited; board members cannot list other eligible owners.
 
 Live donor views load their scoped gift and contact history from the API. Logging
 a call, text, email or meeting persists a real communication and refreshes the queue;
