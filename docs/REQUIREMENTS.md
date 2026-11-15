@@ -53,6 +53,8 @@ CLI reference: [GoogleChrome Lighthouse documentation](https://github.com/Google
 
 ## Remaining release acceptance gates
 
+- Complete the key-authenticated summary retention contract in #29; its current response has totals/groups but no retention field.
+- Seed approved program outcomes for #31; current demo seed tests cover donor/gift/follow-up fixtures but do not satisfy that remaining seed requirement.
 - Run the full currently integrated test suite after all feature stacks and migrations are combined; earlier branch counts are not a release-wide guarantee.
 - Verify the deployed same-origin app/API/config, Clerk sign-in and admin MFA, active board membership, cross-owner denials and external donor separation. Record the release commit and smoke result.
 - Rehearse three-source import, repeat-safe gifts, manual-entry retry, ownership override, actual manual-send confirmation, matched retention and audited funder export with synthetic data. Keep real donor/student PII out of demo recordings.
