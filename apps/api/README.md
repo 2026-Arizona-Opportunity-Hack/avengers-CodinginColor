@@ -128,3 +128,9 @@ Clerk user with a verified primary email. `PATCH /:id` changes `{role,active}`.
 Self-admin removal, last-admin removal and making an active donor owner ineligible
 return409; reassign the portfolio first. Unknown/foreign IDs return404. Changes
 and audit events commit together; Clerk invitations remain a separate workflow.
+
+Optional AI suggestions use server-only OPENAI_BASE_URL, OPENAI_API_KEY and
+OPENAI_MODEL. Missing key/model, timeout or invalid output uses deterministic
+templates. Grounded update proposals expose only synthetic fact categories to the
+provider; donor details, gift amounts and outcome text stay local. Reviewed drafts
+remain unapproved until the existing exact-content approval flow is completed.
