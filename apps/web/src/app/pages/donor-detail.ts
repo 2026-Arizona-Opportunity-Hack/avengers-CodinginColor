@@ -49,7 +49,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
           </div>
           <div class="hero-actions">
             <button hlmBtn variant="outline" size="sm" type="button" (click)="openLog('text')"><ng-icon name="lucideMessageSquare" size="15" /> Log text</button>
-            <button hlmBtn variant="outline" size="sm" type="button" (click)="openLog('call')"><ng-icon name="lucidePhone" size="15" /> Log call</button>
+            <button hlmBtn variant="outline" size="sm" type="button" data-tour="log-call" (click)="openLog('call')"><ng-icon name="lucidePhone" size="15" /> Log call</button>
             <button hlmBtn size="sm" type="button" (click)="draftThanks()"><ng-icon name="lucideHeartHandshake" size="15" /> Draft thank-you</button>
           </div>
         </header>
@@ -88,7 +88,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
               </ul>
               <form class="add-step" (submit)="addStep($event)">
                 <label class="field grow"><span>New next step</span>
-                  <input class="input" name="action" required maxlength="200" placeholder="Invite to Day of Compute" [value]="stepAction()" (input)="stepAction.set($any($event.target).value)" /></label>
+                  <input class="input" data-tour="next-step" name="action" required maxlength="200" placeholder="Invite to Day of Compute" [value]="stepAction()" (input)="stepAction.set($any($event.target).value)" /></label>
                 <label class="field"><span>Due</span>
                   <input class="input" type="date" name="due" required [value]="stepDue()" (input)="stepDue.set($any($event.target).value)" /></label>
                 <button class="btn" type="submit" [disabled]="!stepAction().trim() || !stepDue()">Add</button>

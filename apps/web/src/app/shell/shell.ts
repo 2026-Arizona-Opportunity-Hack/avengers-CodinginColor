@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
@@ -13,13 +13,14 @@ import { Store } from '../core/store';
 import { relativeDue, today } from '../core/format';
 import { CommandPalette } from './command-palette';
 import { NAV, NavGroup } from './nav';
+import { BoardGuide } from './board-guide';
 
 const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
 
 @Component({
   selector: 'app-shell',
   imports: [
-    NgTemplateOutlet, RouterOutlet, RouterLink, RouterLinkActive, NgIcon, CommandPalette,
+    NgTemplateOutlet, RouterOutlet, RouterLink, RouterLinkActive, NgIcon, CommandPalette, BoardGuide,
     HlmAvatarImports, HlmButtonImports, HlmDropdownMenuImports, HlmKbdImports, HlmSheetImports,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -35,7 +36,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
             <ul class="flex flex-col gap-0.5">
               @for (item of group.items; track item.path) {
                 <li>
-                  <a class="nav-link" [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page"
+                  <a class="nav-link" [attr.data-tour]="item.path === '/donors' ? 'donors' : item.path === '/outreach' ? 'followups' : null" [routerLink]="item.path" routerLinkActive="active" ariaCurrentWhenActive="page"
                     [routerLinkActiveOptions]="{ exact: !!item.exact }">
                     <ng-icon [name]="item.icon" size="17" aria-hidden="true" />
                     <span class="flex-1">{{ item.path === '/donors' && !store.isAdmin() ? 'Your donors' : item.label }}</span>
@@ -66,7 +67,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     <div class="main-col">
       <header class="topbar frosted">
         <hlm-sheet side="left" #drawer="hlmSheet">
-          <button hlmBtn variant="ghost" size="icon" class="lg:hidden" hlmSheetTrigger aria-label="Open navigation">
+          <button hlmBtn variant="ghost" size="icon" class="lg:hidden" data-tour="mobile-nav" hlmSheetTrigger aria-label="Open navigation">
             <ng-icon name="lucideMenu" size="18" />
           </button>
           <hlm-sheet-content *hlmSheetPortal="let ctx" class="drawer">
@@ -75,7 +76,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
           </hlm-sheet-content>
         </hlm-sheet>
 
-        <button type="button" class="search" (click)="paletteOpen.set(true)" aria-keyshortcuts="Meta+K Control+K">
+        <button type="button" class="search" data-tour="search" (click)="paletteOpen.set(true)" aria-keyshortcuts="Meta+K Control+K">
           <ng-icon name="lucideSearch" size="16" aria-hidden="true" />
           <span class="flex-1 truncate text-start">Search donors, pages, actions</span>
           <kbd hlmKbd class="hidden sm:inline-flex">⌘K</kbd>
@@ -135,6 +136,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
                 </div>
               </div>
               <hlm-dropdown-menu-separator />
+              @if (store.me().role === 'board') { <button hlmDropdownMenuItem (triggered)="guide()?.start()">Restart workspace tour</button> }
               <button hlmDropdownMenuItem (triggered)="router.navigateByUrl('/account')"><ng-icon name="lucideUser" size="16" /> Account and security</button>
               @if (!store.live()) {
                 <hlm-dropdown-menu-separator />
@@ -163,11 +165,13 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       }
 
       <main id="main" tabindex="-1">
+
         <!-- Protected views exist only while the session is valid; losing it destroys them. -->
         @if (store.signedIn()) { <router-outlet /> }
       </main>
     </div>
 
+    @if (store.signedIn() && store.me().role === 'board') { <app-board-guide #guide /> }
     <app-command-palette [open]="paletteOpen()" (openChange)="paletteOpen.set($event)" [nav]="groups()" />
   `,
   styles: `
@@ -214,6 +218,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
   `,
 })
 export class Shell {
+  protected readonly guide = viewChild(BoardGuide);
   protected readonly store = inject(Store);
   protected readonly router = inject(Router);
   protected readonly paletteOpen = signal(false);
