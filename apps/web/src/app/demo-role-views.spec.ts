@@ -23,10 +23,13 @@ it('hides admin navigation and rejects actual admin route guards for a demo boar
   const protectedRoutes = routes.find(r => r.path === '' && r.children)!.children!
     .filter(r => ['import', 'funders', 'api', 'settings'].includes(r.path!));
   fixture.detectChanges();
+  expect(fixture.nativeElement.querySelector('a[href="/prospects"]')?.textContent).toContain('Potential donors');
+  expect(routes.find(r => r.children)?.children?.find(r => r.path === 'prospects')?.canMatch).toBeUndefined();
   for (const route of protectedRoutes) expect(fixture.nativeElement.querySelector(`a[href="/${route.path}"]`)).not.toBeNull();
   store.setSession('m-bell'); fixture.destroy();
   fixture = TestBed.createComponent(Shell); fixture.detectChanges();
   expect(fixture.nativeElement.textContent).toContain('Board member');
+  expect(fixture.nativeElement.querySelector('a[href="/prospects"]')).not.toBeNull();
   expect(fixture.nativeElement.querySelector('select[aria-label="Switch person"]').value).toBe('m-bell');
   for (const route of protectedRoutes) {
     expect(fixture.nativeElement.querySelector(`a[href="/${route.path}"]`)).toBeNull();

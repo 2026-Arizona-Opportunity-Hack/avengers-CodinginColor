@@ -23,6 +23,7 @@ export const routes: Routes = [
     children: [
       { path: '', pathMatch: 'full', title: 'Overview · Coding in Color', loadComponent: () => import('./pages/overview').then((m) => m.OverviewPage) },
       { path: 'donors', title: 'Donors · Coding in Color', loadComponent: () => import('./pages/donors').then((m) => m.DonorsPage) },
+      { path: 'prospects', title: 'Potential donors | Coding in Color', loadComponent: () => import('./pages/prospects').then(m => m.ProspectsPage) },
       { path: 'ask', title: 'Ask your data · Coding in Color', loadComponent: () => import('./pages/ask-data').then(m => m.AskDataPage) },
       { path: 'donors/new', title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
       { path: 'donors/:id', title: 'Donor · Coding in Color', loadComponent: () => import('./pages/donor-detail').then((m) => m.DonorDetailPage) },
