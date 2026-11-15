@@ -6,7 +6,8 @@ import { previewXlsx } from '../../tools/import-xlsx.ts';
 import { withMember,type Database,type Client,type Member } from './db.ts';
 import { HttpError,type Env } from './env.ts';
 import type { Identity } from './auth.ts';
-import { batchOf,countsOf,draftsOf,fail,ImportError,parse,staged,summary,type Batch } from './import-batches.ts';
+import { batchOf,countsOf,draftsOf,fail,ImportError,Layout,parse,staged,summary,type Batch } from './import-batches.ts';
+import { aliasCatalog, validateAliases } from './import-aliases.ts';
 import {registerImportReview} from './import-plans.ts';
 import {registerImportCommit} from './import-commit.ts';
 import {registerImportSuggestions} from './import-suggestions.ts';
@@ -64,16 +65,21 @@ export function imports(env:Env,db:Database,verify:(h:string|undefined)=>Promise
   })));
   router.post('/:id/layout',async(req,res)=>res.json(await admin(req.get('Authorization'),async(c,m)=>{
     const b=await batchOf(c,req.params.id,env.CIC_ORG_ID);
+    await validateAliases(c,env.CIC_ORG_ID,parse(Layout,req.body).aliases);
     draftsOf(b,req.body);
     const updated=await c.query(`UPDATE import_batches SET layout=$2,donor_decisions='[]',gift_decisions='[]',
       donor_plan_hash=NULL,gift_plan_hash=NULL,reviewer_id=NULL WHERE id=$1 RETURNING *`,[b.id,JSON.stringify(req.body)]);
     await c.query("INSERT INTO audit_events(org_id,actor_id,action,target_id,status) VALUES($1,$2,'import.layout',$3,'success')",[env.CIC_ORG_ID,m.id,b.id]);
     return {...summary(b),preview:countsOf(updated.rows[0] as unknown as Batch)};
   })));
+  router.get('/:id/aliases',async(req,res)=>res.json(await admin(req.get('Authorization'),async c=>{
+    const b=await batchOf(c,req.params.id,env.CIC_ORG_ID); staged(b); return aliasCatalog(c,env.CIC_ORG_ID);
+  })));
   router.get('/:id/rows',async(req,res)=>res.json(await admin(req.get('Authorization'),async c=>{
     const b=await batchOf(c,req.params.id,env.CIC_ORG_ID),q=parse(Page,req.query);
     const {preview,drafts}=draftsOf(b);
-    const rows=q.kind==='preview'?preview.rows.map(r=>({...r,issues:preview.issues.filter(i=>i.recordNumber===r.recordNumber)}))
+    const rows=q.kind==='preview'?preview.rows.map(r=>({...r,issues:[...preview.issues.filter(i=>i.recordNumber===r.recordNumber),
+      ...(drafts.excluded.find(e=>e.recordNumber===r.recordNumber)?.codes??[]).map(code=>({recordNumber:r.recordNumber,field:'row',code}))]}))
       :q.kind==='donor'?drafts.donors:drafts.gifts;
     const items:unknown[]=[];
     for(const row of rows.slice(q.offset,q.offset+q.limit)) {

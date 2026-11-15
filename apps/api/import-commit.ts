@@ -38,6 +38,8 @@ export function registerImportCommit(router:Router,access:ImportAccess,org:strin
             if((e as {code?:string}).code==='P0001') fail(409,'plan_not_ready'); throw e;
           })).rows;
         donorIds.set(op.row,String(row.id)); created++;
+        const owner=d.metadata.import_owner_id;
+        if(typeof owner==='string') await c.query('SELECT * FROM public.reassign_donor($1,$2)',[row.id,owner]);
       }
       const operations=gifts.operations.map(op=>{
         const {donor_row,...operation}=op;

@@ -13,6 +13,8 @@ export function parse<T>(schema:z.ZodType<T>,value:unknown,code='invalid_decisio
   const r=schema.safeParse(value); if(!r.success) return fail(400,code); return r.data;
 }
 export const Layout=z.strictObject({mapping:z.record(z.string(),z.string().nullable()).default({}),
+  aliases:z.strictObject({campaign:z.record(z.string(),IdSchema.nullable()).default({}),
+    contact_person:z.record(z.string(),IdSchema.nullable()).default({})}).default({campaign:{},contact_person:{}}),
   skip_records:z.array(z.int().min(2)).max(20000).default([]),
   batch_values:z.strictObject({currency:GiftWriteSchema.shape.currency.optional(),occurred_at:GiftWriteSchema.shape.occurred_at.optional(),
     status:GiftWriteSchema.shape.status.optional(),refund_cents:GiftWriteSchema.shape.refund_cents.optional()}).default({}),
@@ -36,7 +38,7 @@ export function draftsOf(batch:Batch,layout:unknown=batch.layout??{}) {
     const preview=previewCsv(text,batch.source,batch.filename,l.mapping,
       l.date_format?{date_format:l.date_format,utc_offset:l.utc_offset}:undefined);
     if(preview.rows.length>20000||preview.headers.length>200) fail(400,'row_limit_exceeded');
-    const drafts=buildImportDrafts(preview,{batch_id:batch.id,values:l.batch_values});
+    const drafts=buildImportDrafts(preview,{batch_id:batch.id,values:l.batch_values,aliases:l.aliases});
     if(l.skip_records.some(n=>!drafts.excluded.some(r=>r.recordNumber===n))) fail(400,'invalid_decision');
     return {preview,drafts};
   } catch(e) {
