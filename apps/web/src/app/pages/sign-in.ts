@@ -29,12 +29,12 @@ import { Store } from '../core/store';
       </section>
 
       <main id="main" class="card glass" aria-labelledby="signin-h">
-        <h2 id="signin-h" class="text-xl font-semibold tracking-tight">{{ store.demoAdmin() ? 'Demo workspace' : 'Sign in to Coding in Color' }}</h2>
+        <h2 id="signin-h" class="text-xl font-semibold tracking-tight">{{ store.demoMode() ? 'Demo workspace' : 'Sign in to Coding in Color' }}</h2>
         <section class="status flex-col items-start gap-3" aria-label="Presentation demo">
-          <p>Present with synthetic data. Everyone has demo admin access; no account or two-step setup needed.</p>
+          <p>Start as demo admin, then switch to board views in the workspace. No account or two-step setup needed.</p>
           <a hlmBtn href="/sign-in?demo=1">Try Now</a>
         </section>
-        @if (store.demoAdmin()) {
+        @if (store.demoMode()) {
           <a class="mt-3 inline-block text-sm underline" href="/sign-in?demo=0">Use live workspace sign-in</a>
         }
         @if (securitySetup() === 'complete' && !store.signedIn()) {

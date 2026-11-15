@@ -60,8 +60,8 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     </ng-template>
 
     <ng-template #demoPersona>
-      @if (store.demoAdmin()) {
-        <label class="demo-persona">Demo admin · synthetic data
+      @if (store.demoMode()) {
+        <label class="demo-persona">Demo workspace · synthetic data
           <select class="select" aria-label="Switch demo person" [value]="store.me().id" (change)="switchTo($any($event.target).value)">
             @for (m of store.members(); track m.id) { @if (m.active) { <option [value]="m.id">{{ m.name }} · {{ m.role === 'board' ? 'Board member' : 'Admin' }}</option> } }
           </select>
@@ -133,7 +133,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
             <hlm-avatar size="sm" aria-hidden="true"><span hlmAvatarFallback class="avatar-fallback">{{ store.initials(meName()) }}</span></hlm-avatar>
             <span class="hidden min-w-0 flex-col text-start leading-tight md:flex">
               <span class="truncate text-[13px] font-medium">{{ meName() }}</span>
-              <span class="text-muted-foreground truncate text-xs">{{ store.demoAdmin() ? 'Demo admin' : store.isAdmin() ? 'Admin' : 'Board member' }}</span>
+              <span class="text-muted-foreground truncate text-xs">{{ store.demoMode() ? (store.isAdmin() ? 'Demo admin' : 'Demo board') : store.isAdmin() ? 'Admin' : 'Board member' }}</span>
             </span>
             <ng-icon name="lucideChevronDown" size="15" class="text-muted-foreground hidden md:block" aria-hidden="true" />
             <span class="sr-only">Account menu</span>
@@ -151,7 +151,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
               @if (store.me().role === 'board') { <button hlmDropdownMenuItem (triggered)="guide()?.start()">Restart workspace tour</button> }
               <button hlmDropdownMenuItem (triggered)="router.navigateByUrl('/account')"><ng-icon name="lucideUser" size="16" /> Account and security</button>
               @if (store.live()) { <a hlmDropdownMenuItem href="/sign-in?demo=1">Try Now with synthetic data</a> }
-              @if (store.demoAdmin()) { <a hlmDropdownMenuItem href="/sign-in?demo=0">Use live workspace sign-in</a> }
+              @if (store.demoMode()) { <a hlmDropdownMenuItem href="/sign-in?demo=0">Use live workspace sign-in</a> }
               @if (!store.live()) {
                 <hlm-dropdown-menu-separator />
                 <hlm-dropdown-menu-label>Switch demo account</hlm-dropdown-menu-label>
