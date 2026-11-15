@@ -131,8 +131,11 @@ test('refuses the runtime login and roles that cannot bypass row-level security'
     GRANT SELECT, INSERT, UPDATE ON organizations, memberships TO weak_owner;`);
   await db.exec('SET SESSION AUTHORIZATION cic_app_test;');
   await assert.rejects(provision(client, ORG, roster), /runtime/);
-  await db.exec('RESET SESSION AUTHORIZATION; SET SESSION AUTHORIZATION weak_owner;');
+  await db.exec('SET SESSION AUTHORIZATION weak_owner;');
   await assert.rejects(provision(client, ORG, roster), /row-level security/);
-  await db.exec('RESET SESSION AUTHORIZATION;');
-  assert.deepEqual((await db.query('SELECT count(*)::int AS n FROM memberships')).rows, [{ n: 0 }]);
+  // PGlite ignores RESET SESSION AUTHORIZATION; switch back explicitly so RLS can't hide rows from the check.
+  await db.exec('SET SESSION AUTHORIZATION postgres;');
+  assert.deepEqual((await db.query('SELECT current_user AS who')).rows, [{ who: 'postgres' }]);
+  assert.deepEqual((await db.query(`SELECT (SELECT count(*) FROM organizations)::int AS orgs,
+    (SELECT count(*) FROM memberships)::int AS members`)).rows, [{ orgs: 0, members: 0 }]);
 });
