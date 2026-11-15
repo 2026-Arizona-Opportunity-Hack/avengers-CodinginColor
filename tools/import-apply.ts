@@ -1,3 +1,5 @@
+// Apply stage writes approved gift insert/correction operations inside the caller's transaction.
+// It does not commit that transaction and rejects donor operations or unresolved donor_row links.
 import { GiftWriteSchema } from '../packages/contracts/index.ts';
 
 type Client = { query: (sql: string, params?: unknown[]) => Promise<{ rows: unknown[] }> };
@@ -77,6 +79,7 @@ async function applyOne(client: Client, operation: Operation, actor: string): Pr
   return { row: operation.row, op: 'correct', id: operation.gift_id };
 }
 
+/** Apply reviewed gift operations under the client's active organization and session member. */
 export async function applyReviewedGifts(client: Client,
   input: { org_id: string; operations: unknown[] }): Promise<{ applied: Applied[] }> {
   const scope = rowsOf(await client.query(`SELECT cic_org_id()::text AS org`))[0].org;

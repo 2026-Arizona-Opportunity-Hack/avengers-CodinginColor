@@ -1,5 +1,6 @@
+import { personalizeDraft } from './draft-personalization';
 import { Injectable, computed, effect, inject, signal } from '@angular/core';
-import { ANCHOR, DATASET_VERSION, buildDemoDataset } from './demo-data';
+import { ANCHOR, DATASET_VERSION, TEMPLATES, buildDemoDataset } from './demo-data';
 import {
   ApiKey, Channel, Communication, CommunicationKind, CustomField, Dataset, Donor, DonorKind, Draft, FollowUp, Gift, Member,
   SOURCE_LABEL, Source,
@@ -472,17 +473,23 @@ export class Store {
   fillTemplate(templateId: string, donor: Donor | null, extra: Record<string, string> = {}): { subject: string; body: string } {
     const t = this.template(templateId)!;
     const owner = this.member(donor?.owner_id ?? this.me().id);
-    const last = donor ? this.lastGift(donor.id) : null;
-    const vars: Record<string, string> = {
-      first_name: donor ? (donor.kind === 'individual' ? donor.name.split(' ')[0] : donor.name) : '',
-      amount: last ? money(last.amount_cents) : 'your gift',
-      campaign: this.campaign(last?.campaign_id ?? null)?.title ?? 'Coding in Color',
-      owner_name: owner?.name.split(' ')[0] ?? 'Coding in Color',
-      quarter: quarterOf(today()),
-      ...extra,
-    };
-    const fill = (s: string) => s.replace(/{{(\w+)}}/g, (_, k: string) => vars[k] ?? `{{${k}}}`);
-    return { subject: fill(t.subject), body: fill(t.body) };
+    return personalizeDraft(t, donor, {
+      gifts: this.data().gifts.filter((g) => this.visibleIds().has(g.donor_id)), campaigns: this.campaigns(), communications: this.communications(),
+      outcomes: this.outcomes(), programs: this.programs(),
+    }, { owner_name: owner?.name.split(' ')[0] ?? 'Coding in Color', quarter: quarterOf(today()), ...extra });
+  }
+
+  async regenerateDraft(id: string): Promise<boolean> {
+    if (this.live()) return false;
+    const draft = this.drafts().find((d) => d.id === id);
+    const donor = draft?.donor_id ? this.donor(draft.donor_id) : null;
+    const template = TEMPLATES.find((t) => t.id === draft?.template_id);
+    if (!draft || !donor || !template || draft.channel !== template.channel
+      || !['pending', 'approved'].includes(draft.status)) return false;
+    return this.editDraft(id, personalizeDraft(template, donor, {
+      gifts: this.data().gifts, campaigns: this.campaigns(), communications: this.communications(),
+      outcomes: this.outcomes(), programs: this.programs(),
+    }, { owner_name: this.member(donor.owner_id)?.name.split(' ')[0] ?? 'Coding in Color', quarter: quarterOf(today()) }));
   }
 
   async createDraft(donorId: string, templateId: string, reason: string): Promise<Draft | null> {

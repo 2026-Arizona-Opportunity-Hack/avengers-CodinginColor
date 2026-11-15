@@ -2,6 +2,8 @@
 
 Cadence is an open-source donor and funder relationship platform built for Coding in Color at the ASU Fall Hackathon 2026. It brings donor and gift records, human-reviewed follow-ups, import review, and funder reporting into one workspace. Open [cadence-cic.vercel.app](https://cadence-cic.vercel.app), choose **Try Now**, and explore fictional records stored in your browser. No account is required. Admins see the organization; board personas see their assigned records. Switching people returns to Overview; edits and persona selection survive refresh.
 
+Fresh drafts use fictional conversation records and structured program interests plus the selected donor's latest settled net gift. Existing saved drafts stay unchanged until **Regenerate draft** in Follow-ups. Regeneration uses current local facts and clears approval; review and approve again before composing. Sent history is retained. Settings includes **Reset records**.
+
 The public frontend never loads Clerk, `config.json` or protected API routes, even with `?demo=0`. Browser data does not prove server persistence, authorization or delivery. The separate backend retains Clerk verification, admin MFA and database row-level security. Source implementation, recorded tests and deployment acceptance are distinct; see [requirements](docs/REQUIREMENTS.md) and [the live acceptance gate](docs/P0-LIVE-PLAN.md). No new deployment check was performed for this documentation repair.
 
 | | |

@@ -1,3 +1,5 @@
+// Pure planning stage compares canonical drafts with org-scoped snapshots; it never writes.
+// Ambiguous donor or gift identity remains for human review instead of being guessed.
 import { z } from 'zod';
 import { DonorSchema, DonorWriteSchema, GiftSchema, GiftWriteSchema, IdSchema } from '../packages/contracts/index.ts';
 import type { DonorWrite, GiftWrite } from '../packages/contracts/index.ts';
@@ -37,6 +39,7 @@ const phoneKey = (value?: string | null) => value && /^\+?[\d().\s-]+$/.test(val
   ? `phone:${value.replace(/[().\s-]/g, '')}` : null;
 const donorKeys = (donor: DonorWrite) => [emailKey(donor.email), phoneKey(donor.phone), `name:${nameKey(donor.name)}`];
 
+/** Plan donor create/link/review outcomes; only a unique corroborated email can link. */
 export function planDonorMatches(orgId: string, drafts: unknown[], existing: unknown[]) {
   const donors = snapshot(DonorSchema, existing, orgId);
   if (!Array.isArray(drafts)) throw new Error('Drafts must be an array');
@@ -71,9 +74,13 @@ const externalKey = (gift: GiftWrite) => gift.external_id
   ? JSON.stringify(['external', gift.source, gift.external_id]) : null;
 const rowKey = (gift: GiftWrite) => gift.source_row
   ? JSON.stringify(['row', gift.source, gift.source_row.batch_id, gift.source_row.row_key]) : null;
+// A gift has up to two identities: source + external transaction ID, and source + batch/row
+// provenance (the fallback when an export has no transaction ID).
 const giftKeys = (gift: GiftWrite) => [externalKey(gift), rowKey(gift)];
 
-// The shared contract allows more fractional digits than Date preserves.
+// The shared contract allows more fractional digits than Date preserves. Date.parse keeps only
+// milliseconds, so the extra digits are compared separately; otherwise two gifts 0.0001s apart
+// would look like the same gift.
 const instant = (value: string) => [Date.parse(value),
   (value.match(/\.(\d+)(?:Z|[+-]\d{2}:\d{2})$/)?.[1] ?? '').slice(3).replace(/0+$/, '')];
 const similarGift = (gift: GiftWrite) => JSON.stringify([
@@ -84,6 +91,7 @@ const giftFacts = (gift: GiftWrite) => JSON.stringify([
   gift.currency, instant(gift.occurred_at), gift.status,
 ]);
 
+/** Plan gift insert/duplicate/review outcomes using transaction and provenance identities. */
 export function planGiftChanges(orgId: string, drafts: unknown[], existing: unknown[]) {
   const gifts = snapshot(GiftSchema, existing, orgId);
   if (!Array.isArray(drafts)) throw new Error('Drafts must be an array');
