@@ -45,5 +45,23 @@ organization, returns 200 with exactly `{id, owner_id}`, and is admin-only (403
 otherwise); an unknown donor returns 404 and an ineligible owner returns 409.
 `POST /api/v1/donors/:id/archive` archives
 without deleting gifts. Creates, updates, reassignments, and archives record an
-audit event inside the same transaction. Inaccessible donors return 404. Gift
-routes are not included.
+audit event inside the same transaction. Inaccessible donors return 404.
+
+Historical gifts form their own ledger, separate from communications and
+follow-ups. Authenticated `GET /api/v1/gifts?donor_id=<uuid>` requires a strict
+donor UUID plus `limit` (1-100, default 50) and `offset`, returns
+`{items, limit, offset}` ordered by `occurred_at` then `id`, includes archived
+donors' history, and returns 404 when the donor is not visible. Amounts are exact
+safe-integer cents and timestamps keep PostgreSQL microsecond precision.
+`POST /api/v1/gifts` accepts donor, campaign (nullable), amount, refund,
+currency, occurred_at, status and optional `external_id`; the server forces
+`source='manual'` and `source_row=null` and rejects provenance, org, owner, role
+or id fields. Campaigns must belong to the organization. Insert returns 201 and
+audits `gift.insert` in the same transaction; an identical replay of the same
+caller's `external_id` returns 200 without a new audit, differing facts return
+409 for explicit correction, and another owner's identity
+returns 409 without disclosing data. Equal gifts without `external_id` stay
+separate records. `PATCH /api/v1/gifts/:id` accepts a nonempty subset of campaign,
+amount, refund, currency, occurred_at and status, merges the stored record under a
+row lock, revalidates, and audits `gift.correct` atomically; identity and
+provenance cannot be rewritten. Gifts are never hard-deleted.

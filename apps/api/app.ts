@@ -4,6 +4,7 @@ import { HttpError, type Env } from './env.ts';
 import { withMember, type Database } from './db.ts';
 import type { Identity } from './auth.ts';
 import { donors } from './donors.ts';
+import { gifts } from './gifts.ts';
 import { createReportingRouter } from './reporting.ts';
 import { createDashboardRouter } from './dashboard.ts';
 import { createApiKeyRouter } from './api-keys.ts';
@@ -34,6 +35,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
     res.json(member);
   });
   app.use('/api/v1/donors', express.json({ limit: '32kb' }), donors(env, db, verify));
+  app.use('/api/v1/gifts', express.json({ limit: '32kb' }), gifts(env, db, verify));
   app.use(createReportingRouter(env, db, verify));
   // Key-authenticated CIC dashboard routes (no Clerk session); aggregates only.
   app.use(createDashboardRouter(db, { offset: '-07:00', minDonors: 3, limitPerMinute: 60 }));
