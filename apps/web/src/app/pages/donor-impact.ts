@@ -49,8 +49,8 @@ export class DonorImpactPage{
   protected date(value:string){return new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',dateStyle:'medium'}).format(new Date(value));}
   constructor(){inject(DestroyRef).onDestroy(()=>this.generation++);effect(onCleanup=>{
     this.api.identityVersion();
-    if(this.api.authenticated()){void this.load(0);return;}
     this.generation++;this.feed.set(null);this.message.set('');
+    if(this.api.authenticated()){void this.load(0);return;}
     const node=this.auth()?.nativeElement;if(this.api.status()!=='signed-out'||!node)return;
     const signup=new URLSearchParams(location.search).has('__clerk_ticket');
     if(signup)this.api.mountSignUp(node,'/impact');else this.api.mountSignIn(node,'/impact');
