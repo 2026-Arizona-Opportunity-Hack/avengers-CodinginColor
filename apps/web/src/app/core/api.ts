@@ -124,13 +124,14 @@ export class Api {
   me() { return this.request<ApiMe>('/api/v1/me'); }
 
   /** Every donor this member may see. The API caps a page at 100, so this pages until done. */
-  async allDonors(): Promise<ApiDonor[]> {
+  async allDonors(includeArchived = false): Promise<ApiDonor[]> {
     const all: ApiDonor[] = [];
-    for (let offset = 0; ; offset += 100) {
-      const page = await this.request<{ items: ApiDonor[] }>(`/api/v1/donors?limit=100&offset=${offset}`);
+    for (const archived of includeArchived ? [false, true] : [false]) for (let offset = 0; ; offset += 100) {
+      const page = await this.request<{ items: ApiDonor[] }>(`/api/v1/donors?limit=100&offset=${offset}${archived ? '&archived=true' : ''}`);
       all.push(...page.items);
-      if (page.items.length < 100) return all;
+      if (page.items.length < 100) break;
     }
+    return all;
   }
 
   patchDonor(id: string, patch: ApiDonorPatch) {
