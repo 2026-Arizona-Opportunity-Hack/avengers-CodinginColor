@@ -30,6 +30,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      assignment-postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: cic_test_deadbeef
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports: [5433:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -44,6 +56,7 @@ jobs:
         run: node --test --test-concurrency=2 apps/api/*.test.ts tests/*.test.ts tests/*.test.mjs packages/contracts/*.test.ts packages/imports/*.test.ts packages/outreach/*.test.ts packages/reporting/*.test.ts
         env:
           CIC_NATIVE_TEST_URL: postgresql://postgres@127.0.0.1:5432/cic_native_deadbeef
+          CORE_TEST_DATABASE_URL: postgresql://postgres@127.0.0.1:5433/cic_test_deadbeef
 
   frontend:
     runs-on: ubuntu-latest
