@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { previewCsv } from '../tools/import-preview.ts';
 
 const header = 'first name,email,Contribution Value,When Received,Money Code,Receipt,Unused';
@@ -96,7 +97,7 @@ test('mapping CLI applies choices and redacts malformed JSON contents', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cic-mapping-'));
   try {
     const csv = join(directory, 'input.csv'), json = join(directory, 'mapping.json');
-    const cli = new URL('../tools/import-preview.ts', import.meta.url).pathname;
+    const cli = fileURLToPath(new URL('../tools/import-preview.ts', import.meta.url));
     writeFileSync(csv, `${header}\n${row}`);
     writeFileSync(json, JSON.stringify(mapping));
     const run = () => spawnSync(process.execPath, [cli, 'spreadsheet', csv, json], { encoding: 'utf8' });
