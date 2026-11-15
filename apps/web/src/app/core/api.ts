@@ -62,6 +62,8 @@ export async function loadLiveConfig(): Promise<LiveConfig | null> {
 @Injectable({ providedIn: 'root' })
 export class Api {
   readonly status = signal<LiveStatus>('off');
+  readonly authenticated = signal(false);
+  readonly identityVersion = signal(0);
   readonly error = signal<string | null>(null);
   private config: LiveConfig | null = null;
   private clerk: Clerk | null = null;
@@ -75,11 +77,16 @@ export class Api {
       const [{ Clerk }, { ui }] = await Promise.all([import('@clerk/clerk-js'), import('@clerk/ui')]);
       this.clerk = new Clerk(config.clerkPublishableKey);
       await this.clerk.load({ ui, localization: { signIn: { start: { title: 'Sign in to Coding in Color' } } } });
-      let hadSession = !!this.clerk.session;
-      if (hadSession) onSignedIn(); else this.status.set('signed-out');
+      let sessionId = this.clerk.session?.id ?? null;
+      this.authenticated.set(!!sessionId);this.identityVersion.update(v=>v+1);
+      if (sessionId) onSignedIn(); else this.status.set('signed-out');
       this.clerk.addListener(({ session }) => {
-        if (session && !hadSession) { hadSession = true; onSignedIn(); }
-        if (!session && hadSession) { hadSession = false; onSignedOut(); this.status.set('signed-out'); }
+        const next = session?.id ?? null;
+        if (next === sessionId) return;
+        const previous=sessionId;sessionId=next;
+        this.identityVersion.update(v=>v+1);this.authenticated.set(!!next);
+        if(previous)onSignedOut();
+        if(next)onSignedIn();else this.status.set('signed-out');
       });
     } catch {
       this.fail('Sign-in could not load. Check the Clerk publishable key in config.json.');
@@ -93,10 +100,11 @@ export class Api {
 
   canRetry() { return !!this.clerk?.session; }
 
-  mountSignIn(node: HTMLDivElement) { this.clerk?.mountSignIn(node, {
+  mountSignIn(node: HTMLDivElement, redirect?: string) { this.clerk?.mountSignIn(node, {
+    ...(redirect ? {forceRedirectUrl:redirect} : {}),
     appearance: { elements: { rootBox: { width: '100%' }, cardBox: { width: '100%' }, card: { width: '100%' } } },
   }); }
-  mountSignUp(node: HTMLDivElement) { this.clerk?.mountSignUp(node, { routing: 'hash', signInUrl: '/sign-in', forceRedirectUrl: '/' }); }
+  mountSignUp(node: HTMLDivElement, redirect = '/') { this.clerk?.mountSignUp(node, { routing: 'hash', signInUrl: '/sign-in', forceRedirectUrl: redirect }); }
   unmountSignUp(node: HTMLDivElement) { this.clerk?.unmountSignUp(node); }
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
