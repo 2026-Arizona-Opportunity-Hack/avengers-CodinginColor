@@ -197,7 +197,10 @@ export class LiveImportPage {
     this.mapping.set(mapping); this.applied.set(false);
   }
   protected mapped(field: string) {
-    return this.preview()?.headers.some((h, i) => (Object.hasOwn(this.mapping(), h) ? this.mapping()[h] : this.preview()?.mapping[i]) === field);
+    return this.preview()?.headers.some((h, i) => {
+      const target = Object.hasOwn(this.mapping(), h) ? this.mapping()[h] : this.preview()?.mapping[i];
+      return (target === 'refund_decimal' ? 'refund_cents' : target === 'amount_decimal' ? 'amount_cents' : target) === field;
+    });
   }
   protected applyLayout(event: Event) {
     event.preventDefault(); const form = new FormData(event.target as HTMLFormElement);
