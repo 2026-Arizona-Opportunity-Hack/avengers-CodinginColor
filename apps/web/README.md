@@ -110,3 +110,7 @@ Gift widgets compare the selected Phoenix calendar range with the matching prior
 year; current follow-ups keep their own due dates while following the donor scope.
 Acquisition year uses first positive settled giving across currencies. Filters
 intersect server authorization and clear private dimensions when the session changes.
+
+Review lapsed donors from Follow-ups or Retention. The current scoped report opens
+a lapsed drill-down; eligible active contacts can receive an editable server nudge
+draft. Every nudge still requires the normal approval and manual-send steps.

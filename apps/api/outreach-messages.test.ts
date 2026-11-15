@@ -223,3 +223,15 @@ test('the message routes are mounted in the real app behind its session and orig
   assert.equal((await fetch(`${base}/api/v1/donors/${DONOR_A}/communications`)).status, 401);
   assert.equal((await fetch(`${base}/api/v1/drafts/${DONOR_A}/compose`, { headers: { Origin: 'https://evil.example' } })).status, 403);
 });
+
+
+test('lapsed outreach creates an editable unapproved server draft', async t => {
+  const { call } = await setup(t);
+  const response = await call('POST', '/api/v1/drafts', 'board-a', {
+    donor_id: DONOR_A, template: 'lapsed_nudge', fields: { first_name: 'Avery', program: 'Academy' },
+  });
+  assert.equal(response.status, 201);
+  const draft = await response.json(); assert.equal(draft.status, 'draft');
+  assert.match(draft.body, /Would you like an update on Academy/);
+  assert.doesNotMatch(draft.body, /transformed|incredible|\u2014/);
+});

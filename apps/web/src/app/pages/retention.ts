@@ -6,7 +6,7 @@ import { NgxEchartsDirective } from 'ngx-echarts';
 import type { EChartsCoreOption } from 'echarts/core';
 import { CountUp } from '../shared/count-up';
 import { BASE, BLUE, GREEN, INK, INK_MUTED, axisLine, axisTick, splitLine } from '../shared/chart-theme';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Store } from '../core/store';
 import { ReportFilters } from '../core/report-filters';
 import { ReportFiltersControl } from '../shared/report-filters';
@@ -27,6 +27,7 @@ import { SOURCE_LABEL } from '../core/models';
         <div>
           <h1>Retention</h1>
           <p class="lede">Who stayed, grew, shrank or left, year over year.</p>
+          <button class="btn" type="button" (click)="selected.set('lapsed')">Review lapsed donors</button>
         </div>
         @if (!store.live()) { <div class="segmented" role="group" aria-label="Period">
           @for (p of periods; track p.value) {
@@ -101,7 +102,7 @@ import { SOURCE_LABEL } from '../core/models';
                 <div class="amounts"><span class="sub">{{ money(d.prior_cents) }}</span><ng-icon name="lucideArrowRight" size="13" aria-hidden="true" /><span class="font-semibold">{{ money(d.current_cents) }}</span></div>
                 @if (s === 'lapsed') {
                   @if (nudged().has(d.donor_id)) { <span class="tag solid"><ng-icon name="lucideCheck" size="12" aria-hidden="true" />Drafted</span> }
-                  @else { <button hlmBtn variant="outline" size="sm" type="button" (click)="nudge(d.donor_id)">Draft nudge</button> }
+                  @else { <button hlmBtn variant="outline" size="sm" type="button" (click)="nudge(d.donor_id)" [disabled]="nudging().has(d.donor_id) || !store.donor(d.donor_id)?.email || store.donor(d.donor_id)?.consent === 'denied'">Draft nudge</button> }
                 }
               </li>
             } @empty { <li class="sub">No donors in this segment.</li> }
@@ -220,8 +221,9 @@ export class RetentionPage {
     { value: String(this.thisYear - 2), label: String(this.thisYear - 2) },
   ];
   protected readonly period = signal('ytd');
-  protected readonly selected = signal<Segment | null>(null);
+  protected readonly selected = signal<Segment | null>(inject(ActivatedRoute, { optional: true })?.snapshot.queryParamMap.get('segment') === 'lapsed' ? 'lapsed' : null);
   protected readonly nudged = signal(new Set<string>());
+  protected readonly nudging = signal(new Set<string>());
 
   private readonly windows = computed(() => (this.period() === 'ytd' ? ytdWindows(this.now) : yearWindows(Number(this.period()))));
   protected readonly r = computed(() => this.store.live()
@@ -352,8 +354,13 @@ export class RetentionPage {
   }
 
   protected async nudge(donorId: string) {
-    if (!await this.store.createDraft(donorId, 't-nudge', 'Lapsed: gave last period, not this period')) return;
-    this.nudged.update((s) => new Set(s).add(donorId));
-    toast.success(`Nudge drafted for ${this.name(donorId)}`, { description: 'Approve it in Follow-ups before it is sent.' });
+    if (this.nudging().has(donorId) || this.nudged().has(donorId)) return;
+    this.nudging.update(s => new Set(s).add(donorId));
+    const epoch = this.store.sessionEpoch();
+    try {
+      if (!await this.store.createDraft(donorId, 't-nudge', 'Lapsed: gave last period, not this period') || epoch !== this.store.sessionEpoch()) return;
+      this.nudged.update((s) => new Set(s).add(donorId));
+      toast.success(`Nudge drafted for ${this.name(donorId)}`, { description: 'Approve it in Follow-ups before it is sent.' });
+    } finally { this.nudging.update(s => { const next = new Set(s); next.delete(donorId); return next; }); }
   }
 }
