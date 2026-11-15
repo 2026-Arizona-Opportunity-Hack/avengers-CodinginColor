@@ -8,7 +8,7 @@ import { RetentionPage } from './pages/retention';
 it('opens the lapsed drill-down from outreach and creates one pending nudge for repeated clicks', async () => {
   const createDraft = vi.fn(async () => ({ id: 'draft' }));
   TestBed.configureTestingModule({ providers: [
-    { provide: Store, useValue: { createDraft, sessionEpoch: signal(1), donor: () => ({ name:'Avery' }) } },
+    { provide: Store, useValue: { createDraft, sessionEpoch: signal(1), historicalDonor: () => ({ name:'Avery' }) } },
     { provide: Api, useValue: {} },
     { provide: ActivatedRoute, useValue: { snapshot:{ queryParamMap:convertToParamMap({segment:'lapsed'}) } } },
   ] });
