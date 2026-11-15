@@ -1,3 +1,5 @@
+// Review stage fingerprints files, binds plans to reviewed facts, and turns human decisions into operations.
+// Hashes detect stale or changed plans, not forgery; callers must rebuild, authorize, and apply atomically.
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { DonorSchema, DonorWriteSchema, GiftSchema, GiftWriteSchema, IdSchema } from '../packages/contracts/index.ts';
@@ -36,6 +38,8 @@ const stable = (value: unknown): unknown => Array.isArray(value) ? value.map(sta
   : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value)
     .filter(([, item]) => item !== undefined).sort(([a], [b]) => a < b ? -1 : 1).map(([k, item]) => [k, stable(item)]))
   : value;
+// The plan hash covers the org, batch, file fingerprint and planned donor/gift rows, so decisions
+// made against an older plan are rejected. It detects staleness, not forgery: anyone can recompute it.
 const hashPlan = (plan: Omit<ReviewPlan, 'status' | 'plan_hash'>) => sha256(JSON.stringify(stable(
   [plan.org_id, plan.batch_id, plan.file_sha256, plan.donors, plan.gifts,
     ...(plan.donor_resolution === undefined ? [] : [plan.donor_resolution])])));
@@ -67,10 +71,12 @@ const donorResolution = (raw: unknown, input: z.infer<typeof PlanInputSchema>): 
   return { plan_hash: parsed.data.plan_hash, operations: parsed.data.operations };
 };
 
+/** Fingerprint exact uploaded bytes for replay checks and plan binding. */
 export function fingerprintFile(bytes: Uint8Array) {
   return sha256(bytes);
 }
 
+/** Classify an exact file as new, resumable, or already committed within one organization. */
 export function checkFileReplay(orgId: string, fingerprint: string, prior: unknown[]):
   { action: 'new' } | { action: 'resume' | 'replay'; batch_id: string } {
   IdSchema.parse(orgId);
@@ -91,6 +97,7 @@ const referenced = <T extends { id: string }>(records: T[], rows: Row[]) => {
   return records.filter(record => ids.has(record.id)).sort((a, b) => a.id < b.id ? -1 : 1);
 };
 
+/** Build a hashed review plan from drafts and a snapshot; this function does not persist it. */
 export function createReviewPlan(input: Record<string, unknown>): ReviewPlan {
   const value = PlanInputSchema.parse(input);
   const resolution = donorResolution(value.donor_resolution, value);
@@ -119,6 +126,7 @@ export function createReviewPlan(input: Record<string, unknown>): ReviewPlan {
 // Identity reasons mean the incoming row shares a transaction identity with existingIds.
 const identityConflict = new Set(['changed_transaction', 'conflicting_batch_transaction']);
 
+/** Validate plan-bound decisions and return pending review rows or ready write operations. */
 export function resolveReview(plan: ReviewPlan, decisions: unknown[]):
   { status: 'needs_review'; pending: { kind: Kind; row: number }[] } |
   { status: 'ready'; org_id: string; batch_id: string; file_sha256: string; plan_hash: string; operations: Operation[] } {
