@@ -1,4 +1,5 @@
 import express from 'express';
+import { debrief } from './debrief.ts';
 import type { ErrorRequestHandler } from 'express';
 import { HttpError, type Env } from './env.ts';
 import { withMember, type Database } from './db.ts';
@@ -77,6 +78,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.use('/api/v1/drafts', express.json({ limit: '32kb' }));
   app.use(createMessageRouter(env, db, verify));
   app.use(groundedDrafts(env, db, verify));
+  app.use(debrief(env, db, verify));
   app.use((_req, _res, next) => next(new HttpError(404)));
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error instanceof HttpError ? error.status : error?.type === 'entity.parse.failed' ? 400 : error?.type === 'entity.too.large' ? 413 : 503;
