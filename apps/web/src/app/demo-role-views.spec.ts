@@ -17,14 +17,16 @@ afterEach(() => { delete (Element.prototype as Partial<Element>).scrollIntoView;
 it('hides admin navigation and rejects actual admin route guards for a demo board member', () => {
   TestBed.configureTestingModule({ providers: [provideRouter([]), provideIcons(APP_ICONS)] });
   const store = TestBed.inject(Store); store.enableDemo(true);
-  const router = TestBed.inject(Router), fixture = TestBed.createComponent(Shell);
+  const router = TestBed.inject(Router);
+  let fixture = TestBed.createComponent(Shell);
   const protectedRoutes = routes.find(r => r.path === '' && r.children)!.children!
     .filter(r => ['import', 'funders', 'api', 'settings'].includes(r.path!));
   fixture.detectChanges();
   for (const route of protectedRoutes) expect(fixture.nativeElement.querySelector(`a[href="/${route.path}"]`)).not.toBeNull();
-  store.setSession('m-bell'); fixture.detectChanges();
+  store.setSession('m-bell'); fixture.destroy();
+  fixture = TestBed.createComponent(Shell); fixture.detectChanges();
   expect(fixture.nativeElement.textContent).toContain('Demo board');
-  expect(fixture.nativeElement.querySelector('select[aria-label="Switch demo person"]')).not.toBeNull();
+  expect(fixture.nativeElement.querySelector('select[aria-label="Switch demo person"]').value).toBe('m-bell');
   for (const route of protectedRoutes) {
     expect(fixture.nativeElement.querySelector(`a[href="/${route.path}"]`)).toBeNull();
     const result = TestBed.runInInjectionContext(() => (route.canMatch![0] as CanMatchFn)(route, [], router.routerState.snapshot.root));

@@ -63,7 +63,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       @if (store.demoMode()) {
         <label class="demo-persona">Demo workspace · synthetic data
           <select class="select" aria-label="Switch demo person" [value]="store.me().id" (change)="switchTo($any($event.target).value)">
-            @for (m of store.members(); track m.id) { @if (m.active) { <option [value]="m.id">{{ m.name }} · {{ m.role === 'board' ? 'Board member' : 'Admin' }}</option> } }
+            @for (m of store.members(); track m.id) { @if (m.active) { <option [value]="m.id" [selected]="store.me().id === m.id">{{ m.name }} · {{ m.role === 'board' ? 'Board member' : 'Admin' }}</option> } }
           </select>
         </label>
       }
