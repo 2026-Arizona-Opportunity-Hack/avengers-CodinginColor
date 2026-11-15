@@ -68,7 +68,7 @@ async function loadDraft(client: Client, id: string): Promise<{ draft: Draft; do
   return { draft, donor };
 }
 /** A qualifying contact completes that donor's open quarterly touch for the contact's quarter. */
-async function closeTouches(client: Client, donorId: string, at: string, actor: string): Promise<number> {
+export async function closeTouches(client: Client, donorId: string, at: string, actor: string): Promise<number> {
   const open = (await client.query(`SELECT id, donor_id, owner_id, kind, quarter, title, status, ${stamp('due_at')} AS due_at
     FROM follow_ups WHERE donor_id = $1 AND status = 'open'`, [donorId])).rows as OutreachTask[];
   const ids = tasksClosedBy(open, { donor_id: donorId, occurred_at: at, qualifying: true }, OFFSET);
