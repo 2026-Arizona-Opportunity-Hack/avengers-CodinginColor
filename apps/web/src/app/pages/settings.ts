@@ -134,8 +134,8 @@ const ACCESS: Array<[string, string, string]> = [
             }
             @case ('workspace') {
               <div class="ws">
-                <div><p class="font-semibold">Demo data</p><p class="meta">All records are synthetic and stored only in this browser. Resetting restores the original demo records.</p></div>
-                <button hlmBtn variant="outline" type="button" (click)="resetDemo()"><ng-icon name="lucideRotateCcw" size="16" /> Reset demo data</button>
+                <div><p class="font-semibold">Workspace records</p><p class="meta">Restore the original records and discard changes in this browser.</p></div>
+                <button hlmBtn variant="outline" type="button" (click)="resetDemo()"><ng-icon name="lucideRotateCcw" size="16" /> Reset records</button>
               </div>
             }
           }
@@ -194,7 +194,7 @@ export class SettingsPage {
   protected readonly current = computed(() => TABS.find((t) => t.id === this.tab())!);
   protected readonly maxLoad = computed(() => Math.max(1, ...this.store.ownerLoad().values()));
   protected readonly typeIcon: Record<CustomField['type'], string> = { text: 'lucideStickyNote', number: 'lucideChartColumn', date: 'lucideCalendar', select: 'lucideListChecks' };
-  protected resetDemo() { this.store.resetDemo(); toast.success('Demo data reset', { description: 'Every record is back to the original synthetic set.' }); }
+  protected resetDemo() { this.store.resetDemo(); toast.success('Records reset', { description: 'Original records restored.' }); }
 
   protected patch(p: Partial<CustomField>) { this.draft.update((d) => ({ ...d, ...p })); }
   protected split(s: string) { return s.split(',').map((x) => x.trim()).filter(Boolean); }
