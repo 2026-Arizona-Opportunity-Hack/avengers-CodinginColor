@@ -13,7 +13,7 @@ export interface NavGroup { label: string; items: NavItem[]; }
 
 export const NAV: NavGroup[] = [
   { label: 'Workspace', items: [
-    { path: '/', label: 'Overview', icon: 'lucideLayoutDashboard', exact: true },
+    { path: '/', label: 'Overview', icon: 'lucideLayoutDashboard', exact: true, live: true },
     { path: '/donors', label: 'Donors', icon: 'lucideUsers', live: true },
     { path: '/donations', label: 'Donations', icon: 'lucideHandCoins' },
     { path: '/outreach', label: 'Follow-ups', icon: 'lucideSend', live: true },
