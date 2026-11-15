@@ -147,9 +147,32 @@ drafts require review. Gifts use source/external ID first, or batch/row provenan
 when no external ID exists. Exact replays are distinguished from changed facts;
 different same-source IDs preserve legitimate repeated gifts. Cross-source
 overlaps and gifts without transaction identity require review, never silent
-deduplication by amount/date/name. Snapshot records must be valid, unique and
-from the selected organization. Callers still enforce user scope, donor/campaign
-and batch ownership, saved approvals, file-hash replay and atomic persistence.
+deduplication by amount/date/name. A no-ID gift matching an earlier batch's
+same-source gift is reviewed as `possible_file_replay`, because a re-saved export
+gets a new batch. Snapshot records must be valid, unique and from the selected
+organization. Callers still enforce user scope, donor/campaign and batch ownership.
+
+## Saved review and file replay (Data)
+
+`tools/import-review.ts` is pure and in-memory:
+
+- `fingerprintFile(bytes)` returns `sha256:<hex>` of the exact uploaded bytes.
+- `checkFileReplay(orgId, hash, priorImports)` returns `replay` for an already
+  committed file, `resume` for an open review and `new` otherwise. Prior imports
+  from another organization are rejected, not filtered.
+- `createReviewPlan(...)` runs both planners and hashes the org, batch, file and
+  drafts together with every planned row. Gift provenance must name this batch.
+- `resolveReview(plan, decisions)` returns `needs_review` with pending rows, or
+  `ready` with operations (`create`, `link`, `insert`, `correct`). Each decision
+  carries the plan hash and reviewer ID. Links must target a listed candidate,
+  invalid rows can only be skipped, changed transactions need `correct` on the
+  matched gift, and one transaction identity yields at most one write.
+
+`ready` means ready to submit, not committed. The hash detects stale or edited
+plans but is not a signature: the server must rebuild the plan from stored drafts
+and a fresh in-transaction snapshot, compare hashes, authorize the reviewer and
+apply all operations atomically. Import records and that transaction are core
+backend work (#19).
 
 Run `node --test tests/*.test.ts packages/contracts/*.test.ts` for Data and
 shared-contract tests. The live API/database integration is still pending.

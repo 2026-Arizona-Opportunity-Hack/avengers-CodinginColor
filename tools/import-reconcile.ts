@@ -123,6 +123,10 @@ export function planGiftChanges(orgId: string, drafts: unknown[], existing: unkn
       return { row, action: 'review', reason: identity ? 'missing_transaction_identity' : 'cross_source_candidate',
         existingIds: possible.map(other => other.id), matchingRows: possibleRows.map(other => other.row) };
     }
+    // Row provenance is batch-scoped, so a re-exported file would otherwise insert every no-ID gift again.
+    if (!gift.external_id && possible.length) {
+      return { row, action: 'review', reason: 'possible_file_replay', existingIds: possible.map(other => other.id), matchingRows };
+    }
     const previous = peers.find(peer => peer.row < row);
     return { row, action: previous ? 'duplicate' : 'insert',
       reason: previous ? 'repeated_batch_transaction' : 'new_transaction', existingIds, matchingRows };
