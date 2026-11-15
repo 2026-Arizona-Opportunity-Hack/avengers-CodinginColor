@@ -132,3 +132,16 @@ it('uses mapped row statuses and refunds without replacing them with batch defau
   const body = JSON.parse(String(api.request.mock.calls.find(([path]) => path.endsWith('/layout'))![1]?.body));
   expect(body.batch_values).toEqual({ currency: 'USD', occurred_at: '2026-01-01T12:00:00Z' });
 });
+
+it('retains manually mapped decimal refunds instead of requesting conflicting batch cents', async () => {
+  const { api, fixture, page, upload } = setup(); await upload();
+  page.preview.set({ ...preview, headers: [...preview.headers, 'Return'], mapping: [...preview.mapping, null] });
+  page.mapping.set({ Return: 'refund_decimal' }); fixture.detectChanges();
+  const form = fixture.nativeElement.querySelector('form') as HTMLFormElement;
+  expect(form.elements.namedItem('refund_cents')).toBeNull();
+  (form.elements.namedItem('status') as HTMLInputElement).value = 'settled';
+  await page.applyLayout(eventFor(form));
+  const body = JSON.parse(String(api.request.mock.calls.find(([path]) => path.endsWith('/layout'))![1]?.body));
+  expect(body.mapping).toEqual({ Return: 'refund_decimal' });
+  expect(body.batch_values).toEqual({ status: 'settled' });
+});
