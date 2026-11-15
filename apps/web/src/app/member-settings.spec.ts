@@ -8,7 +8,7 @@ const board={id:'board',clerk_subject:'user_board',role:'board',active:true};
 function setup(){
   const epoch=signal(1),isAdmin=signal(true);
   const store={sessionEpoch:epoch,live:()=>true,isAdmin,me:()=>({id:'admin'}),allDonors:()=>[{owner_id:'board'}]};
-  const request=vi.fn(async(path:string,_init?:RequestInit):Promise<unknown>=>({items:path==='/api/v1/invitations'?[]:[admin,board]}));
+  const request=vi.fn(async(path:string,_init?:RequestInit):Promise<unknown>=>({items:path==='/api/v1/members'?[admin,board]:[]}));
   TestBed.configureTestingModule({providers:[{provide:Store,useValue:store},{provide:Api,useValue:{request}}]});
   const fixture=TestBed.createComponent(MemberSettings);fixture.detectChanges();
   return {fixture,request,epoch,isAdmin};
@@ -33,7 +33,7 @@ describe('live team settings',()=>{
     const form=fixture.nativeElement.querySelector('[name="subject"]').closest('form') as HTMLFormElement;
     const subject=form.querySelector('[name="subject"]') as HTMLInputElement;
     const submit=async()=>{form.dispatchEvent(new Event('submit',{cancelable:true}));await fixture.whenStable();fixture.detectChanges();};
-    subject.value='not a Clerk ID';await submit();expect(request).toHaveBeenCalledTimes(2);
+    subject.value='not a Clerk ID';await submit();expect(request.mock.calls.filter(([path])=>path==='/api/v1/members')).toHaveLength(1);
     subject.value='user_new';request.mockRejectedValueOnce(new ApiError(400));await submit();
     expect(fixture.nativeElement.textContent).toContain('Check the user ID and verified primary email');
     expect(subject.value).toBe('user_new');

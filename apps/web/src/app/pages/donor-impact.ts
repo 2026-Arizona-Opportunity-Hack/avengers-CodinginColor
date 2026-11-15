@@ -23,8 +23,8 @@ export function donorMoney(cents:string,currency:string){
       @if(feed();as current){
         <section aria-labelledby="gifts-h"><h2 id="gifts-h">Your gifts</h2>
           <ul class="stack">@for(gift of current.gifts;track $index){<li class="panel panel-body">
-            <p><time [attr.datetime]="gift.occurred_at">{{date(gift.occurred_at)}}</time> ? {{gift.campaign??'General support'}}</p>
-            <p>{{money(gift.amount_cents,gift.currency)}} ? {{gift.status}}</p>
+            <p><time [attr.datetime]="gift.occurred_at">{{date(gift.occurred_at)}}</time> | {{gift.campaign??'General support'}}</p>
+            <p>{{money(gift.amount_cents,gift.currency)}} | {{gift.status}}</p>
             @if(gift.refund_cents!=='0'){<p>Refunded {{money(gift.refund_cents,gift.currency)}}</p>}
           </li>}@empty{<li>No gifts recorded on this page.</li>}</ul>
           <nav class="row" aria-label="Gift pages"><button class="btn" [disabled]="busy()||current.offset===0" (click)="load(current.offset-50)">Previous</button>

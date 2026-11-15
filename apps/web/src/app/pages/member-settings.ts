@@ -1,4 +1,5 @@
 import { Component, DestroyRef, effect, inject, signal } from '@angular/core';
+import { DonorImpactControls } from './donor-impact-controls';
 import { StaffInvitations } from './staff-invitations';
 import { Api, ApiError } from '../core/api';
 import { Store } from '../core/store';
@@ -6,7 +7,7 @@ interface Staff { id:string; clerk_subject:string; role:'admin'|'board'; active:
 
 @Component({
   selector:'app-member-settings',
-  imports:[StaffInvitations],
+  imports:[StaffInvitations,DonorImpactControls],
   template:`
     <div class="page stack">
       <header class="page-head"><div><h1>Team settings</h1><p class="lede">Manage who can access Coding in Color.</p></div></header>
@@ -20,7 +21,7 @@ interface Staff { id:string; clerk_subject:string; role:'admin'|'board'; active:
             <article class="stack">
               <h3>{{member.clerk_subject}}{{member.id===store.me().id?' (you)':''}}</h3>
               <p>Current access: {{member.role}} / {{member.active?'active':'inactive'}}</p>
-              <p class="meta">Member {{member.id}} ? {{load(member.id)}} active donors</p>
+              <p class="meta">Member {{member.id}} | {{load(member.id)}} active donors</p>
               <fieldset class="row" [disabled]="busy() || member.id===store.me().id">
                 <label class="field"><span>Role</span><select #role class="select" [value]="member.role" [attr.aria-label]="'Role for '+member.clerk_subject"><option value="board">Board member</option><option value="admin">Admin</option></select></label>
                 <label><input #active type="checkbox" [checked]="member.active" [attr.aria-label]="'Active access for '+member.clerk_subject" /> Active access</label>
@@ -31,6 +32,7 @@ interface Staff { id:string; clerk_subject:string; role:'admin'|'board'; active:
         </div>
       </section>
       <app-staff-invitations />
+      <app-donor-impact-controls />
       <form class="panel" (submit)="add($event)" novalidate>
         <h2 class="panel-head">Add an existing Clerk user</h2>
         <fieldset class="panel-body stack" [disabled]="busy()">
