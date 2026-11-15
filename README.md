@@ -51,18 +51,32 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 
 ## What we built
 
-<!-- Two or three sentences: the problem, who it helps, what the nonprofit can do now that they couldn't before -->
+Coding in Color keeps its donors in spreadsheets and platform exports (Zeffy, Benevity, AZ Gives), and
+follow-ups live in people's heads. **Cadence** gives the CEO and the board one place to see every
+donor and gift, know who owns each relationship, and keep the next touch from slipping. It also
+produces the funder report CIC needs, without re-keying anything.
+
+What works on `main` today:
+- **Import:** CSV exports are uploaded privately, mapped and validated. Dates are confirmed, never
+  guessed, and cents are exact. An admin reviews each import before an atomic commit, and
+  re-importing the same file adds no duplicate gifts (`apps/api/imports.ts`). XLSX workbooks can
+  be previewed with a bounded local tool (`tools/import-xlsx.ts`); XLSX upload through the API is #94.
+- **Donors and gifts:** one record per donor with an owner, a gift ledger with audited corrections,
+  and admin reassignment that moves open follow-ups along with the donor.
+- **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
+  donor. Messages are drafted from templates and need human approval, then go out from the
+  person's own email or phone and are logged once. Nothing is sent automatically.
+- **Reporting:** a retention breakdown (new, reactivated, increased, flat, decreased, lapsed) and an
+  admin-only funder packet CSV. Groups smaller than three donors are hidden. A read-only, hashed API
+  key exposes aggregates for CIC's dashboard.
+- **Security:** invite-only Clerk sign-in, MFA required for admins, PostgreSQL row-level security
+  (board members see only their own donors), and audit events for changes, sends and exports.
+
+Still in progress: connecting the web screens for live import (#19) and Follow-ups and API keys
+(#48) to the API. Until a full-stack deploy is live (#30), the hosted app runs on synthetic demo
+data.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
-This is the planning source of truth. What's on `main` today: the Cadence web app (`apps/web`), the API
-(`apps/api`), the database schema with row-level security (`db/`), CSV import preflight and drafts
-(`tools/`), and the reporting and outreach rules (`packages/`). Live CSV import into the database is
-still in progress (#19).
-
-The first data pipeline slice is a local CSV preflight tool. It parses the three
-sample exports, normalizes known columns, validates contact fields and exact
-integer cents, and reports review issues. It preserves raw cells and record
-numbers in memory; it never writes donors or gifts.
 
 ## Tech stack
 
