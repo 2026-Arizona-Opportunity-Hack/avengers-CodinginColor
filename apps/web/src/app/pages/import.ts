@@ -5,6 +5,7 @@ import { readSheet } from 'read-excel-file/browser';
 import { ImportRow, Store } from '../core/store';
 import { ColumnGuess, TARGETS, Target, classifyColumns, parseCsv } from '../core/csv';
 import { money, today } from '../core/format';
+import { parseImportDate } from '../core/import-date';
 import { Donor, SOURCE_LABEL, Source } from '../core/models';
 import { LiveImportPage } from './import-live';
 
@@ -77,6 +78,7 @@ interface Match { row: Checked; donor: Donor; reason: string; }
               <label class="field"><span>Gift date for rows without one</span>
                 <input class="input" type="date" [max]="now" [value]="fallbackDate()" (input)="fallbackDate.set($any($event.target).value)" />
                 <span class="hint">Exports without a date column use this date. Rows with their own date keep it.</span></label>
+              <p class="hint">Dates: MM/DD/YYYY or MM/DD/YYYY, h:mm AM/PM, in America/Phoenix (UTC−07:00). Date-only gifts use noon. ISO dates and timestamps with an explicit offset are also accepted.</p>
               @if (fileError()) { <p class="error" role="alert">{{ fileError() }}</p> }
               @if (fileName()) {
                 <p class="notice" role="status"><span><strong>{{ fileName() }}</strong>: {{ rawRows().length }} data rows, {{ headers().length }} columns.</span></p>
@@ -459,13 +461,12 @@ export class ImportPage {
         else if (!problems.includes('Contains a spreadsheet formula')) problems.push(`Amount “${cell(r, 'amount')}” is not a number`);
       }
       const rawDate = cell(r, 'date');
-      let date = this.fallbackDate();
-      if (rawDate) {
-        const us = rawDate.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-        const iso = us ? `${us[3]}-${us[1].padStart(2, '0')}-${us[2].padStart(2, '0')}` : rawDate.slice(0, 10);
-        if (/^\d{4}-\d{2}-\d{2}$/.test(iso) && !Number.isNaN(Date.parse(iso))) date = iso;
-        else problems.push(`Date “${rawDate}” is not recognized`);
-      } else if (amount_cents !== null) notes.push(`Dated ${this.fallbackDate()}`);
+      const date = parseImportDate(rawDate || this.fallbackDate()) ?? '';
+      if (rawDate && !date) problems.push(`Date “${rawDate}” is not recognized`);
+      else if (!rawDate && amount_cents !== null) {
+        if (!date) problems.push('Choose a valid fallback gift date');
+        else notes.push(`Dated ${this.fallbackDate()}`);
+      }
       const key = email ?? (phone ? `p:${phone}` : `n:${name.toLowerCase()}`);
       return {
         line: i + 2, name, email: email && EMAIL.test(email) ? email : null, phone, company: cell(r, 'company') || null,
@@ -516,7 +517,7 @@ export class ImportPage {
         ownerId: this.ownerFromFile(r)?.id ?? null,
         donor: { name: r.name, email: r.email, phone: r.phone, company: r.company, kind: 'individual', consent: 'unknown',
           preferred_channel: 'email', custom: {}, source: this.source() },
-        gift: r.amount_cents ? { amount_cents: r.amount_cents, campaign: r.campaign, occurred_at: `${r.date}T12:00:00-07:00` } : null,
+        gift: r.amount_cents ? { amount_cents: r.amount_cents, campaign: r.campaign, occurred_at: r.date } : null,
       };
     });
   });
