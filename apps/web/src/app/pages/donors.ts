@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { Store } from '../core/store';
@@ -66,6 +66,9 @@ type Sort = 'name' | 'lifetime' | 'recent';
       <div class="table-wrap">
         <table class="table">
           <caption class="sr-only">Donors</caption>
+          <colgroup>
+            <col style="width: 21%" />@if (store.isAdmin()) { <col style="width: 13%" /> }<col style="width: 19%" /><col style="width: 11%" /><col style="width: 11%" /><col style="width: 8%" /><col />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Donor</th>
@@ -79,7 +82,7 @@ type Sort = 'name' | 'lifetime' | 'recent';
           </thead>
           <tbody>
             @for (r of rows(); track r.donor.id) {
-              <tr>
+              <tr class="clickable" (click)="open($event, r.donor.id)">
                 <th scope="row">
                   <div class="who">
                     <span class="avatar" [attr.data-kind]="r.donor.kind" aria-hidden="true">
@@ -99,14 +102,8 @@ type Sort = 'name' | 'lifetime' | 'recent';
                   </td>
                 }
                 <td class="contact">
-                  <span class="flex gap-1.5">
-                    @if (r.donor.email) { <a class="icon-link" [href]="'mailto:' + r.donor.email" [attr.aria-label]="'Email ' + r.donor.name" [title]="r.donor.email"><ng-icon name="lucideMail" size="15" /></a> }
-                    @if (r.donor.phone) {
-                      <a class="icon-link" [href]="'sms:' + r.donor.phone" [attr.aria-label]="'Text ' + r.donor.name" [title]="r.donor.phone"><ng-icon name="lucideMessageSquare" size="15" /></a>
-                      <a class="icon-link" [href]="'tel:' + r.donor.phone" [attr.aria-label]="'Call ' + r.donor.name" [title]="r.donor.phone"><ng-icon name="lucidePhone" size="15" /></a>
-                    }
-                    @if (!r.donor.email && !r.donor.phone) { <span class="sub inline">None on file</span> }
-                  </span>
+                  @if (r.donor.email) { <a [href]="'mailto:' + r.donor.email">{{ r.donor.email }}</a> } @else { <span class="none">No email</span> }
+                  @if (r.donor.phone) { <a [href]="'sms:' + r.donor.phone" [attr.aria-label]="'Text ' + r.donor.name + ' at ' + r.donor.phone">{{ r.donor.phone }}</a> } @else { <span class="none">No phone</span> }
                 </td>
                 <td><span class="row tight">@for (s of r.donor.sources; track s) {<span class="tag">{{ sourceLabel[s] }}</span>}</span></td>
                 <td class="nowrap">@if (r.last) { <span class="font-semibold">{{ money(r.last.amount_cents) }}</span> <span class="sub inline">{{ dateShort(r.last.occurred_at) }}</span> } @else { <span class="sub inline">None</span> }</td>
@@ -139,6 +136,11 @@ type Sort = 'name' | 'lifetime' | 'recent';
     .search input { flex: 1; min-width: 0; border: 0; outline: none; background: transparent; color: var(--foreground); font-size: 14px; }
     .pick .select { min-width: 170px; height: 40px; border-radius: 12px; }
     .count { font-size: 13px; margin: 0 4px 8px; color: var(--muted-foreground); }
+    table { table-layout: fixed; }
+    td, th { overflow-wrap: anywhere; }
+    .contact a, .contact .none { font-weight: 400 !important; }
+    tr.clickable { cursor: pointer; }
+    tr.clickable:hover th a { text-decoration: underline; }
     .who { display: flex; align-items: center; gap: 12px; }
     .avatar { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600;
       background: var(--green-50); color: var(--green-700); }
@@ -146,22 +148,32 @@ type Sort = 'name' | 'lifetime' | 'recent';
     .sub { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted-foreground); margin-top: 1px; }
     .sub.inline { display: inline; margin-inline-start: 4px; }
     .sub-strong { display: block; font-size: 13px; }
-    .owner { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; }
+    .owner { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; white-space: normal; }
     .mini { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 600; background: rgb(15 26 21 / 0.06); color: var(--ink-600); }
+    .contact a, .contact .none { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--ink-600); text-decoration: none; }
+    .contact a:hover { color: var(--green-700); text-decoration: underline; }
     .icon-link { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 9px; color: var(--ink-600);
       background: rgb(255 255 255 / 0.7); border: 1px solid var(--border); transition: background-color 150ms var(--ease), color 150ms var(--ease); }
     .icon-link:hover { background: #fff; color: var(--primary); }
     .who a { white-space: nowrap; }
-    .step .sub-strong { max-width: 260px; }
+    .step .sub-strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .tight { gap: 4px; }
     .nowrap { white-space: nowrap; }
-    .step { min-width: 200px; }
+
     .due { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 12px; font-weight: 500; color: var(--amber-600); }
     .due.late { color: var(--red-600); }
   `,
 })
 export class DonorsPage {
   protected readonly store = inject(Store);
+  private readonly router = inject(Router);
+
+  /** The whole row opens the donor; the name link stays the keyboard and screen-reader path. */
+  protected open(event: MouseEvent, id: string) {
+    if ((event.target as HTMLElement).closest('a, button, input, select')) return;
+    if (window.getSelection()?.toString()) return;
+    this.router.navigate(['/donors', id]);
+  }
   protected readonly money = money;
   protected readonly dateShort = dateShort;
   protected readonly relativeDue = relativeDue;

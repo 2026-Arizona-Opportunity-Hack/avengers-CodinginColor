@@ -51,7 +51,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
           </div>
         </header>
 
-        @if (flash()) { <p class="notice" role="status">{{ flash() }} @if (flashOutreach()) { <a routerLink="/outreach">Open outreach</a> }</p> }
+        @if (flash()) { <p class="notice" role="status">{{ flash() }} @if (flashOutreach()) { <a routerLink="/outreach">Open follow-ups</a> }</p> }
 
         <section class="stats" aria-label="Giving summary">
           <div class="stat"><p class="label">Lifetime, net</p><p class="value">{{ money(store.lifetime(d.id)) }}</p></div>

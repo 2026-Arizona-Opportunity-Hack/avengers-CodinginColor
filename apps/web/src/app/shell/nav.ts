@@ -16,7 +16,7 @@ export const NAV: NavGroup[] = [
     { path: '/', label: 'Overview', icon: 'lucideLayoutDashboard', exact: true },
     { path: '/donors', label: 'Donors', icon: 'lucideUsers', live: true },
     { path: '/donations', label: 'Donations', icon: 'lucideHandCoins' },
-    { path: '/outreach', label: 'Outreach', icon: 'lucideSend' },
+    { path: '/outreach', label: 'Follow-ups', icon: 'lucideSend' },
   ] },
   { label: 'Insights', items: [
     { path: '/retention', label: 'Retention', icon: 'lucideRepeat', live: true },

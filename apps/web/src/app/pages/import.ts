@@ -42,7 +42,7 @@ interface Match { row: Checked; donor: Donor; reason: string; }
       <header class="page-head">
         <div>
           <h1>Import</h1>
-          <p class="lede">Spreadsheets and platform exports. Nothing is saved until you confirm.</p>
+          <p class="lede">The CIC spreadsheet, Zeffy, Benevity and AZ Gives exports into one donor table, with duplicates merged. Nothing saves until you confirm.</p>
         </div>
       </header>
 

@@ -28,7 +28,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
           <p class="lede">{{ year }} to date, compared with the same point last year.</p>
         </div>
         <div class="actions">
-          <a hlmBtn variant="outline" routerLink="/outreach"><ng-icon name="lucideListChecks" size="16" /> Follow-ups</a>
+          <a hlmBtn variant="outline" routerLink="/outreach">Follow-ups</a>
           <a hlmBtn routerLink="/donors/new"><ng-icon name="lucidePlus" size="16" /> Add donor</a>
         </div>
       </header>
@@ -56,7 +56,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
           </div>
           <div>
             <dt>Next steps this week</dt>
-            <dd><app-count-up [value]="due().length" />@if (overdue() > 0) { <span class="trend down"><ng-icon name="lucideCircleAlert" size="13" aria-hidden="true" />{{ overdue() }} overdue</span> }</dd>
+            <dd><app-count-up [value]="due().length" />@if (overdue() > 0) { <span class="trend down">{{ overdue() }} overdue</span> }</dd>
             <dd class="note"><a routerLink="/outreach">Open the queue</a></dd>
           </div>
         </dl>
@@ -80,10 +80,10 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
           <ul class="ins-list">
             @for (i of insights(); track i.text) {
               <li>
-                <span class="ins-icon" [attr.data-tone]="i.tone" aria-hidden="true"><ng-icon [name]="i.icon" size="16" /></span>
+                <span class="ins-dot" [attr.data-tone]="i.tone" aria-hidden="true"></span>
                 <div class="min-w-0 flex-1">
                   <p class="text-[13.5px] leading-snug">{{ i.text }}</p>
-                  <a class="ins-action" [routerLink]="i.path" [queryParams]="i.query">{{ i.action }} <ng-icon name="lucideArrowRight" size="13" aria-hidden="true" /></a>
+                  <a class="ins-action" [routerLink]="i.path" [queryParams]="i.query">{{ i.action }}</a>
                 </div>
               </li>
             } @empty {
@@ -113,8 +113,6 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
           <ul class="list">
             @for (f of due().slice(0, 5); track f.id) {
               <li class="flex items-start gap-3">
-                <ng-icon [name]="f.due_on < now ? 'lucideCircleAlert' : 'lucideCalendarClock'" size="16" aria-hidden="true"
-                  class="mt-0.5 shrink-0" [color]="f.due_on < now ? 'var(--danger)' : 'var(--attention)'" />
                 <div class="min-w-0 flex-1">
                   <a class="font-semibold no-underline hover:underline" [routerLink]="['/donors', f.donor_id]">{{ store.donor(f.donor_id)?.name }}</a>
                   <p class="text-muted-foreground truncate text-[13px]">{{ f.action }}</p>
@@ -134,7 +132,6 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
           <ul class="list">
             @for (g of recentGifts(); track g.id) {
               <li class="flex items-center gap-3">
-                <span class="gift-dot" aria-hidden="true"><ng-icon name="lucideHandCoins" size="15" /></span>
                 <div class="min-w-0 flex-1">
                   <a class="font-semibold no-underline hover:underline" [routerLink]="['/donors', g.donor_id]">{{ store.donor(g.donor_id)?.name }}</a>
                   <p class="text-muted-foreground truncate text-[13px]">{{ store.campaign(g.campaign_id)?.title ?? 'General support' }} · {{ dateShort(g.occurred_at) }}</p>
@@ -206,10 +203,10 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
     .head-link:hover { text-decoration: underline; }
     .ins-list { list-style: none; margin: 0; padding: 8px 18px 16px; display: flex; flex-direction: column; gap: 14px; }
     .ins-list li { display: flex; gap: 12px; align-items: flex-start; }
-    .ins-icon { width: 32px; height: 32px; border-radius: 10px; flex: none; display: grid; place-items: center; background: rgb(15 26 21 / 0.05); color: var(--ink-600); }
-    .ins-icon[data-tone='danger'] { background: #fef3f2; color: var(--red-600); }
-    .ins-icon[data-tone='attention'] { background: #fff7ed; color: var(--amber-600); }
-    .ins-icon[data-tone='positive'] { background: var(--green-50); color: var(--green-700); }
+    .ins-dot { width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; flex: none; background: var(--ink-400); }
+    .ins-dot[data-tone='danger'] { background: var(--red-600); }
+    .ins-dot[data-tone='attention'] { background: var(--amber-600); }
+    .ins-dot[data-tone='positive'] { background: var(--green-600); }
     .ins-action { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none; }
     .ins-action:hover { text-decoration: underline; }
     .gift-dot { width: 32px; height: 32px; border-radius: 10px; flex: none; display: grid; place-items: center; background: var(--green-50); color: var(--green-700); }

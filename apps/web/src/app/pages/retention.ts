@@ -96,7 +96,7 @@ function fromServer(report: ApiRetention): RetentionResult {
         <section class="drill glass" role="region" [attr.aria-label]="copy[s].label + ' donors'">
           <div class="drill-head">
             <div><h2>{{ copy[s].label }} · {{ drill().length }} donors</h2>
-              <p class="sub">{{ s === 'lapsed' ? 'Lapsed-donor radar: draft a nudge for each, then approve it in Outreach.' : copy[s].rule }}</p></div>
+              <p class="sub">{{ s === 'lapsed' ? 'Lapsed-donor radar: draft a nudge for each, then approve it in Follow-ups.' : copy[s].rule }}</p></div>
             <button hlmBtn variant="ghost" size="sm" type="button" (click)="selected.set(null)"><ng-icon name="lucideX" size="16" /> Close</button>
           </div>
           <ul class="drill-list">
@@ -363,6 +363,6 @@ export class RetentionPage {
   protected nudge(donorId: string) {
     if (!this.store.createDraft(donorId, 't-nudge', 'Lapsed: gave last period, not this period')) return;
     this.nudged.update((s) => new Set(s).add(donorId));
-    toast.success(`Nudge drafted for ${this.name(donorId)}`, { description: 'Approve it in Outreach before it is sent.' });
+    toast.success(`Nudge drafted for ${this.name(donorId)}`, { description: 'Approve it in Follow-ups before it is sent.' });
   }
 }
