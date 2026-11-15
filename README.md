@@ -154,7 +154,7 @@ Live donor views load their scoped gift and contact history from the API. Loggin
 a call, text, email or meeting persists a real communication and refreshes the queue;
 giving summaries separate currencies using the workspace currency selector.
 
-Live workspaces load the server-scoped follow-up queue and drafts. Administrators
+Connected sessions load the server-scoped follow-up queue and drafts. Administrators
 can issue and revoke real aggregate API keys from **Read API**; the secret is shown
 once and is never stored in the browser dataset. Other live workflows remain
 tracked separately; demo actions do not persist to the server.
