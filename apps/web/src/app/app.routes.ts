@@ -27,7 +27,7 @@ export const routes: Routes = [
       { path: 'outreach', title: 'Follow-ups · Cadence', loadComponent: () => import('./pages/outreach').then((m) => m.OutreachPage) },
       { path: 'import', title: 'Import · Cadence', canMatch: [adminOnly], loadComponent: () => import('./pages/import').then((m) => m.ImportPage) },
       { path: 'retention', title: 'Retention · Cadence', loadComponent: () => import('./pages/retention').then((m) => m.RetentionPage) },
-      { path: 'funders', title: 'Funder reports · Cadence', canMatch: [adminOnly, demoOnly], loadComponent: () => import('./pages/funders').then((m) => m.FundersPage) },
+      { path: 'funders', title: 'Funder reports · Cadence', canMatch: [adminOnly], loadComponent: () => import('./pages/funders').then((m) => m.FundersPage) },
       { path: 'api', title: 'Read API · Cadence', canMatch: [adminOnly], loadComponent: () => import('./pages/api-access').then((m) => m.ApiAccessPage) },
       { path: 'settings', title: 'Settings · Cadence', canMatch: [adminOnly, demoOnly], loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage) },
       { path: 'not-connected', title: 'Not connected yet · Cadence', loadComponent: () => import('./pages/not-connected').then((m) => m.NotConnectedPage) },

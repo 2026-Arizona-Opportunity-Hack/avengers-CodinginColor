@@ -96,6 +96,12 @@ uses synthetic review state; deployed signed-in acceptance remains pending.
 
 ## Run it locally
 
+Administrators can use the live Funder reports screen to select a donor, program
+and inclusive calendar range, inspect the server packet, then download its audited
+CSV or print it. Gift totals stay separated by currency and attribution. Until
+approved outcomes are uploaded, reports explicitly show that outcome data is
+unavailable.
+
 Live administrators can reassign a donor to any active same-organization board
 member, including members without donors. Assignment and open-task transfer remain
 server-controlled and audited; board members cannot list other eligible owners.
