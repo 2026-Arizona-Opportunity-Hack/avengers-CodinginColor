@@ -16,6 +16,7 @@ function session(role: 'board' | 'admin' = 'admin') {
     me: vi.fn(async () => ({ id: role === 'admin' ? 'admin' : 'board', org_id: 'org', role })),
     allDonors: vi.fn(async () => [donor]),
     request: vi.fn(async (path: string, init?: RequestInit): Promise<unknown> => {
+      if (path === '/api/v1/owners') return { items: [{id:'board'}, {id:'empty-owner'}] };
       if (path === '/api/v1/catalog') return { programs: [], campaigns: [] };
       if (path.includes('/follow-ups?')) return { overdue: [task], due_this_week: [], upcoming: [] };
       if (path === '/api/v1/api-keys' && init?.method === 'POST')
@@ -32,6 +33,18 @@ function session(role: 'board' | 'admin' = 'admin') {
 }
 
 describe('live workspace data and keys', () => {
+  it('loads zero-donor owners for admins and refreshes donor ownership after a real reassignment', async () => {
+    const { store, api } = session(); await store.refreshLive();
+    expect(store.boardMembers().map(m => m.id)).toEqual(['board', 'empty-owner']);
+    api.request.mockResolvedValueOnce({ id: 'donor', owner_id: 'empty-owner' });
+    api.request.mockResolvedValueOnce({ ...donor, owner_id: 'empty-owner' });
+    expect(await store.reassign('donor', 'empty-owner')).toBe(true);
+    expect(api.request).toHaveBeenCalledWith('/api/v1/donors/donor/owner', expect.objectContaining({body:'{"owner_id":"empty-owner"}'}));
+    expect(store.donor('donor')?.owner_id).toBe('empty-owner');
+    api.request.mockRejectedValueOnce(new ApiError(403));
+    expect(await store.reassign('donor', 'board')).toBe(false);
+    expect(store.donor('donor')?.owner_id).toBe('empty-owner');
+  });
   it('loads actual history, separates currencies and persists a contact before reloading its timeline', async () => {
     const { store, api } = session('board');
     let logged = false;

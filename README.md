@@ -81,10 +81,16 @@ demo data in the browser.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
+The live admin Import screen uses the API for upload, mapping, donor/gift review
+and atomic commit. It requires explicit status/refund and missing date/currency
+facts, acknowledges invalid records, and separates source totals from canonical
+changes by currency. [Local synthetic UI preview](docs/screenshots/live-import-review.png)
+uses synthetic review state; deployed signed-in acceptance remains pending.
+
 ## Tech stack
 
 - Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
-- Backend: Node.js 24.2+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
+- Backend: Node.js 24.15+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
 - Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.
 - APIs / services: Clerk for invite-only sign-in. Tests run real migrations on in-memory PostgreSQL (PGlite); no live service or credentials are needed.
 
@@ -95,6 +101,10 @@ and inclusive calendar range, inspect the server packet, then download its audit
 CSV or print it. Gift totals stay separated by currency and attribution. Until
 approved outcomes are uploaded, reports explicitly show that outcome data is
 unavailable.
+
+Live administrators can reassign a donor to any active same-organization board
+member, including members without donors. Assignment and open-task transfer remain
+server-controlled and audited; board members cannot list other eligible owners.
 
 Live donor views load their scoped gift and contact history from the API. Logging
 a call, text, email or meeting persists a real communication and refreshes the queue;
@@ -133,13 +143,14 @@ are covered step by step in the deploy runbook, `docs/DEPLOY.md` (#42).
 
 ## Links
 
+- Deployment setup: [Vercel runbook](docs/DEPLOY.md). The repository pins Express and Node 24, validates runtime settings before building, and generates same-origin frontend configuration.
 - Live demo: [cadence-cic.vercel.app](https://cadence-cic.vercel.app). This is the web app on sample data only, with no backend. The full-stack deploy is tracked in #30.
 - Demo video:
 - Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md), [outreach](packages/outreach/README.md), [web app](apps/web/README.md), [deploy runbook](docs/DEPLOY.md)
 
 ## CSV import preflight
 
-Requires Node.js 24.2 or newer. Install the shared contract's locked dependencies;
+Requires Node.js 24.15 or newer. Install the shared contract's locked dependencies;
 no credentials are needed.
 
 ```bash
