@@ -204,3 +204,24 @@ test('conflicting rows for one transaction identity cannot both be written', () 
   const chosen = resolveReview(p, [decide(p, 'gift', 0, 'skip'), decide(p, 'gift', 1, 'insert')]);
   assert.deepEqual(opsOf(chosen).map(op => op.row), [1]);
 });
+
+test('conflicting stored identities accept only a skip decision', () => {
+  // External ID names one stored gift and source row another, so any write would duplicate an identity.
+  const holdsId = { ...storedGift, source_row: null };
+  const holdsRow = { ...storedGift, id: '550e8400-e29b-41d4-a716-44665544000a', external_id: null,
+    source_row: gift.source_row };
+  const split = plan({ gifts: [gift], existing_gifts: [holdsId, holdsRow] });
+  // Same stored gift, different transaction ID: rewriting its identity is not a correction.
+  const renamed = plan({ gifts: [{ ...gift, external_id: 'gift-002' }],
+    existing_gifts: [{ ...storedGift, source_row: gift.source_row }] });
+  for (const p of [split, renamed]) {
+    const row = p.gifts.rows[0];
+    assert.equal(row.reason, 'conflicting_identity');
+    assert.throws(() => resolveReview(p, [decide(p, 'gift', 0, 'insert')]), /not allowed/);
+    for (const id of row.existingIds) {
+      assert.throws(() => resolveReview(p, [decide(p, 'gift', 0, 'correct', { gift_id: id })]), /not allowed/);
+    }
+    assert.deepEqual(opsOf(resolveReview(p, [decide(p, 'gift', 0, 'skip')])), []);
+  }
+  assert.deepEqual([...split.gifts.rows[0].existingIds].sort(), [holdsRow.id, giftId].sort());
+});

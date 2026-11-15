@@ -101,6 +101,8 @@ export function resolveReview(plan: ReviewPlan, decisions: unknown[]):
       }
       if (!decision) { pending.push({ kind, row: row.row }); continue; }
       if (row.reason === 'invalid_donor' || row.reason === 'invalid_gift') throw new Error('Invalid drafts can only be skipped');
+      // Any write would duplicate one identity or rewrite a stored one, so only skip is allowed.
+      if (row.reason === 'conflicting_identity') throw new Error('Decision is not allowed for conflicting identities');
       const conflict = identityConflict.has(row.reason) && row.existingIds.length > 0;
       if (kind === 'donor' && decision.action === 'new') {
         operations.push({ kind, row: row.row, op: 'create', draft: draft(), reviewer_id: by });
