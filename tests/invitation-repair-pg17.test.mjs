@@ -15,6 +15,7 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
   const dir = await mkdtemp(join(tmpdir(),'cic-repair-test-'));
   const paths = ['owner.json','secdef.json','backup.json','unused.json'].map(n => join(dir,n));
   await db.connect();
+  let reference;
   try {
     assert.equal(Math.floor(Number((await db.query('SHOW server_version_num')).rows[0].server_version_num)/10000),17);
     const names=(await readdir('db/migrations')).filter(n=>/^\d{3}_.*\.sql$/.test(n)).sort();
@@ -27,15 +28,22 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
       await db.query(source);
       await db.query('INSERT INTO schema_migrations(name,sha256) VALUES($1,$2)',[name,digest(source.replaceAll('\r\n','\n'))]);
     }
+    await db.query('CREATE DATABASE cic_canonical_reference');
+    const referenceUrl=new URL(process.env.CIC_PG17_REHEARSAL_URL); referenceUrl.pathname='/cic_canonical_reference';
+    reference=new pg.Client({connectionString:referenceUrl.href}); await reference.connect();
+    await reference.query('CREATE TABLE schema_migrations(name text PRIMARY KEY,sha256 text NOT NULL,applied_at timestamptz NOT NULL DEFAULT now())');
+    for(const name of names) await reference.query(files[name]);
+    const raw=await readFile('tools/repair-invitation-history.mjs','utf8');
+    const helper=await asModule(raw.replace('async function catalog(client)', 'export async function catalog(client)')
+      .replace('async function secdefs(client)', 'export async function secdefs(client)'));
+    const canonical=await helper.catalog(reference);
+    await reference.end(); reference=undefined;
     await db.query(`CREATE ROLE rehearsal_cloud NOLOGIN; CREATE ROLE rehearsal_actor NOLOGIN;
       GRANT cic_assignment,cic_reporting,cic_impact TO rehearsal_cloud WITH ADMIN TRUE;
       SET ROLE rehearsal_cloud;
       GRANT cic_assignment,cic_reporting,cic_impact TO rehearsal_actor WITH ADMIN TRUE, INHERIT FALSE, SET FALSE;
       RESET ROLE;
       ALTER TABLE schema_migrations OWNER TO rehearsal_actor;`);
-    const raw=await readFile('tools/repair-invitation-history.mjs','utf8');
-    const helper=await asModule(raw.replace('async function catalog(client)', 'export async function catalog(client)')
-      .replace('async function secdefs(client)', 'export async function secdefs(client)'));
     let funcs=await helper.secdefs(db);
     for(const f of funcs.filter(f=>f.owner.startsWith('cic_'))) {
       await db.query(`REVOKE EXECUTE ON FUNCTION public.${f.signature} FROM cic_runtime`);
@@ -63,6 +71,19 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
     await db.query('GRANT cic_assignment TO rehearsal_actor WITH ADMIN FALSE, INHERIT FALSE, SET TRUE');
     await assert.rejects(repairInvitationHistory(...args),/Unexpected catalog/);
     await db.query('REVOKE cic_assignment FROM rehearsal_actor GRANTED BY rehearsal_actor');
+    const drift=async (change,undo) => {
+      await db.query('RESET SESSION AUTHORIZATION'); await db.query(change);
+      await db.query('SET SESSION AUTHORIZATION rehearsal_actor');
+      await assert.rejects(repairInvitationHistory(...args),/Unexpected catalog/);
+      await db.query('RESET SESSION AUTHORIZATION'); await db.query(undo);
+      await db.query('SET SESSION AUTHORIZATION rehearsal_actor');
+      assert.deepEqual(await helper.catalog(db),owner); assert.deepEqual(await helper.secdefs(db),funcs);
+    };
+    await drift('ALTER FUNCTION public.pending_staff_invitation(text) SET search_path=public',
+      'ALTER FUNCTION public.pending_staff_invitation(text) SET search_path=pg_catalog');
+    await drift('GRANT CREATE ON SCHEMA public TO rehearsal_actor','REVOKE CREATE ON SCHEMA public FROM rehearsal_actor');
+    await drift('REVOKE ADMIN OPTION FOR cic_assignment FROM rehearsal_actor GRANTED BY rehearsal_cloud',
+      'GRANT cic_assignment TO rehearsal_actor WITH ADMIN TRUE, INHERIT FALSE, SET FALSE GRANTED BY rehearsal_cloud');
     for(const mode of ['failure','notice']) {
       const query=db.query.bind(db); let injected=false;
       db.query=async (...params) => {
@@ -87,10 +108,18 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
     assert.equal(await repairInvitationHistory(...args),'repaired');
     assert.equal((await db.query('SELECT count(*)::int n FROM schema_migrations')).rows[0].n,18);
     assert.equal((await helper.secdefs(db)).filter(f=>f.public_execute).length,0);
+    const repaired=await helper.catalog(db);
+    const normalized = value => JSON.stringify(value, (key,v) => key==='proacl' && typeof v==='string'
+      ? `{${v.slice(1,-1).split(',').sort().join(',')}}` : v).replaceAll('\\r\\n','\\n');
+    for(const key of ['table','columns','constraints','indexes','policies','functions'])
+      assert.equal(normalized(repaired[key]),normalized(canonical[key]),`canonical 013+018 ${key}`);
+
     assert.equal(await repairInvitationHistory(...args),'already_applied');
     assert.equal(JSON.parse(await readFile(paths[2],'utf8')).length,17);
     await db.query('RESET SESSION AUTHORIZATION');
+    await db.query('DROP DATABASE cic_canonical_reference');
   } finally {
+    if(reference) await reference.end();
     await db.end();
     for(const path of paths) await rm(path,{force:true});
     await rmdir(dir);
