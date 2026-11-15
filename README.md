@@ -229,6 +229,24 @@ Saved review fingerprints exact file bytes and binds decisions to a plan hash; t
 - Messages require human approval and manual sending. Aggregate reporting exposes no donor identities and suppresses small groups.
 - Read [mobile accessibility audit](docs/audits/mobile-accessibility-2026-11-15.md) and [requirements/audit evidence](docs/REQUIREMENTS.md). Audit scores are snapshots, not a site-wide conformance claim.
 
+## UX guide
+
+The app is meant to be usable without a manual. These are the design choices behind that, so a maintainer can keep them when adding screens.
+
+- **One obvious start.** The public root has a single **Try Now** button that opens a fictional workspace. There is no account, setup or MFA step in front of it.
+- **Navigation by job.** The sidebar (a drawer on phones) groups pages as Workspace, Insights and Data, defined once in `apps/web/src/app/shell/nav.ts`. The sidebar, drawer and command palette all read that list.
+- **Find anything fast.** `⌘K` / `Ctrl+K` opens a palette to jump to a donor, page or action. It lists only what the current person may open.
+- **Only what you may use.** **Switch person** changes between the admin and a board member. Admin-only pages (Import, Funder reports, Read API, Settings) disappear for board members; the API enforces the same rule.
+- **Guided first run.** Board members get a short skippable tour: donors, search, follow-ups, log a call, plan the next step.
+- **Past, present and future stay apart.** Donor detail keeps gift history, communications and future follow-ups in separate sections.
+- **People stay in control.** Messages are drafts. Regenerating or editing a draft clears its approval, and nothing sends automatically.
+- **Nothing is guessed.** Import shows mapping and a review step before anything is saved. Dates are read as US month/day/year and missing facts stay blank.
+- **Plain feedback.** Empty lists say what to change ("No gifts match. Change the filters above."), errors appear as alerts, and live results (Ask your data, totals) are announced to screen readers.
+- **Keyboard and screen reader basics.** A "Skip to content" link, visible focus, labelled dialogs and reduced-motion support. This is a checklist, not a conformance claim; see the audit linked above.
+- **Honest labels.** Page titles say where you are. Screens without a server route show a "Not connected yet" page instead of invented data.
+
+When you add a screen: give it a route title, add it to `nav.ts`, give it an empty state and a `role="alert"` error, and check it at phone and desktop widths.
+
 ## Demo video
 
 Demo video: not yet supplied. Add the final link here and on the Team Dashboard before submission.
