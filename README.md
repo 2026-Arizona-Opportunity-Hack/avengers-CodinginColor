@@ -435,3 +435,7 @@ Manual donor entry saves through the authenticated API with server-selected owne
 The optional first gift records a settled USD gift; a partial gift failure stays
 on the form for a same-key retry. Donors assigned to another board member remain
 visible only to that owner and admins.
+
+Each visible donor also has a historical gift form with explicit currency, refund,
+status, campaign and date. Failed saves retain the same request identity for retry;
+confirmed gifts update that currency in the timeline.
