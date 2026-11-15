@@ -17,12 +17,14 @@ import { ytdWindows } from './core/retention';
 
 const download = vi.fn((blob: Blob) => 'blob:synthetic');
 beforeEach(() => {
-  Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: download });
-  Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+  vi.stubGlobal('URL', class extends URL {
+    static override createObjectURL = download;
+    static override revokeObjectURL = vi.fn();
+  });
   vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
   download.mockClear();
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 const donor = { id: 'donor', org_id: 'org', owner_id: 'board', name: 'Avery',
   email: 'a@example.org', phone: null, consent: 'unknown', metadata: {}, archived_at: null };
 const gift = { id: 'usd', donor_id: 'donor', campaign_id: null, amount_cents: 1029, refund_cents: 29,
