@@ -9,6 +9,11 @@ Callers must hash credentials into bucket IDs, include any required org/route sc
 use their server-controlled limits and commit counter consumption independently of
 rejected application work. This DDL does not wire or validate route-level security.
 
+Migration 017 permits read-only approved aggregate outcome access for a program
+funded by an RLS-visible positive settled gift. Board members cannot modify these
+facts or read unrelated programs. Staff draft grounding is separate from donor
+publication and never grants access to donor contacts outside the existing scope.
+
 Migration 010 adds admin-only approved aggregate program outcomes. Upload through
 `POST /api/v1/reports/outcomes` with `{approved: true, outcomes: [...]}`; each row
 contains `program_id`, `from`, `to` (exclusive Phoenix calendar end), `metric`,
