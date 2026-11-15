@@ -52,6 +52,8 @@ test('a separate grantor can harden a definer function without removing managed 
     assert.deepEqual(await memberships(), baseline);
     await db.query('RESET SESSION AUTHORIZATION');
     await db.query('ROLLBACK');
+    const after = await db.query("SELECT to_regprocedure('public.rehearsal_definer()') AS function, EXISTS(SELECT FROM pg_roles WHERE rolname='rehearsal_actor') AS role");
+    assert.deepEqual(after.rows[0], { function: null, role: false });
   } finally {
     await db.end();
   }
