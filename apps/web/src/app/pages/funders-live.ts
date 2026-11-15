@@ -3,6 +3,7 @@ import { Api, ApiError } from '../core/api';
 import { Store } from '../core/store';
 import { date, today } from '../core/format';
 import type { ApiFunderPacket } from '../core/report-models';
+import { OutcomesUpload } from './outcomes-upload';
 
 /** Date inputs include the last day; the reporting API uses a Phoenix exclusive end. */
 export function packetQuery(funderId: string, programId: string, from: string, through: string): string | null {
@@ -15,6 +16,7 @@ export function packetQuery(funderId: string, programId: string, from: string, t
 
 @Component({
   selector: 'app-live-funders',
+  imports: [OutcomesUpload],
   template: `
     <div class="page stack">
       <header class="page-head"><div><h1>Funder reports</h1><p class="lede">Gift history, program outcomes and provenance for one funder.</p></div></header>
@@ -28,6 +30,7 @@ export function packetQuery(funderId: string, programId: string, from: string, t
         <label class="field">From<input class="input" type="date" [value]="from()" (input)="from.set($any($event.target).value)" /></label>
         <label class="field">Through<input class="input" type="date" [value]="through()" (input)="through.set($any($event.target).value)" /></label>
       </form>
+      <app-outcomes-upload [example]="outcomeExample()" (saved)="refresh.update(increment)" />
       @if (!query()) { <p role="status">Choose a funder, program and valid date range.</p> }
       @if (loading()) { <p role="status">Loading report…</p> }
       @if (error()) { <p role="alert">{{ error() }}</p> }
@@ -77,6 +80,13 @@ export class LiveFundersPage {
   protected readonly loading = signal(false);
   protected readonly downloading = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly refresh = signal(0);
+  protected readonly increment = (value: number) => value + 1;
+  protected readonly outcomeExample = computed(() => {
+    const query = new URLSearchParams(this.query() ?? '');
+    return JSON.stringify([{ program_id: this.selectedProgram(), from: this.from(), to: query.get('to') ?? '',
+      metric: 'Program completions', value: null, unit: 'participants', denominator: null, source: '' }], null, 2);
+  });
   protected readonly date = date;
   protected readonly totals = computed(() => (['program', 'unattributed'] as const).flatMap(attribution =>
     Object.entries(this.packet()?.totals[attribution] ?? {}).map(([currency, totals]) => ({ attribution, currency, ...totals }))));
@@ -85,6 +95,7 @@ export class LiveFundersPage {
 
   constructor() {
     effect(() => {
+      this.refresh();
       const query = this.query(), epoch = this.store.sessionEpoch(), generation = ++this.generation;
       this.packet.set(null); this.loadedQuery = null; this.error.set(null); this.downloading.set(false);
       const allowed = !!query && this.store.signedIn() && this.store.isAdmin();
