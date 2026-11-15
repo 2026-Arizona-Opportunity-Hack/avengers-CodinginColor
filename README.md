@@ -109,6 +109,8 @@ npm ci
 node tools/import-preview.ts spreadsheet data/cic_donor_spreadsheet.csv
 node tools/import-preview.ts zeffy data/zeffy_export.csv
 node tools/import-preview.ts benevity data/benevity_export.csv
+node tools/import-preview.ts az_gives apps/web/public/samples/az_gives_export.csv \
+  --date-format MM/DD/YYYY --utc-offset -07:00
 node --test tests/import-preview.test.ts tests/import-mapping.test.ts
 ```
 
@@ -116,11 +118,22 @@ The CLI prints row counts and issue categories without donor contact details.
 Exit code 0 means the preview ran, not that rows are approved; unreadable or
 malformed files exit 1. Input must be UTF-8 CSV, at most 5 MiB. Unknown headers,
 invalid amounts/contacts, formulas and uneven rows require human review.
-Blank data records are retained and flagged. Source labels identify provenance;
-these illustrative CSVs do not establish real Zeffy/Benevity export formats.
+Blank data records are retained and flagged. Source labels identify provenance
+(`spreadsheet`, `zeffy`, `benevity`, `az_gives`, `united_way`); these illustrative
+CSVs do not establish real Zeffy/Benevity export formats.
 
-All supplied samples lack required gift dates (`occurred_at`) and currency, so
-every preview remains `needs_review`. External transaction IDs are optional in
+AZ Gives headers are recognized (`donor first`, `donor last`, `donor email address`,
+`mobile #`, `employer name`, `gift amt`, `board contact`, `designation`,
+`donation date`), but a bare `04/07/2026` is never guessed. A reviewer confirms the
+date interpretation explicitly: `--date-format MM/DD/YYYY|DD/MM/YYYY|YYYY-MM-DD`
+paired with `--utc-offset ±HH:MM`. Only exact matches on real calendar dates
+become `YYYY-MM-DDT00:00:00±HH:MM`; other shapes stay `invalid_occurred_at` review
+issues. The flags may appear anywhere after the source and file, and always
+require both values.
+
+All supplied samples lack currency, and the AZ Gives sample's dates stay unconfirmed
+until a reviewer passes both date flags, so every preview remains `needs_review`.
+External transaction IDs are optional in
 the backend baseline; reimport safety still needs reconciliation logic.
 Phone formatting is normalized without guessing
 a country; contact-person names do not assign owners. XLSX, Jev suggestions,
@@ -209,6 +222,26 @@ Both phases must describe the same organization, batch and file hash.
 The server must rebuild both phases with fresh authorized data in one transaction,
 apply phase-one donor operations first, map each created donor row to its stored ID,
 then substitute those IDs into phase-two gift operations. Neither phase writes data.
+
+### Drafts from a preview
+
+`tools/import-drafts.ts` turns a `needs_review` preview into donor and gift drafts
+for schema validation by the review planners. Rows with any row-level preview issue are listed in `excluded` by
+record number and code, never dropped or echoed. Rows whose donor drafts are
+exactly identical and share an email become one donor; contact person and
+campaign columns are never used to infer owners or campaigns. Gift facts come
+from the row first and then from reviewer `values` (`currency`, `occurred_at`,
+`status`, `refund_cents`), which are validated and rejected for any field the
+column mapping already supplies. Missing facts are omitted and reported in
+`unresolved`, never defaulted.
+
+```bash
+node tools/import-drafts.ts zeffy data/zeffy_export.csv \
+  --currency USD --status settled --refund-cents 0 --occurred-at 2026-11-14T00:00:00-07:00
+```
+
+The CLI is a dry run: it prints plan counts only (no names, emails, phones or
+paths), runs phase one and, when that is `ready`, phase two.
 
 Run `node --test tests/*.test.ts packages/contracts/*.test.ts` for Data and
 shared-contract tests. The live API/database integration is still pending.

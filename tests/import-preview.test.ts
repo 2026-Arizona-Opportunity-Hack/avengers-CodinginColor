@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -103,4 +105,80 @@ test('CLI prints counts without donor contact details and fails visibly on bad i
   assert.equal(bad.status, 1);
   assert.equal(bad.stderr.trim(), 'Unable to read CSV file');
   assert.equal(bad.stdout, '');
+});
+
+test('accepts the five review sources and rejects unknown labels', () => {
+  for (const source of ['spreadsheet', 'zeffy', 'benevity', 'az_gives', 'united_way']) {
+    assert.equal(previewCsv(header, source, 'test.csv').source, source);
+  }
+  assert.throws(() => previewCsv(header, 'az-gives', 'test.csv'), /Source/);
+});
+
+test('maps unambiguous AZ Gives headers and keeps # after normalization', () => {
+  const azHeader = 'Donor First,Donor Last,Donor Email Address,Mobile #,Employer Name,Gift Amt,Board Contact,Designation,Donation Date';
+  const result = previewCsv(`${azHeader}\nAvery,Rivera,avery.rivera@example.org,602-555-0100,` +
+    'Copperline Energy,$150.00,Marcus Bell,AZ Gives 2026,04/07/2026', 'az_gives', 'test.csv');
+  assert.deepEqual(result.mapping, ['first_name', 'last_name', 'email', 'phone', 'company',
+    'amount_cents', 'contact_person', 'campaign', 'occurred_at']);
+  assert.equal(result.rows[0].values.amount_cents, 15000);
+  assert.equal(result.rows[0].values.phone, '6025550100');
+  assert.equal(result.rows[0].values.occurred_at, null);
+  assert.ok(result.issues.some(issue => issue.code === 'invalid_occurred_at'));
+});
+
+test('AZ Gives sample rows retain contacts while unconfirmed dates stay in review', () => {
+  const path = new URL('../apps/web/public/samples/az_gives_export.csv', import.meta.url);
+  const result = previewCsv(readFileSync(path, 'utf8'), 'az_gives', 'az_gives_export.csv');
+  assert.equal(result.rows.length, 8);
+  const values = result.rows.map(record => record.values);
+  assert.deepEqual(values.map(value => value.amount_cents),
+    [15000, 7500, 25000, 4000, 10000, 6000, null, 50000]);
+  assert.ok(values.every(value => value.first_name && value.last_name && value.email
+    && value.phone && value.campaign));
+  for (const code of ['missing_donor_name', 'missing_contact', 'unmapped_column']) {
+    assert.ok(!result.issues.some(issue => issue.code === code), code);
+  }
+  assert.equal(result.issues.filter(issue => issue.code === 'invalid_occurred_at').length, 8);
+  assert.ok(result.issues.some(issue => issue.code === 'invalid_email' && issue.recordNumber === 7));
+});
+
+test('CLI accepts a confirmed date pair anywhere and rejects partial or invalid flags', () => {
+  const cli = fileURLToPath(new URL('../tools/import-preview.ts', import.meta.url));
+  const file = fileURLToPath(new URL('../apps/web/public/samples/az_gives_export.csv', import.meta.url));
+  const run = (...args: string[]) => spawnSync(process.execPath, [cli, 'az_gives', file, ...args],
+    { encoding: 'utf8' });
+  const result = run('--utc-offset', '-07:00', '--date-format', 'MM/DD/YYYY');
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(JSON.parse(result.stdout).rowCount, 8);
+  assert.equal(JSON.parse(result.stdout).issueCounts.invalid_occurred_at, undefined);
+  assert.doesNotMatch(result.stdout, /avery|@|555/);
+  const directory = mkdtempSync(join(tmpdir(), 'cic-dates-'));
+  try {
+    const json = join(directory, 'mapping.json');
+    writeFileSync(json, '{}');
+    const mapped = spawnSync(process.execPath,
+      [cli, 'az_gives', file, json, '--date-format', 'DD/MM/YYYY', '--utc-offset', '+00:00'],
+      { encoding: 'utf8' });
+    assert.equal(mapped.status, 0, mapped.stderr);
+    assert.equal(JSON.parse(mapped.stdout).issueCounts.invalid_occurred_at, undefined);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+  for (const args of [['--date-format', 'MM/DD/YYYY'], ['--utc-offset', '-07:00'],
+    ['--date-format', 'YY/MM/DD', '--utc-offset', '-07:00'],
+    ['--date-format', 'MM/DD/YYYY', '--utc-offset', '-15:00']]) {
+    const bad = run(...args);
+    assert.equal(bad.status, 1, args.join(' '));
+    assert.equal(bad.stdout, '');
+    assert.match(bad.stderr, /date/i);
+  }
+});
+
+test('CLI argument errors never echo unexpected values or private paths', () => {
+  const cli = fileURLToPath(new URL('../tools/import-preview.ts', import.meta.url));
+  const file = fileURLToPath(new URL('../apps/web/public/samples/az_gives_export.csv', import.meta.url));
+  for (const args of [['--private=avery@example.org'], ['mapping.json', '/private/donor-list.csv']]) {
+    const result = spawnSync(process.execPath, [cli, 'az_gives', file, ...args], { encoding: 'utf8' });
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, '');
+    assert.doesNotMatch(result.stderr, /avery@example|\/private\/donor-list/);
+  }
 });
