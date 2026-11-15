@@ -33,6 +33,11 @@ it('tracks target geometry, navigates to a donor and restores focus on Escape', 
   donors.getBoundingClientRect = () => new DOMRect(90, 50, 120, 40);
   window.dispatchEvent(new Event('resize')); fixture.detectChanges();
   expect(fixture.nativeElement.querySelector('.spotlight').style.left).toBe('90px');
+  Object.defineProperty(fixture.nativeElement.querySelector('.tour-card'), 'offsetWidth', { value: 320 });
+  donors.getBoundingClientRect = () => new DOMRect(110, 50, 120, 40);
+  donors.dispatchEvent(new Event('scroll')); fixture.detectChanges();
+  expect(fixture.nativeElement.querySelector('.spotlight').style.left).toBe('110px');
+  expect(fixture.nativeElement.querySelector('.tour-card').style.getPropertyValue('--arrow')).toBe('60px');
   const skip = fixture.nativeElement.querySelector('button') as HTMLButtonElement; skip.focus();
   skip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true, cancelable: true }));
   expect((document.activeElement as HTMLElement).textContent?.trim()).toBe('Next');
@@ -48,9 +53,9 @@ it('tracks target geometry, navigates to a donor and restores focus on Escape', 
 it('uses the visible mobile menu and ends safely when no donor is available', async () => {
   target('mobile-nav'); target('search');
   const { fixture, click } = await setup([]);
-  expect(fixture.nativeElement.textContent).toContain('Open navigation to find Your donors');
+  expect(fixture.nativeElement.textContent).toContain('Your donors is in the navigation menu');
   await click('Next'); await click('Next');
-  expect(fixture.nativeElement.textContent).toContain('Open navigation to find Follow-ups');
+  expect(fixture.nativeElement.textContent).toContain('Follow-ups is in the navigation menu');
   await click('Next'); expect(fixture.nativeElement.querySelector('[role=dialog]')).toBeNull();
   fixture.destroy(); fixture.nativeElement.remove();
 });

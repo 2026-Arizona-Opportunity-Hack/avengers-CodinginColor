@@ -18,7 +18,8 @@ const STEPS = [
       <div class="backdrop" aria-hidden="true"></div>
       <div class="spotlight" aria-hidden="true" [style.left.px]="box.left" [style.top.px]="box.top" [style.width.px]="box.width" [style.height.px]="box.height"></div>
       <section #card class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-description"
-        [class.above]="above()" [style.left.px]="cardLeft()" [style.top.px]="cardTop()" (keydown)="trap($event)">
+        [class.above]="above()" [style.--arrow]="arrowLeft() + 'px'" [style.left.px]="cardLeft()" [style.top.px]="cardTop()" (keydown)="trap($event)">
+        <div class="card-content">
         <p class="count">{{ step() + 1 }} / {{ steps.length }}</p>
         <h2 id="tour-title">{{ steps[step()].title }}</h2>
         <p id="tour-description">{{ mobileHint() || steps[step()].text }}</p>
@@ -27,14 +28,16 @@ const STEPS = [
           <button type="button" (click)="move(-1)" [disabled]="step() === 0">Back</button>
           <button type="button" class="primary" (click)="move(1)">{{ step() === steps.length - 1 ? 'Finish' : 'Next' }}</button>
         </div>
+        </div>
       </section>
     }
   `,
   styles: `
     .backdrop { position: fixed; inset: 0; z-index: 999; }
     .spotlight { position: fixed; z-index: 1000; border-radius: 8px; box-shadow: 0 0 0 4px #fff, 0 0 0 9999px rgb(12 24 18 / .65); pointer-events: none; }
-    .tour-card { position: fixed; z-index: 1001; width: min(320px, calc(100vw - 24px)); padding: 16px; border: 1px solid #d9e1db; border-radius: 12px; background: white; color: #17231c; box-shadow: 0 12px 32px rgb(0 0 0 / .2); }
-    .tour-card::before { content: ''; position: absolute; top: -7px; left: 24px; width: 12px; height: 12px; background: white; border-top: 1px solid #d9e1db; border-left: 1px solid #d9e1db; transform: rotate(45deg); }
+    .tour-card { position: fixed; z-index: 1001; width: min(320px, calc(100vw - 24px)); border: 1px solid #d9e1db; border-radius: 12px; background: white; color: #17231c; box-shadow: 0 12px 32px rgb(0 0 0 / .2); }
+    .card-content { max-height: calc(100dvh - 24px); overflow-y: auto; padding: 16px; }
+    .tour-card::before { content: ''; position: absolute; top: -7px; left: calc(var(--arrow) - 6px); width: 12px; height: 12px; background: white; border-top: 1px solid #d9e1db; border-left: 1px solid #d9e1db; transform: rotate(45deg); }
     .tour-card.above::before { top: auto; bottom: -7px; transform: rotate(225deg); }
     .tour-card h2 { margin: 4px 0; font-size: 16px; font-weight: 650; text-wrap: balance; }
     .tour-card p { margin: 0; font-size: 13px; line-height: 1.45; text-wrap: pretty; }
@@ -55,6 +58,7 @@ export class BoardGuide implements OnDestroy {
   protected readonly cardLeft = signal(12);
   protected readonly cardTop = signal(12);
   protected readonly above = signal(false);
+  protected readonly arrowLeft = signal(24);
   protected readonly mobileHint = signal('');
   private readonly card = viewChild<ElementRef<HTMLElement>>('card');
   private readonly router = inject(Router);
@@ -62,7 +66,12 @@ export class BoardGuide implements OnDestroy {
   private returnFocus: HTMLElement | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor() { this.timer = setTimeout(() => this.start(), 500); }
+  constructor() {
+    document.addEventListener('scroll', this.onScroll, true);
+    this.timer = setTimeout(() => this.start(), 500);
+  }
+
+  private readonly onScroll = () => this.reposition();
 
   start() {
     this.returnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -92,7 +101,7 @@ export class BoardGuide implements OnDestroy {
       let target = this.findTarget(STEPS[this.step()].target);
       const mobile = !target && (this.step() === 0 || this.step() === 2);
       if (mobile) target = this.findTarget('mobile-nav');
-      this.mobileHint.set(mobile ? 'Open navigation to find ' + (this.step() === 0 ? 'Your donors.' : 'Follow-ups.') : '');
+      this.mobileHint.set(mobile ? (this.step() === 0 ? 'Your donors is in the navigation menu.' : 'Follow-ups is in the navigation menu.') : '');
       if (!target) {
         if (attempt < 30) { this.show(attempt + 1); return; }
         this.close(); return;
@@ -112,13 +121,15 @@ export class BoardGuide implements OnDestroy {
     this.rect.set(box);
     const width = this.card()?.nativeElement.offsetWidth ?? Math.min(320, window.innerWidth - 24);
     const height = this.card()?.nativeElement.offsetHeight ?? 185;
-    this.cardLeft.set(Math.max(12, Math.min(box.left, window.innerWidth - width - 12)));
+    const left = Math.max(12, Math.min(box.left, window.innerWidth - width - 12));
+    this.cardLeft.set(left);
+    this.arrowLeft.set(Math.max(18, Math.min(box.left + box.width / 2 - left, width - 18)));
     const below = box.bottom + 14;
     this.above.set(below + height > window.innerHeight && box.top >= height + 14);
     this.cardTop.set(this.above() ? box.top - height - 14 : Math.max(12, Math.min(below, window.innerHeight - height - 12)));
   }
 
-  @HostListener('window:resize') @HostListener('window:scroll')
+  @HostListener('window:resize')
   protected reposition() {
     if (!this.active() || !this.rect()) return;
     const target = this.findTarget(this.mobileHint() ? 'mobile-nav' : STEPS[this.step()].target);
@@ -144,5 +155,5 @@ export class BoardGuide implements OnDestroy {
     if (this.returnFocus?.isConnected) this.returnFocus.focus();
     else document.querySelector<HTMLElement>('.account-btn')?.focus();
   }
-  ngOnDestroy() { clearTimeout(this.timer); }
+  ngOnDestroy() { clearTimeout(this.timer); document.removeEventListener('scroll', this.onScroll, true); }
 }
