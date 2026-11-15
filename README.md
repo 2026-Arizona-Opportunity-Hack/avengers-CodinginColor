@@ -54,7 +54,10 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 <!-- Two or three sentences: the problem, who it helps, what the nonprofit can do now that they couldn't before -->
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
-This is the planning source of truth; its proposed features are not implemented yet.
+This is the planning source of truth. What's on `main` today: the Cadence web app (`apps/web`), the API
+(`apps/api`), the database schema with row-level security (`db/`), CSV import preflight and drafts
+(`tools/`), and the reporting and outreach rules (`packages/`). Live CSV import into the database is
+still in progress (#19).
 
 The first data pipeline slice is a local CSV preflight tool. It parses the three
 sample exports, normalizes known columns, validates contact fields and exact
@@ -63,7 +66,7 @@ numbers in memory; it never writes donors or gifts.
 
 ## Tech stack
 
-- Frontend: not on `main` yet. Angular is the planned direction (see the implementation plan).
+- Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
 - Backend: Node.js 24.2+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
 - Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.
 - APIs / services: Clerk for invite-only sign-in. Tests run real migrations on in-memory PostgreSQL (PGlite); no live service or credentials are needed.
@@ -79,7 +82,7 @@ npm ci
 npm run typecheck
 npm run test:contracts
 npm run test:api
-node --test tests/*.test.ts tests/*.test.mjs packages/reporting/*.test.ts
+node --test tests/*.test.ts tests/*.test.mjs packages/reporting/*.test.ts packages/outreach/*.test.ts
 ```
 
 Running the API against a real database and Clerk instance:
@@ -95,9 +98,9 @@ are covered step by step in the deploy runbook, `docs/DEPLOY.md` (#42).
 
 ## Links
 
-- Live demo: not deployed yet (#30)
+- Live demo: [cadence-cic.vercel.app](https://cadence-cic.vercel.app). This is the web app on sample data only, with no backend. The full-stack deploy is tracked in #30.
 - Demo video:
-- Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md) (after #34)
+- Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md), [outreach](packages/outreach/README.md), [web app](apps/web/README.md), [deploy runbook](docs/DEPLOY.md)
 
 ## CSV import preflight
 
