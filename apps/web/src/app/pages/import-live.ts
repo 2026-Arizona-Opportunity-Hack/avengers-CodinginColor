@@ -130,7 +130,7 @@ export class LiveImportPage {
   private readonly client = new LiveImports((path, init) => this.api.request(path, init));
   protected readonly fields = IMPORT_FIELDS;
   protected readonly sources = ['spreadsheet', 'zeffy', 'benevity', 'az_gives', 'united_way'];
-  protected readonly dateFormats = ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD'];
+  protected readonly dateFormats = ['MM/DD/YYYY', 'DD/MM/YYYY', 'YYYY-MM-DD', 'MM/DD/YYYY, h:mm A'];
   protected readonly batch = signal<ImportResult | null>(null);
   protected readonly preview = signal<ImportPreview | null>(null);
   protected readonly previewRows = signal<PreviewRow[]>([]);

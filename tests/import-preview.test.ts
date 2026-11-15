@@ -142,6 +142,33 @@ test('AZ Gives sample rows retain contacts while unconfirmed dates stay in revie
   assert.ok(result.issues.some(issue => issue.code === 'invalid_email' && issue.recordNumber === 7));
 });
 
+test('confirmed Zeffy text datetimes retain local clock time and validate AM/PM', () => {
+  const run = (date: string, options?: unknown) => previewCsv(
+    `first name,email,donation amount,donation date\nAvery,avery@example.org,12.34,"${date}"`,
+    'zeffy', 'synthetic.csv', {}, options);
+  const options = { date_format: 'MM/DD/YYYY, h:mm A', utc_offset: '-07:00' };
+  for (const [input, expected] of [
+    ['11/14/2026, 1:07 PM', '2026-11-14T13:07:00-07:00'],
+    ['11/14/2026, 12:00 AM', '2026-11-14T00:00:00-07:00'],
+    ['11/14/2026, 12:00 PM', '2026-11-14T12:00:00-07:00'],
+    ['2/29/2024, 9:05 AM', '2024-02-29T09:05:00-07:00'],
+  ]) {
+    const result = run(input, options);
+    assert.equal(result.rows[0].values.occurred_at, expected);
+    assert.equal(result.rows[0].raw[3], input);
+    assert.ok(!result.issues.some(issue => issue.code === 'invalid_occurred_at'));
+  }
+  for (const input of ['2/29/2026, 1:00 PM', '11/31/2026, 1:00 PM', '11/14/2026, 0:00 AM',
+    '11/14/2026, 13:00 PM', '11/14/2026, 12:60 PM', '11/14/2026, 1:00', '11/14/2026, 1:00 XM']) {
+    const result = run(input, options);
+    assert.equal(result.rows[0].values.occurred_at, null, input);
+    assert.ok(result.issues.some(issue => issue.code === 'invalid_occurred_at'), input);
+  }
+  assert.equal(run('11/14/2026, 1:07 PM').rows[0].values.occurred_at, null);
+  assert.equal(run('2026-11-14T13:07:00-07:00', options).rows[0].values.occurred_at,
+    '2026-11-14T13:07:00-07:00', 'existing explicit timestamps retain their own timezone');
+});
+
 test('CLI accepts a confirmed date pair anywhere and rejects partial or invalid flags', () => {
   const cli = fileURLToPath(new URL('../tools/import-preview.ts', import.meta.url));
   const file = fileURLToPath(new URL('../apps/web/public/samples/az_gives_export.csv', import.meta.url));
