@@ -4,8 +4,9 @@ import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 
 const html = await readFile(new URL('../apps/web/src/index.html', import.meta.url), 'utf8');
-const script = html.match(/<script id="chunk-recovery">([\s\S]*?)<\/script>/)?.[1];
-assert.ok(script, 'recovery must run inline before potentially missing entry bundles');
+assert.match(html, /<script id="chunk-recovery" src="chunk-recovery\.js"><\/script>/,
+  'recovery must load from self before module bundles, without inline script or async/defer');
+const script = await readFile(new URL('../apps/web/public/chunk-recovery.js', import.meta.url), 'utf8');
 
 class Element {
   id = ''; type = ''; textContent = ''; style = { cssText: '' };

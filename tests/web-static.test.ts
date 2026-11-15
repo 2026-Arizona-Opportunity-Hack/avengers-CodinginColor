@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -8,7 +8,9 @@ import express from 'express';
 import { webApp } from '../src/web.ts';
 
 async function serve(t: test.TestContext, dir: string, assets?: express.RequestHandler) {
-  const app = express().use(webApp(dir, assets));
+  const app = express().use((_req, res, next) => {
+    res.set('Content-Security-Policy', "default-src 'none'; script-src 'self'; base-uri 'self'"); next();
+  }).use(webApp(dir, assets));
   app.use((_req, res) => { res.status(404).json({ error: 'Request rejected' }); }); // stands in for the API
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -76,4 +78,32 @@ test('equal-length deployments with fixed file times never validate stale HTML',
     assert.notEqual(response.headers.get('etag'), etag);
     assert.equal(response.headers.get('last-modified'), null);
   }
+});
+
+test('CSP permits the self-hosted pre-bundle recovery file without unsafe-inline and stale validators', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'cic-recovery-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const html = await readFile(new URL('../apps/web/src/index.html', import.meta.url), 'utf8');
+  const script = await readFile(new URL('../apps/web/public/chunk-recovery.js', import.meta.url), 'utf8');
+  await writeFile(join(dir, 'index.html'), html);
+  await writeFile(join(dir, 'chunk-recovery.js'), script);
+  const fixed = new Date('2018-10-20T01:46:40Z');
+  await utimes(join(dir, 'chunk-recovery.js'), fixed, fixed);
+  const get = await serve(t, dir, express.static(dir, { index: false }));
+  const page = await get('/');
+  assert.match(page.headers.get('content-security-policy') ?? '', /script-src 'self'/);
+  assert.doesNotMatch(page.headers.get('content-security-policy') ?? '', /unsafe-inline/);
+  assert.match(await page.text(), /<script id="chunk-recovery" src="chunk-recovery\.js"><\/script>/);
+  const recovery = await get('/chunk-recovery.js');
+  assert.equal(recovery.status, 200); assert.match(recovery.headers.get('content-type') ?? '', /javascript/);
+  assert.equal(await recovery.text(), script);
+  assert.equal(recovery.headers.get('cache-control'), 'no-store');
+  assert.equal(recovery.headers.get('last-modified'), null);
+  const nextScript = script.replace('cic-retry', 'cic-fresh');
+  await writeFile(join(dir, 'chunk-recovery.js'), nextScript);
+  await utimes(join(dir, 'chunk-recovery.js'), fixed, fixed);
+  const next = await get('/chunk-recovery.js', { headers: {
+    'If-None-Match': recovery.headers.get('etag')!, 'Cache-Control': 'max-age=0',
+  } });
+  assert.equal(next.status, 200); assert.equal(await next.text(), nextScript);
 });

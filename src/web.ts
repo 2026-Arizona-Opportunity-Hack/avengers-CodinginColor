@@ -12,13 +12,15 @@ const ASSET = /\.[a-z0-9]+$/i;
 export function webApp(dir: string, assets?: RequestHandler): express.Router {
   const router = express.Router();
   const index = join(dir, 'index.html');
-  // Page routes (no file extension) and the explicit /index.html get the single-page app.
+  // Mutable startup files bypass stat validators, including when static middleware is supplied.
   const page: RequestHandler = async (req, res, next) => {
+    const recovery = req.path === '/chunk-recovery.js';
+    const file = recovery ? join(dir, 'chunk-recovery.js') : index;
     if ((req.method !== 'GET' && req.method !== 'HEAD') || API.test(req.path) ||
-      (ASSET.test(req.path) && req.path !== '/index.html') || !existsSync(index)) return next();
+      (ASSET.test(req.path) && req.path !== '/index.html' && !recovery) || !existsSync(file)) return next();
     // Deployment archives fix mtimes, so same-size HTML can share a stale stat ETag.
     res.setHeader('Cache-Control', 'no-store');
-    res.type('html').send(await readFile(index));
+    res.type(recovery ? 'js' : 'html').send(await readFile(file));
   };
   router.use(page);
   router.use(assets ?? express.static(dir, {
