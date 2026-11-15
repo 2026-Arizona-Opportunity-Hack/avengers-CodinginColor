@@ -64,6 +64,12 @@ sample exports, normalizes known columns, validates contact fields and exact
 integer cents, and reports review issues. It preserves raw cells and record
 numbers in memory; it never writes donors or gifts.
 
+The live admin Import screen uses the API for upload, mapping, donor/gift review
+and atomic commit. It requires explicit status/refund and missing date/currency
+facts, acknowledges invalid records, and separates source totals from canonical
+changes by currency. [Local synthetic UI preview](docs/screenshots/live-import-review.png)
+uses synthetic review state; deployed signed-in acceptance remains pending.
+
 ## Tech stack
 
 - Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
