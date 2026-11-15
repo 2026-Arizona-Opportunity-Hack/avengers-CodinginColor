@@ -59,13 +59,14 @@ export interface NewDonorInput {
 }
 
 export interface ImportRow {
+  rowKey: number;
   action: 'create' | 'merge' | 'skip';
   matchId: string | null;
   /** Rows in one file with the same key become one donor. */
   key: string;
   donor: NewDonorInput;
   ownerId: string | null;
-  gift: { amount_cents: number; campaign: string | null; occurred_at: string } | null;
+  gift: { amount_cents: number; campaign: string | null; occurred_at: string; external_id: string | null } | null;
 }
 
 /**
@@ -626,12 +627,34 @@ export class Store {
     });
   }
 
-  importRows(rows: ImportRow[], source: Source, fileName: string): { created: number; merged: number; gifts: number; skipped: number } {
+  importRows(rows: ImportRow[], source: Source, fileName: string, fingerprint: string): { created: number; merged: number; gifts: number; skipped: number } {
+    if (this.live() || !this.isAdmin()) throw new Error('Only a demo admin can import synthetic records.');
+    if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new Error('The file identity could not be verified.');
+    // Older demo gifts have only filename provenance, so require review rather than guessing a match.
+    if (rows.some(r => r.action !== 'skip' && r.gift && !r.gift.external_id) &&
+        this.allGifts().some(g => g.source === source && g.external_id?.startsWith(`${fileName}#`))) {
+      throw new Error('This filename has gifts from an older import without file verification. Nothing was saved; review those gifts and supply source transaction IDs before importing again.');
+    }
     const result = { created: 0, merged: 0, gifts: 0, skipped: 0 };
     const createdByKey = new Map<string, string>();
     this.mutate((d) => {
       for (const row of rows) {
         if (row.action === 'skip') { result.skipped++; continue; }
+        const externalId = row.gift?.external_id || `demo:${fingerprint}#${row.rowKey}`;
+        const previous = row.gift && d.gifts.find(g => g.source === source && g.external_id === externalId);
+        if (previous && row.gift) {
+          const donor = d.donors.find(d => d.id === previous.donor_id)!;
+          const key = donor.email?.toLowerCase() ?? (donor.phone ? `p:${donor.phone}` : `n:${donor.name.toLowerCase()}`);
+          const campaign = d.campaigns.find(c => c.id === previous.campaign_id)?.title ?? '';
+          if ((row.matchId ? row.matchId !== donor.id : row.key !== key) ||
+              previous.amount_cents !== row.gift.amount_cents || previous.refund_cents !== 0 ||
+              previous.currency !== 'USD' || previous.status !== 'settled' ||
+              Date.parse(previous.occurred_at) !== Date.parse(row.gift.occurred_at) ||
+              campaign.toLowerCase() !== (row.gift.campaign ?? '').toLowerCase()) {
+            throw new Error(`Row ${row.rowKey}: this gift identity already has different facts. Nothing was saved; review the source transaction before importing again.`);
+          }
+          result.skipped++; continue;
+        }
         let donorId: string;
         const target = row.action === 'merge' ? row.matchId : createdByKey.get(row.key) ?? null;
         if (target) {
@@ -662,7 +685,7 @@ export class Store {
           d.gifts.push({
             id: uid('g'), donor_id: donorId, campaign_id: campaign?.id ?? null, amount_cents: row.gift.amount_cents,
             refund_cents: 0, currency: 'USD', occurred_at: row.gift.occurred_at, status: 'settled', source,
-            external_id: `${fileName}#${result.created + result.merged}`,
+            external_id: externalId,
           });
           result.gifts++;
         }

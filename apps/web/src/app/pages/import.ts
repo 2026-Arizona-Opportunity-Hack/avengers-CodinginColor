@@ -33,6 +33,7 @@ interface Checked {
   problems: string[];
   notes: string[];
   key: string;
+  external_id: string | null;
 }
 interface Match { row: Checked; donor: Donor; reason: string; }
 
@@ -245,8 +246,9 @@ interface Match { row: Checked; donor: Donor; reason: string; }
             </div>
             <div class="row nav-row">
               <button class="btn" type="button" (click)="go(3)">Back</button>
-              <button class="btn primary" type="button" (click)="commit()">Save {{ plan().creates + plan().merges }} donors and {{ plan().gifts }} gifts</button>
+              <button class="btn primary" type="button" [disabled]="saving()" (click)="commit()">Save {{ plan().creates + plan().merges }} donors and {{ plan().gifts }} gifts</button>
             </div>
+            @if (commitError()) { <p class="error" role="alert">{{ commitError() }}</p> }
           }
         }
       }
@@ -348,6 +350,8 @@ export class ImportPage {
   protected readonly source = signal<Source>('spreadsheet');
   protected readonly fileName = signal('');
   protected readonly fileError = signal('');
+  protected readonly saving = signal(false);
+  protected readonly commitError = signal('');
   protected readonly fallbackDate = signal(this.now);
   protected readonly headers = signal<string[]>([]);
   protected readonly rawRows = signal<string[][]>([]);
@@ -469,7 +473,7 @@ export class ImportPage {
       }
       const key = email ?? (phone ? `p:${phone}` : `n:${name.toLowerCase()}`);
       return {
-        line: i + 2, name, email: email && EMAIL.test(email) ? email : null, phone, company: cell(r, 'company') || null,
+        line: i + 2, name, email: email && EMAIL.test(email) ? email : null, phone, company: cell(r, 'company') || null, external_id: cell(r, 'external_id') || null,
         contact: cell(r, 'contact_person') || null, campaign: cell(r, 'campaign') || null, amount_cents, date, problems, notes, key,
       };
     });
@@ -513,11 +517,11 @@ export class ImportPage {
       const m = matchByKey.get(r.key);
       const decision = m ? this.decisionFor(m.row.line) : 'create';
       return {
-        action: decision, matchId: decision === 'merge' ? m!.donor.id : null, key: r.key,
+        action: decision, matchId: decision === 'merge' ? m!.donor.id : null, key: r.key, rowKey: r.line,
         ownerId: this.ownerFromFile(r)?.id ?? null,
         donor: { name: r.name, email: r.email, phone: r.phone, company: r.company, kind: 'individual', consent: 'unknown',
           preferred_channel: 'email', custom: {}, source: this.source() },
-        gift: r.amount_cents ? { amount_cents: r.amount_cents, campaign: r.campaign, occurred_at: r.date } : null,
+        gift: r.amount_cents ? { amount_cents: r.amount_cents, campaign: r.campaign, occurred_at: r.date, external_id: r.external_id } : null,
       };
     });
   });
@@ -547,10 +551,21 @@ export class ImportPage {
     return r.contact ? this.store.boardMembers().find((m) => m.name.toLowerCase() === r.contact!.toLowerCase()) ?? null : null;
   }
 
-  protected commit() {
-    const res = this.store.importRows(this.rowsToSave(), this.source(), this.fileName());
-    res.skipped += this.checked().length - this.ready().length;
-    this.result.set(res);
-    queueMicrotask(() => this.stepHeading()?.nativeElement.focus());
+  protected async commit() {
+    if (this.saving()) return;
+    this.saving.set(true); this.commitError.set('');
+    const rows = this.rowsToSave(), source = this.source(), name = this.fileName(), epoch = this.store.sessionEpoch();
+    try {
+      const bytes = new TextEncoder().encode(JSON.stringify([this.headers(), this.rawRows()]));
+      const hash = await crypto.subtle.digest('SHA-256', bytes);
+      if (epoch !== this.store.sessionEpoch()) throw new Error('The session changed. Review the import again.');
+      const fingerprint = Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
+      const res = this.store.importRows(rows, source, name, fingerprint);
+      res.skipped += this.checked().length - this.ready().length;
+      this.result.set(res);
+      queueMicrotask(() => this.stepHeading()?.nativeElement.focus());
+    } catch (error) {
+      this.commitError.set(error instanceof Error ? error.message : 'The import failed. Nothing was saved.');
+    } finally { this.saving.set(false); }
   }
 }
