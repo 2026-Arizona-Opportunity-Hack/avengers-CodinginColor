@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { toast } from '@spartan-ng/brain/sonner';
@@ -338,11 +338,22 @@ export class RetentionPage {
   });
 
   constructor() {
+    // Never keep a server report past the session that fetched it.
+    effect(() => {
+      if (this.store.signedIn()) return;
+      this.server.set(null);
+      this.serverNames.set(new Map());
+    });
     if (!this.store.live()) return;
+    const epoch = this.store.sessionEpoch();
     this.api.retention(this.now).then((report) => {
+      if (this.store.sessionEpoch() !== epoch || !this.store.signedIn()) return;
       this.server.set(fromServer(report));
       this.serverNames.set(new Map((report.byCurrency['USD']?.donors ?? []).filter((d) => d.name).map((d) => [d.donor_id, d.name!])));
-    }).catch((e) => this.serverError.set(e instanceof ApiError ? e.message : 'The retention report could not load.'));
+    }).catch((e) => {
+      if (this.store.sessionEpoch() !== epoch) return;
+      this.serverError.set(e instanceof ApiError ? e.message : 'The retention report could not load.');
+    });
   }
 
   protected signed(cents: number) {

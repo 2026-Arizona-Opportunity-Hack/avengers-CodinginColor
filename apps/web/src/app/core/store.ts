@@ -82,6 +82,11 @@ export class Store {
   /** Demo mode only: whether someone picked a demo account. Live mode asks Clerk instead. */
   private readonly demoSignedIn = signal<boolean>(load<boolean>(SIGNED_IN_KEY) ?? false);
   readonly signedIn = computed(() => (this.live() ? this.api.status() === 'ready' : this.demoSignedIn()));
+  /**
+   * Changes whenever a session starts or ends. Async work captures it before a request and
+   * drops the result if it changed, so a late response can never repopulate a signed-out view.
+   */
+  readonly sessionEpoch = signal(0);
 
   readonly members = computed(() => this.data().members);
   readonly programs = computed(() => this.data().programs);
@@ -153,9 +158,11 @@ export class Store {
     if (this.live() || !this.members().some((m) => m.id === id)) return;
     this.sessionId.set(id);
     this.demoSignedIn.set(true);
+    this.sessionEpoch.update((n) => n + 1);
   }
 
   async signOut() {
+    this.sessionEpoch.update((n) => n + 1);
     if (this.live()) await this.api.signOut();
     else this.demoSignedIn.set(false);
     this.notice.set(null);
@@ -176,6 +183,7 @@ export class Store {
     this.live.set(true);
     this.data.set(this.emptyDataset([], []));
     void this.api.start(config, () => void this.refreshLive(), () => {
+      this.sessionEpoch.update((n) => n + 1);
       this.rawMetadata.clear();
       this.data.set(this.emptyDataset([], []));
       this.notice.set(null);
@@ -216,6 +224,7 @@ export class Store {
     ];
     this.data.set(this.emptyDataset(members, donors.map(fromApiDonor)));
     this.sessionId.set(me.id);
+    this.sessionEpoch.update((n) => n + 1);
   }
 
   private putDonor(saved: ApiDonor) {

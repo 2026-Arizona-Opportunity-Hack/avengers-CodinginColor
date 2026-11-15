@@ -1,5 +1,5 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, signal } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmAvatarImports } from '@spartan-ng/helm/avatar';
@@ -159,7 +159,8 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       }
 
       <main id="main" tabindex="-1">
-        <router-outlet />
+        <!-- Protected views exist only while the session is valid; losing it destroys them. -->
+        @if (store.signedIn()) { <router-outlet /> }
       </main>
     </div>
 
@@ -232,6 +233,13 @@ export class Shell {
   protected readonly attention = computed(() => this.due().length + this.approvals());
 
   constructor() {
+    // If the session ends while a protected view is open (expired or signed out elsewhere),
+    // leave for sign-in and keep the page to return to.
+    effect(() => {
+      if (this.store.signedIn()) return;
+      const url = this.router.url;
+      if (!url.startsWith('/sign-in')) this.router.navigate(['/sign-in'], { queryParams: { next: url } });
+    });
     this.router.events.pipe(filter((e) => e instanceof NavigationEnd)).subscribe(() => {
       document.getElementById('main')?.focus({ preventScroll: true });
     });
