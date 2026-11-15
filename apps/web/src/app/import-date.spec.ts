@@ -16,20 +16,20 @@ function setup(value: string) {
   const page = fixture.componentInstance as unknown as {
     ingest(name: string, rows: string[][]): void;
     checked(): { date: string; problems: string[] }[];
-    commit(): void;
+    commit(): Promise<void>;
   };
   page.ingest('synthetic-date.csv', parseCsv(`Full name,Email,Donation amount,Gift date\r\nSynthetic Timestamp,timestamp@example.org,12.34,"${value}"`));
   return { fixture, page, store };
 }
 
-it('reviews and saves the reported datetime without discarding its time', () => {
+it('reviews and saves the reported datetime without discarding its time', async () => {
   const { fixture, page, store } = setup('12/20/2025, 12:27 PM');
   expect(page.checked()[0].problems).toEqual([]);
   fixture.detectChanges();
   expect(fixture.nativeElement.textContent).toContain('MM/DD/YYYY');
   expect(fixture.nativeElement.textContent).toContain('America/Phoenix');
   const before = store.allGifts().length;
-  page.commit();
+  await page.commit();
   const donor = store.allDonors().find(d => d.email === 'timestamp@example.org')!;
   const gifts = store.allGifts().filter(g => g.donor_id === donor.id);
   expect(store.allGifts()).toHaveLength(before + 1);
@@ -55,10 +55,10 @@ it.each([
   '12/20/2025, 0:27 AM', '12/20/2025, 13:27 PM', '12/20/2025, 13:27 AM', '12/20/2025, 12:60 PM',
   '12/20/2025, 12:27', '12/20/2025, 12:27 PM junk', '2025-12-20garbage',
   '2025-12-20T25:00:00Z', '2025-12-20T24:00:00Z', '2025-12-20T12:27:00', '2025-12-20T12:27:00+14:01',
-])('keeps invalid or unsupported date %s out of the saved gifts', value => {
+])('keeps invalid or unsupported date %s out of the saved gifts', async value => {
   const { page, store } = setup(value);
   expect(page.checked()[0].problems).toContain(`Date “${value}” is not recognized`);
   const before = store.allGifts().length;
-  page.commit();
+  await page.commit();
   expect(store.allGifts()).toHaveLength(before);
 });
