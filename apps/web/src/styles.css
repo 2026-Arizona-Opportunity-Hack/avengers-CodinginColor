@@ -401,6 +401,8 @@
   body::before, body::after { display: none; }
   .page { padding: 0; max-width: none; }
 }
+.logo-crop { display: inline-block; width: 36px; height: 36px; flex: none; overflow: hidden; border-radius: 8px; background: white; }
+.logo-crop img { width: 200%; height: 200%; max-width: none; transform: translate(-25%, -25%); object-fit: cover; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
 }

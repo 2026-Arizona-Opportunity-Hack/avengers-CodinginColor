@@ -74,7 +74,7 @@ export class Api {
     try {
       const [{ Clerk }, { ui }] = await Promise.all([import('@clerk/clerk-js'), import('@clerk/ui')]);
       this.clerk = new Clerk(config.clerkPublishableKey);
-      await this.clerk.load({ ui });
+      await this.clerk.load({ ui, localization: { signIn: { start: { title: 'Sign in to Coding in Color' } } } });
       let hadSession = !!this.clerk.session;
       if (hadSession) onSignedIn(); else this.status.set('signed-out');
       this.clerk.addListener(({ session }) => {
@@ -93,7 +93,9 @@ export class Api {
 
   canRetry() { return !!this.clerk?.session; }
 
-  mountSignIn(node: HTMLDivElement) { this.clerk?.mountSignIn(node); }
+  mountSignIn(node: HTMLDivElement) { this.clerk?.mountSignIn(node, {
+    appearance: { elements: { rootBox: { width: '100%' }, cardBox: { width: '100%' }, card: { width: '100%' } } },
+  }); }
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
   manageSecurity() { this.clerk?.openUserProfile(); }

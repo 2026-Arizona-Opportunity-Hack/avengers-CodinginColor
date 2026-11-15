@@ -58,7 +58,7 @@ interface Permission { label: string; allowed: boolean; }
         <h2 id="sec-h">Sign-in and security</h2>
         <div class="mt-4 grid gap-4 md:grid-cols-3">
           <div class="tile"><ng-icon name="lucideShieldCheck" size="18" aria-hidden="true" />
-            <p class="font-medium">Invitation only</p><p class="text-muted-foreground text-sm">No public sign-up and no shared passwords. Clerk holds credentials; Cadence never sees them.</p></div>
+            <p class="font-medium">Invitation only</p><p class="text-muted-foreground text-sm">No public sign-up and no shared passwords. Clerk holds credentials; Coding in Color never sees them.</p></div>
           <div class="tile"><ng-icon name="lucideKeyRound" size="18" aria-hidden="true" />
             <p class="font-medium">Second factor for admins</p><p class="text-muted-foreground text-sm">Admin requests must carry a verified second factor, checked on every call.</p></div>
           <div class="tile"><ng-icon name="lucideMonitor" size="18" aria-hidden="true" />

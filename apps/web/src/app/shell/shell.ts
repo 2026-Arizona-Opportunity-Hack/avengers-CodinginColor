@@ -53,8 +53,8 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
 
     <ng-template #brand>
       <a routerLink="/" class="brand">
-        <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="9" fill="#007a3d"/><rect x="8" y="8.5" width="16" height="3.5" rx="1.75" fill="#fff"/><rect x="8" y="14.25" width="10" height="3.5" rx="1.75" fill="#8fd3ad"/><rect x="8" y="20" width="16" height="3.5" rx="1.75" fill="#fff"/></svg>
-        <span class="flex flex-col leading-tight"><span class="font-semibold tracking-tight">Cadence</span><span class="text-muted-foreground text-xs">Coding in Color</span></span>
+        <span class="logo-crop" aria-hidden="true"><img src="branding/coding-in-color-logo.jpg" alt="" width="512" height="512" /></span>
+        <span class="font-semibold tracking-tight">Coding in Color</span>
       </a>
     </ng-template>
 
@@ -180,7 +180,6 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     }
     @media (min-width: 1024px) { .rail { display: flex; } .main-col { padding-inline-start: var(--rail-w); } }
     .brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px; text-decoration: none; font-size: 14.5px; }
-    .mark { width: 28px; height: 28px; flex: none; }
     .nav-group { padding: 0 12px 6px; font-size: 12px; font-weight: 500; color: var(--ink-600); }
     .nav-link {
       display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; border-radius: 9px;
