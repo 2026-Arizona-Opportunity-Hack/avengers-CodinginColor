@@ -16,6 +16,6 @@ export const EnvSchema = z.object({
 export type Env = z.infer<typeof EnvSchema>;
 export class HttpError extends Error {
   status: number;
-  readonly code?: 'admin_mfa_required';
-  constructor(status: number, code?: 'admin_mfa_required') { super('Request rejected'); this.status = status; this.code = code; }
+  readonly authCode?: 'admin_mfa_required';
+  constructor(status: number, authCode?: 'admin_mfa_required') { super('Request rejected'); this.status = status; this.authCode = authCode; }
 }

@@ -77,7 +77,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error instanceof HttpError ? error.status : error?.type === 'entity.parse.failed' ? 400 : error?.type === 'entity.too.large' ? 413 : 503;
     res.status(status).json({ error: status === 503 ? 'Service unavailable' : 'Request rejected',
-      ...(error instanceof HttpError && error.code ? { code: error.code } : {}) });
+      ...(error instanceof HttpError && error.authCode === 'admin_mfa_required' ? { code: error.authCode } : {}) });
   };
   app.use(errors);
   return app;
