@@ -79,6 +79,11 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
       await db.query('SET SESSION AUTHORIZATION rehearsal_actor');
       assert.deepEqual(await helper.catalog(db),owner); assert.deepEqual(await helper.secdefs(db),funcs);
     };
+    const claim=funcs.find(f=>f.signature==='claim_staff_invitation(text,uuid,text)').definition;
+    assert.ok(claim.includes('RETURN true;'));
+    await drift(claim.replace('RETURN true;','RETURN false;'),claim);
+    await drift('ALTER FUNCTION public.pending_staff_invitation(text) OWNER TO postgres',
+      'ALTER FUNCTION public.pending_staff_invitation(text) OWNER TO cic_assignment');
     await drift('ALTER FUNCTION public.pending_staff_invitation(text) SET search_path=public',
       'ALTER FUNCTION public.pending_staff_invitation(text) SET search_path=pg_catalog');
     await drift('GRANT CREATE ON SCHEMA public TO rehearsal_actor','REVOKE CREATE ON SCHEMA public FROM rehearsal_actor');
