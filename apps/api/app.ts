@@ -9,6 +9,7 @@ import { createReportingRouter } from './reporting.ts';
 import { createDashboardRouter } from './dashboard.ts';
 import { createApiKeyRouter } from './api-keys.ts';
 import { createOutreachRouter } from './outreach.ts';
+import { createMessageRouter } from './outreach-messages.ts';
 
 export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
   const app = express();
@@ -43,6 +44,8 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.use(createApiKeyRouter(env, db, verify));
   app.use('/api/v1/follow-ups', express.json({ limit: '32kb' }));
   app.use(createOutreachRouter(env, db, verify));
+  app.use('/api/v1/drafts', express.json({ limit: '32kb' }));
+  app.use(createMessageRouter(env, db, verify));
   app.use((_req, _res, next) => next(new HttpError(404)));
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error instanceof HttpError ? error.status : error?.type === 'entity.parse.failed' ? 400 : error?.type === 'entity.too.large' ? 413 : 503;

@@ -89,14 +89,23 @@ test('manual sends are logged only after a human confirms, and count as a qualif
 
 test('compose links are encoded and cannot inject headers or recipients', () => {
   const approved = approveDraft(thanks(), owner, AT);
-  const mail = composeLink(approved);
+  const mail = composeLink(approved, donor, owner);
   assert.ok(mail.startsWith('mailto:avery%40example.org?subject='), mail);
   assert.ok(!/[\r\n]/.test(mail) && !/[?&](cc|bcc|to)=/i.test(mail), mail);
   assert.match(decodeURIComponent(mail.split('body=')[1]), /^Hi Avery,/);
   const sms = composeLink(approveDraft(createDraft({ donor, channel: 'sms', template: 'thank_you_sms',
-    fields: { first_name: 'Avery', program: 'AI Academy' } }), owner, AT));
+    fields: { first_name: 'Avery', program: 'AI Academy' } }), owner, AT), donor, owner);
   assert.match(sms, /^sms:\+?6025550100\?body=/);
   assert.throws(() => createDraft({ donor: { ...donor, email: 'a@example.org?bcc=x@evil.test' }, channel: 'email',
     template: 'thank_you', fields: { first_name: 'A', amount: '$1', program: 'P' } }), /recipient/);
   assert.throws(() => editDraft(thanks(), { subject: 'Hi\r\nBcc: x@evil.test' }), /subject/);
+});
+
+test('compose rechecks the donor at compose time: consent, contact, archive and actor', () => {
+  const approved = approveDraft(thanks(), owner, AT);
+  assert.throws(() => composeLink(approved, { ...donor, consent: 'denied' }, owner), /declined contact/);
+  assert.throws(() => composeLink(approved, { ...donor, email: 'new@example.org' }, owner), /contact changed/);
+  assert.throws(() => composeLink(approved, { ...donor, archived: true }, owner), /archived/);
+  assert.throws(() => composeLink(approved, donor, { member_id: OTHER, role: 'board' }), /not this donor's owner/);
+  assert.ok(composeLink(approved, donor, admin).startsWith('mailto:'));
 });
