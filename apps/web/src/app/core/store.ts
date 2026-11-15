@@ -76,6 +76,7 @@ export class Store {
   readonly live = signal(false);
   /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
   readonly notice = signal<string | null>(null);
+  private liveLoadGeneration = 0;
   private readonly rawMetadata = new Map<string, Record<string, unknown>>();
   private readonly data = signal<Dataset>(this.initial());
   readonly sessionId = signal<string>(load<string>(SESSION_KEY) ?? 'm-ceo');
@@ -162,6 +163,7 @@ export class Store {
   }
 
   async signOut() {
+    this.liveLoadGeneration++;
     this.sessionEpoch.update((n) => n + 1);
     if (this.live()) await this.api.signOut();
     else this.demoSignedIn.set(false);
@@ -180,9 +182,11 @@ export class Store {
 
   /** Switches to live mode and loads the signed-in member's data once Clerk has a session. */
   connect(config: LiveConfig) {
+    this.liveLoadGeneration++;
     this.live.set(true);
     this.data.set(this.emptyDataset([], []));
     void this.api.start(config, () => void this.refreshLive(), () => {
+      this.liveLoadGeneration++;
       this.sessionEpoch.update((n) => n + 1);
       this.rawMetadata.clear();
       this.data.set(this.emptyDataset([], []));
@@ -191,12 +195,15 @@ export class Store {
   }
 
   async refreshLive() {
+    const generation = ++this.liveLoadGeneration;
     this.api.status.set('loading');
     try {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
+      if (generation !== this.liveLoadGeneration) return;
       this.loadLive(me, donors);
       this.api.status.set('ready');
     } catch (e) {
+      if (generation !== this.liveLoadGeneration) return;
       this.api.fail(e instanceof ApiError ? e.message : 'Could not load your data.');
     }
   }
