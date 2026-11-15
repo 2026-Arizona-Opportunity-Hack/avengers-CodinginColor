@@ -12,6 +12,7 @@ import { createDashboardRouter } from './dashboard.ts';
 import { createApiKeyRouter } from './api-keys.ts';
 import { createOutreachRouter } from './outreach.ts';
 import { createMessageRouter } from './outreach-messages.ts';
+import { askData } from './ask-data.ts';
 
 export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
   const app = express();
@@ -60,6 +61,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.use('/api/v1/donors', express.json({ limit: '32kb' }), donors(env, db, verify));
   app.use('/api/v1/gifts', express.json({ limit: '32kb' }), gifts(env, db, verify));
   app.use('/api/v1/imports', imports(env, db, verify));
+  app.use('/api/v1/ask-data', askData(env, db, verify));
   app.use(createReportingRouter(env, db, verify));
   // Key-authenticated CIC dashboard routes (no Clerk session); aggregates only.
   app.use(createDashboardRouter(db, { offset: '-07:00', minDonors: 3, limitPerMinute: 60 }));

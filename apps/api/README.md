@@ -1,5 +1,12 @@
 # Core API foundation
 
+`POST /api/v1/ask-data` accepts only `{question}` (1–500 characters) and requires a member session.
+Supported intent includes visible/my donors; new/reactivated/increased/flat/decreased/lapsed/retained;
+settled/pending/void gifts; this/last year; USD/EUR/GBP/CAD/AUD/JPY; and strict “over” net thresholds.
+USD and current Phoenix year are explicit defaults. Unknown terms clarify instead of broadening.
+Results are bounded to 50 and RLS-scoped; no SQL or writes come from the model. The optional
+shared `OPENAI_*` adapter receives typed nonpersonal filters only and has a deterministic fallback.
+
 Requires Node 24+, `npm ci`, a migrated PostgreSQL database and Clerk instance.
 Copy root `.env.example` to `.env` and supply actual values privately. Configure
 `CIC_ORG_ID` to CIC's database organization UUID; callers cannot choose an org.
