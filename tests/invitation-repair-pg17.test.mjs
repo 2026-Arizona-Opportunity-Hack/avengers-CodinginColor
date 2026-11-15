@@ -54,6 +54,36 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
     await db.query("UPDATE schema_migrations SET sha256='drift' WHERE name='001_core.sql'");
     await assert.rejects(repairInvitationHistory(...args),/Unexpected catalog/);
     await db.query('UPDATE schema_migrations SET sha256=$1 WHERE name=$2',[owner.ledger[0].sha256,owner.ledger[0].name]);
+    await writeFile(paths[0],Buffer.from('tampered'));
+    await assert.rejects(repairInvitationHistory(...args),/Unapproved catalog baseline/);
+    await writeFile(paths[0],ownerBytes);
+    await writeFile(paths[1],Buffer.from('tampered'));
+    await assert.rejects(repairInvitationHistory(...args),/Unapproved catalog baseline/);
+    await writeFile(paths[1],funcBytes);
+    await db.query('GRANT cic_assignment TO rehearsal_actor WITH ADMIN FALSE, INHERIT FALSE, SET TRUE');
+    await assert.rejects(repairInvitationHistory(...args),/Unexpected catalog/);
+    await db.query('REVOKE cic_assignment FROM rehearsal_actor GRANTED BY rehearsal_actor');
+    for(const mode of ['failure','notice']) {
+      const query=db.query.bind(db); let injected=false;
+      db.query=async (...params) => {
+        const sql=params[0];
+        if(!injected && mode==='failure' && typeof sql==='string' && sql.startsWith('UPDATE schema_migrations SET')) {
+          injected=true; throw new Error('injected failure after ACL changes');
+        }
+        const result=await query(...params);
+        if(!injected && mode==='notice' && typeof sql==='string' && sql.startsWith('GRANT EXECUTE ON FUNCTION')) {
+          injected=true; db.emit('notice',{message:'injected notice'});
+        }
+        return result;
+      };
+      try { await assert.rejects(repairInvitationHistory(...args), mode==='failure'?/injected failure/:/Unexpected PostgreSQL notice/); }
+      finally { db.query=query; }
+      assert.equal(injected,true);
+      assert.deepEqual(await helper.catalog(db),owner);
+      assert.deepEqual(await helper.secdefs(db),funcs);
+      assert.equal(JSON.parse(await readFile(paths[2],'utf8')).length,17);
+      await rm(paths[2]);
+    }
     assert.equal(await repairInvitationHistory(...args),'repaired');
     assert.equal((await db.query('SELECT count(*)::int n FROM schema_migrations')).rows[0].n,18);
     assert.equal((await helper.secdefs(db)).filter(f=>f.public_execute).length,0);
