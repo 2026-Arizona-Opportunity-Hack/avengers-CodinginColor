@@ -61,7 +61,6 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     <aside class="rail" aria-label="Sidebar">
       <ng-container [ngTemplateOutlet]="brand" />
       <div class="mt-6 flex-1 overflow-y-auto pe-1"><ng-container [ngTemplateOutlet]="navList" /></div>
-      <p class="workspace"><span class="dot" [class.live]="store.live()" aria-hidden="true"></span>{{ store.live() ? 'Live workspace' : 'Demo workspace' }}</p>
     </aside>
 
     <div class="main-col">
@@ -192,9 +191,6 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     .nav-link.active ng-icon { color: var(--green-700); }
     .count { min-width: 20px; height: 18px; padding: 0 6px; display: inline-grid; place-items: center; border-radius: 6px;
       font-size: 11px; font-weight: 600; background: rgb(0 122 61 / 0.1); color: var(--green-700); }
-    .workspace { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 8px 12px; font-size: 12px; color: var(--ink-600); }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--attention); flex: none; }
-    .dot.live { background: var(--green-500); }
 
     .topbar {
       position: sticky; top: 0; z-index: 20; height: var(--topbar-h);
