@@ -21,7 +21,7 @@ type Sort = 'name' | 'lifetime' | 'recent';
         </div>
         <div class="actions">
           @if (store.isAdmin() && !store.live()) { <a hlmBtn variant="outline" routerLink="/import"><ng-icon name="lucideUpload" size="16" /> Import file</a> }
-          @if (!store.live()) { <a hlmBtn routerLink="/donors/new"><ng-icon name="lucideUserPlus" size="16" /> Add donor</a> }
+          <a hlmBtn routerLink="/donors/new"><ng-icon name="lucideUserPlus" size="16" /> Add donor</a>
         </div>
       </header>
 
