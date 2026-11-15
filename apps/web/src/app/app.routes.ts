@@ -28,7 +28,7 @@ export const routes: Routes = [
       { path: 'retention', title: 'Retention · Coding in Color', loadComponent: () => import('./pages/retention').then((m) => m.RetentionPage) },
       { path: 'funders', title: 'Funder reports · Coding in Color', canMatch: [adminOnly], loadComponent: () => import('./pages/funders').then((m) => m.FundersPage) },
       { path: 'api', title: 'Read API · Coding in Color', canMatch: [adminOnly], loadComponent: () => import('./pages/api-access').then((m) => m.ApiAccessPage) },
-      { path: 'settings', title: 'Settings · Coding in Color', canMatch: [adminOnly, demoOnly], loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage) },
+      { path: 'settings', title: 'Settings · Coding in Color', canMatch: [adminOnly], loadComponent: () => import('./pages/settings').then((m) => m.SettingsPage) },
       { path: 'not-connected', title: 'Not connected yet · Coding in Color', loadComponent: () => import('./pages/not-connected').then((m) => m.NotConnectedPage) },
       { path: 'account', title: 'Account · Coding in Color', loadComponent: () => import('./pages/account').then((m) => m.AccountPage) },
     ],
