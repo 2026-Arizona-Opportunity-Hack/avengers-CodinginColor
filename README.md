@@ -116,6 +116,9 @@ uses synthetic review state; deployed signed-in acceptance remains pending.
 
 ## Tech stack
 
+The [current mobile accessibility audit](docs/audits/mobile-accessibility-2026-11-15.md)
+records 18 demo routes at 390px, Lighthouse scores, keyboard checks and remaining live acceptance gaps.
+
 - Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.
 - Backend: Node.js 24.15+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
 - Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.

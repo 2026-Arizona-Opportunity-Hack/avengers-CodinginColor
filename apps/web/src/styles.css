@@ -326,6 +326,7 @@
 
   /* Panels, lists, empty states */
   .panel {
+      min-width: 0;
     border-radius: var(--r-surface); background: var(--glass);
     border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow);
   }

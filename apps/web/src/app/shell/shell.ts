@@ -201,7 +201,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       display: flex; align-items: center; gap: 8px; padding: 0 16px 0 20px; border-bottom: 1px solid rgb(15 26 21 / 0.06);
     }
     .search {
-      display: flex; align-items: center; gap: 10px; height: 36px; width: min(420px, 100%); padding: 0 8px 0 12px;
+      display: flex; align-items: center; gap: 10px; height: 36px; width: min(420px, 100%); min-width: 0; padding: 0 8px 0 12px;
       border-radius: var(--r-control); border: 1px solid rgb(15 26 21 / 0.08); background: var(--control-bg);
       color: var(--ink-600); font-size: 13.5px; cursor: pointer; transition: background-color 120ms var(--ease-out);
     }
