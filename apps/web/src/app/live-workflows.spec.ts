@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { Api, ApiError, type LiveStatus } from './core/api';
 import { provideRouter, Router } from '@angular/router';
+import { GiftEntry } from './pages/gift-entry';
 import { DonorNewPage, moneyCents, validGiftDate } from './pages/donor-new';
 import { Store } from './core/store';
 
@@ -295,5 +296,36 @@ describe('manual donor and gift persistence', () => {
     expect(gifts).toHaveLength(2); expect(gifts[1][1]?.body).toBe(firstGift[1]?.body);
     expect(store.allGifts().filter(g => g.id === 'gift')).toHaveLength(1);
     expect(navigate).toHaveBeenCalledWith(['/donors', 'new']);
+  });
+});
+
+
+describe('existing donor gift form', () => {
+  it('validates refunds, saves explicit currency/status and clears retry state when the donor changes', async () => {
+    const { store, api } = session(); await store.refreshLive();
+    const fixture = TestBed.createComponent(GiftEntry);
+    fixture.componentRef.setInput('donorId', 'donor'); fixture.detectChanges();
+    const set = (name: string, value: string) => {
+      const field = fixture.nativeElement.querySelector(`[name="${name}"]`) as HTMLInputElement;
+      field.value = value;
+    };
+    const submit = async () => { fixture.nativeElement.querySelector('form').dispatchEvent(new Event('submit', {cancelable:true})); await fixture.whenStable(); fixture.detectChanges(); };
+    set('amount', '10.29'); set('refund', '11'); set('currency', 'EUR'); set('status', 'pending');
+    const before = api.request.mock.calls.length; await submit();
+    expect(api.request.mock.calls).toHaveLength(before);
+    expect(fixture.nativeElement.textContent).toContain('refund between zero and the amount');
+    set('refund', '0.29'); api.request.mockRejectedValueOnce(new ApiError(503)); await submit();
+    const facts = JSON.parse(String(api.request.mock.calls.at(-1)?.[1]?.body));
+    expect(facts).toMatchObject({ donor_id:'donor',amount_cents:1029,refund_cents:29,currency:'EUR',status:'pending' });
+    expect(store.allGifts()).toEqual([]);
+    fixture.componentRef.setInput('donorId', 'another-donor'); fixture.detectChanges();
+    set('amount', '12'); set('refund', '0');
+    api.request.mockImplementationOnce(async (_p, init) => ({...JSON.parse(String(init?.body)),id:'saved',source:'manual'}));
+    await submit();
+    const next = JSON.parse(String(api.request.mock.calls.at(-1)?.[1]?.body));
+    expect(next.donor_id).toBe('another-donor'); expect(next.external_id).not.toBe(facts.external_id);
+    expect(store.selectedCurrency()).toBe('EUR');
+    expect(store.allGifts()[0]).toMatchObject({id:'saved',amount_cents:1200});
+    expect(fixture.nativeElement.textContent).toContain('Gift saved to the timeline.');
   });
 });
