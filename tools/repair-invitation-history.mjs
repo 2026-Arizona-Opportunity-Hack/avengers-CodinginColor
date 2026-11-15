@@ -13,7 +13,8 @@ const hash = s => createHash('sha256').update(s).digest('hex');
 const lf = s => s.replaceAll('\r\n','\n');
 const variants = s => new Set([hash(s),hash(lf(s)),hash(lf(s).replaceAll('\n','\r\n'))]);
 const identifier = s => '"' + s.replaceAll('"','""') + '"';
-const stable = x => JSON.stringify(x).replaceAll('\\r\\n','\\n');
+const aclOrder = value => typeof value === 'string' && value.startsWith('{') ? `{${value.slice(1,-1).split(',').sort().join(',')}}` : value;
+const stable = x => JSON.stringify(x, (key,value) => key === 'proacl' ? aclOrder(value) : value).replaceAll('\\r\\n','\\n');
 const targets = {
   cic_assignment: ['admin_members()', 'assignable_owners()', 'claim_staff_invitation(text,uuid,text)',
     'create_assigned_donor(text,text,text,text,jsonb)', 'create_donor_once(uuid,text,text,text,text,jsonb)',
@@ -63,7 +64,7 @@ function expectedAfter(owner, functions, files) {
   for (const [role,names] of Object.entries(targets)) for (const name of names) {
     const entry = afterFunctions.find(f => f.signature === name);
     if (!entry || entry.owner !== role || entry.public_execute !== true ||
-        entry.proacl !== `{=X/${role},${role}=X/${role}}`) throw new Error('Unexpected function ACL baseline');
+        aclOrder(entry.proacl) !== aclOrder(`{=X/${role},${role}=X/${role}}`)) throw new Error('Unexpected function ACL baseline');
     entry.proacl = `{${role}=X/${role},cic_runtime=X/${role}}`;
     entry.public_execute = false;
     const invitation = afterOwner.functions.find(f => f.signature === name);
