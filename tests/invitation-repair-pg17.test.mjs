@@ -84,6 +84,11 @@ test('guarded history adoption and ACL hardening on disposable PostgreSQL 17', {
     await drift('GRANT CREATE ON SCHEMA public TO rehearsal_actor','REVOKE CREATE ON SCHEMA public FROM rehearsal_actor');
     await drift('REVOKE ADMIN OPTION FOR cic_assignment FROM rehearsal_actor GRANTED BY rehearsal_cloud',
       'GRANT cic_assignment TO rehearsal_actor WITH ADMIN TRUE, INHERIT FALSE, SET FALSE GRANTED BY rehearsal_cloud');
+    await writeFile(paths[2],'sentinel');
+    await assert.rejects(repairInvitationHistory(...args),error=>error.code==='EEXIST');
+    assert.equal(await readFile(paths[2],'utf8'),'sentinel');
+    assert.deepEqual(await helper.catalog(db),owner); assert.deepEqual(await helper.secdefs(db),funcs);
+    await rm(paths[2]);
     for(const mode of ['failure','notice']) {
       const query=db.query.bind(db); let injected=false;
       db.query=async (...params) => {
