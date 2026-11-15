@@ -103,10 +103,13 @@ export class Api {
     if (!token) throw new ApiError(401);
     let res: Response;
     try {
+      const headers = new Headers(init.headers);
+      if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
+      headers.set('Authorization', `Bearer ${token}`);
       res = await fetch(`${this.config.apiBase}${path}`, {
         ...init,
         credentials: 'omit',
-        headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}` },
+        headers,
       });
     } catch {
       throw new ApiError(0);
