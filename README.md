@@ -59,8 +59,8 @@ produces the funder report CIC needs, without re-keying anything.
 What's built on `main` (API, database and rules):
 - **Import:** CSV exports are uploaded privately, mapped and validated. Dates are confirmed, never
   guessed, and cents are exact. An admin reviews each import before an atomic commit, and
-  re-importing the same file adds no duplicate gifts (`apps/api/imports.ts`). XLSX workbooks can
-  be previewed with a bounded local tool (`tools/import-xlsx.ts`); XLSX upload through the API is in progress (#94).
+  re-importing the same file adds no duplicate gifts (`apps/api/imports.ts`). XLSX uploads use the
+  same reviewed API flow, with bounded workbook parsing and original-file fingerprints (#105).
 - **Donors and gifts:** one record per donor with an owner, a gift ledger with audited corrections,
   and admin reassignment that moves open follow-ups along with the donor.
 - **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
@@ -74,7 +74,7 @@ What's built on `main` (API, database and rules):
   (board members see only their own donors), and audit events for changes, sends and exports.
 
 The backend above is built and tested. Still in progress is connecting the web screens to it: the
-live import screen (#106), XLSX upload through the API (#94), Follow-ups and API keys (#48), and
+live import screen (#106), remaining Follow-ups integration (#48), and
 the Funder reports screen, which still builds its CSV in the browser instead of downloading the
 server's audited export. Until a full-stack deploy is live (#30), the hosted app runs on synthetic
 demo data in the browser.
