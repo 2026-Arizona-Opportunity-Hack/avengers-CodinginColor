@@ -208,17 +208,18 @@ export class Store {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
       if (generation !== this.liveLoadGeneration) return;
       const request: outreach.Request = (path, init) => this.api.request(path, init);
-      const [followUps, drafts, apiKeys, gifts, communications, catalog] = await Promise.all([
+      const [followUps, drafts, apiKeys, gifts, communications, catalog, owners] = await Promise.all([
         outreach.loadFollowUps(request, me.role === 'admin' ? 'all' : 'mine'),
         outreach.loadDrafts(request),
         me.role === 'admin' ? outreach.loadApiKeys(request) : Promise.resolve([]),
         history.loadGifts(request), history.loadContacts(request), history.loadCatalog(request),
+        me.role === 'admin' ? request<{ items: Array<{ id: string }> }>('/api/v1/owners').then(r => r.items) : Promise.resolve([]),
       ]);
       if (generation !== this.liveLoadGeneration) return;
       const current = this.data();
       const queues = outreachGeneration === this.outreachLoadGeneration ? { followUps, drafts, communications }
         : { followUps: current.followUps, drafts: current.drafts, communications: current.communications };
-      this.loadLive(me, donors);
+      this.loadLive(me, donors, owners);
       this.data.update((d) => ({ ...d, ...queues, ...catalog, gifts, apiKeys }));
       this.api.status.set('ready');
     } catch (e) {
@@ -237,14 +238,15 @@ export class Store {
   }
 
   /**
-   * There is no member directory route yet, so other owners show a short ID until one exists.
+   * The owner directory exposes IDs only; names and contacts are not inferred from identities.
    * Visibility comes from the server: board members only ever receive their own donors.
    */
-  private loadLive(me: ApiMe, donors: ApiDonor[]) {
+  private loadLive(me: ApiMe, donors: ApiDonor[], owners: Array<{ id: string }> = []) {
     const newSession = !this.members().length || this.sessionId() !== me.id;
     this.rawMetadata.clear();
     for (const d of donors) this.rawMetadata.set(d.id, d.metadata ?? {});
-    const others = [...new Set(donors.map((d) => d.owner_id).filter((id): id is string => !!id && id !== me.id))];
+    const others = [...new Set([...owners.map(o => o.id), ...donors.map(d => d.owner_id)]
+      .filter((id): id is string => !!id && id !== me.id))];
     const members: Member[] = [
       { id: me.id, name: 'You', email: '', role: me.role, title: me.role === 'admin' ? 'Administrator' : 'Board member', active: true },
       ...others.map((id) => ({ id, name: `Member ${id.slice(0, 6)}`, email: '', role: 'board' as const, title: 'Board member', active: true })),
@@ -324,7 +326,16 @@ export class Store {
 
   async reassign(id: string, ownerId: string): Promise<boolean> {
     if (!this.isAdmin()) return false;
-    if (this.live()) { this.notice.set(NOT_CONNECTED); return false; }
+    if (this.live()) {
+      const epoch = this.sessionEpoch();
+      return this.outreachWrite(async request => {
+        await request(`/api/v1/donors/${encodeURIComponent(id)}/owner`, {
+          method: 'POST', body: JSON.stringify({ owner_id: ownerId }),
+        });
+        const donor = await request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(id)}`);
+        if (epoch === this.sessionEpoch()) this.putDonor(donor);
+      });
+    }
     this.mutate((d) => { d.donors.find((x) => x.id === id)!.owner_id = ownerId; }, 'donor.reassign', id);
     return true;
   }
