@@ -1,5 +1,9 @@
 # avengers — Coding in Color
 
+The live **Ask your data** screen finds authorized active donors by retention, gift status,
+currency and net giving threshold. It explains its filters, asks for clarification on unsupported
+wording, and works without model keys. Questions and donor records never go to the optional model.
+
 Built at [ASU Fall Hackathon 2026 | Phoenix Hackathon for Nonprofits: Nov 14-15](https://www.ohack.dev/hack/fall-2026) for the public good (MIT license).
 
 > **⚠️ This is your team's ONE repository — all code goes here.** Please don't create
