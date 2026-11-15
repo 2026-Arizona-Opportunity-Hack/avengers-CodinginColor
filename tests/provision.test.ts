@@ -124,6 +124,38 @@ test('CLI reports invalid roster JSON without echoing any of the file', async (t
   for (const secret of ['SENSITIVE', 'user_2Secret', 'jordan@']) assert.ok(!output.includes(secret), output);
 });
 
+test('unknown roster keys are rejected without echoing their names', async () => {
+  // Review on #35: Zod's strict-object message quotes the unrecognized key verbatim.
+  const never = { query: async () => assert.fail('validation must happen before any query') };
+  const roster = { organization: { name: 'CIC', SENSITIVE_user_Secret_org: 'x' },
+    members: [{ clerk_subject: 'user_2AdminCeo', role: 'admin', SENSITIVE_jordan_member: true }],
+    'SENSITIVE_user_Secret@example.org': 1 };
+  await assert.rejects(provision(never, ORG, roster), (error: Error) => {
+    assert.match(error.message, /Unrecognized field/);
+    assert.ok(!error.message.includes('SENSITIVE'), error.message);
+    return true;
+  });
+});
+
+test('CLI validates the roster before connecting and never prints unknown key names', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'cic-provision-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const file = join(dir, 'roster.json');
+  await writeFile(file, JSON.stringify({ organization: { name: 'CIC', 'SENSITIVE_user_Secret@example.org': 1 },
+    members: [{ clerk_subject: 'user_2AdminCeo', role: 'admin' }] }));
+  const script = fileURLToPath(new URL('../db/provision.ts', import.meta.url));
+  const child = spawn(process.execPath, [script, file], {
+    env: { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot, CIC_ORG_ID: ORG,
+      MIGRATION_DATABASE_URL: 'postgresql://127.0.0.1:1/unreachable' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let output = '';
+  child.stdout.on('data', (c) => { output += c; });
+  child.stderr.on('data', (c) => { output += c; });
+  const [code] = await once(child, 'exit');
+  assert.equal(code, 1);
+  assert.match(output, /Unrecognized field/);
+  assert.ok(!output.includes('SENSITIVE') && !output.includes('example.org'), output);
+});
+
 test('refuses the runtime login and roles that cannot bypass row-level security', async (t) => {
   const { db, client } = await database(t);
   await db.exec(`CREATE ROLE cic_app_test NOLOGIN NOINHERIT NOBYPASSRLS; GRANT cic_runtime TO cic_app_test;
