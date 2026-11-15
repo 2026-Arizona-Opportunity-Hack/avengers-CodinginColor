@@ -85,3 +85,47 @@ lapsed, plus dormant). It also includes a fully refunded gift, pending gifts, gi
 with no campaign, three sources, and two foundations with program-restricted gifts
 for the funder packet. It **refuses** to run against an organization that already has
 any non-demo donor, and it refuses the runtime login. Tests: `node --test tests/seed-demo.test.ts`.
+
+## Dashboard API keys (`004_reporting_api.sql`, #29)
+
+- **`api_keys`** stores only a SHA-256 `key_hash`, a short `hint`, `scopes`
+  (`read:aggregates`) and `revoked_at`.
+  - Admins create and revoke keys through `cic_runtime`.
+  - Revocation is one-way, and there's no delete.
+  - **Runtime can never select `key_hash`.**
+- **`cic_reporting`** is a non-login definer role.
+  - The migration fails if it already exists with unsafe attributes or memberships.
+  - Its column grants exclude every donor contact field.
+- It owns three functions, executable only by `cic_runtime`:
+  - `cic_reporting_gifts(key_hash, from, to)` (window ≤ 1830 days)
+  - `cic_reporting_recent(key_hash, limit 1-100)`
+  - `cic_reporting_programs(key_hash)`
+
+  Each resolves the organization from an active key with the right scope, returns that
+  org's non-void gift rows (internal UUIDs and amounts only), and raises `Invalid API
+  key` otherwise.
+- The API turns those rows into suppressed aggregates with `packages/reporting/summary.ts`;
+  per-gift rows never leave the server. Tests: `node --test tests/reporting-api.test.ts`.
+
+## Outreach tables (`005_outreach.sql`, #47)
+
+`follow_ups`, `drafts` and `communications` follow **donor visibility**: board
+members see and act only on their own donors' rows; admins see the organization's.
+Runtime has column-level grants and **no DELETE** on any of them.
+
+- **`follow_ups`:**
+  - New tasks belong to the donor's current owner.
+  - Quarterly touches are unique per donor and quarter. Generate them with
+    `ON CONFLICT (org_id, donor_id, quarter) WHERE kind = 'quarterly' DO NOTHING`.
+  - `completed_by` must be the acting member.
+  - Runtime cannot change `owner_id`; moving open tasks on reassignment is a core
+    follow-up to `reassign_donor`.
+- **`drafts`:** a non-draft status always carries an `approval_hash`. A trigger drops
+  the approval whenever `subject` or `body` changes, and refuses any change once a
+  draft is `sent` or `logged`. Runtime cannot change `recipient` or `channel`.
+- **`communications`:** insert-only, written by the acting member.
+  - A unique index allows only one delivered or manually logged record per approval
+    hash, so a double send fails.
+  - A failed delivery can never be `qualifying`.
+
+Rules for queues and messages live in `packages/outreach`. Tests: `node --test tests/outreach-db.test.ts`.

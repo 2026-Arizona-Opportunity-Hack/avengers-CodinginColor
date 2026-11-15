@@ -11,7 +11,8 @@ const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12,
 test('donor HTTP routes enforce scope, validation, atomic audit and archive history', async t => {
   const sql = new PGlite();
   t.after(() => sql.close());
-  await sql.exec(await readFile(new URL('../../db/migrations/001_core.sql', import.meta.url), 'utf8'));
+  for (const file of ['001_core.sql','002_assignment.sql','003_owner_override.sql'])
+    await sql.exec(await readFile(new URL('../../db/migrations/' + file, import.meta.url), 'utf8'));
   await sql.query("INSERT INTO organizations(id,name) VALUES($1,'CIC'),($2,'Other')", [id(1),id(2)]);
   await sql.query("INSERT INTO memberships(id,org_id,clerk_subject,role) VALUES ($1,$4,'board','board'),($2,$4,'other','board'),($3,$4,'admin','admin'),($5,$6,'foreign','board')", [id(3),id(4),id(5),id(1),id(6),id(2)]);
   for (const [n, org, owner, name] of [[10,1,3,'Same'],[11,1,3,'Same'],[12,1,4,'Other'],[13,2,6,'Foreign']] as const)
@@ -28,6 +29,7 @@ test('donor HTTP routes enforce scope, validation, atomic audit and archive hist
   const env = EnvSchema.parse({ DATABASE_URL:'postgresql://localhost/test', CIC_ORG_ID:id(1), CLERK_SECRET_KEY:'sk_test_fixture', CLERK_JWT_ISSUER:'https://example.clerk.accounts.dev', APP_ORIGIN:'http://localhost:4200' });
   const server = createApp(env, db, async header => {
     if (header === 'Bearer board') return { subject:'board', mfa:false };
+    if (header === 'Bearer other') return { subject:'other', mfa:false };
     if (header === 'Bearer admin') return { subject:'admin', mfa:true };
     throw new HttpError(401);
   }).listen(0, '127.0.0.1');
@@ -37,6 +39,7 @@ test('donor HTTP routes enforce scope, validation, atomic audit and archive hist
   const base = `http://127.0.0.1:${address.port}/api/v1/donors`;
   const request = (path = '', options: RequestInit = {}, role = 'board') => fetch(base + path, { ...options, headers: { Authorization:`Bearer ${role}`, ...options.headers } });
   const patch = (value: unknown) => ({ method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value) });
+  const post = (value: unknown) => ({ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value) });
   const preflight = await request('', {method:'OPTIONS', headers:{Origin:env.APP_ORIGIN}});
   assert.equal(preflight.status,204);
   assert.equal(preflight.headers.get('access-control-allow-methods'),'GET, POST, PATCH');
@@ -82,7 +85,64 @@ test('donor HTTP routes enforce scope, validation, atomic audit and archive hist
   assert.deepEqual(body.items.map(row => row.id),[id(11)]);
   body = await (await request('?archived=true')).json() as typeof body;
   assert.deepEqual(body.items.map(row => row.id),[id(10)]);
+  for (const value of [{}, {name:'No contact',consent:'maybe',metadata:{}},
+    {name:'No contact',consent:'granted',metadata:[],email:'bad'},
+    {name:'No contact',consent:'granted',metadata:{},owner_id:id(3)}])
+    assert.equal((await request('',post(value))).status,400,JSON.stringify(value));
+  response = await request('',post({name:' Ada Lovelace ',email:null,consent:'granted',metadata:{source:'fixture'}}));
+  assert.equal(response.status,201);
+  const created = await response.json() as { id:string; owner_id:string };
+  assert.deepEqual(Object.keys(created).sort(),['id','owner_id']);
+  const subjects = new Map([[id(3),'board'],[id(4),'other']]);
+  const owner = subjects.get(created.owner_id); assert.ok(owner);
+  const outsider = owner === 'board' ? 'other' : 'board';
+  const outsiderId = owner === 'board' ? id(4) : id(3);
+  assert.equal((await request('/'+created.id,{},owner)).status,200);
+  assert.equal((await request('/'+created.id,{},outsider)).status,404);
+  assert.equal((await request('/'+created.id,{},'admin')).status,200);
+  for (const value of [{},{owner_id:'bad'},{owner_id:outsiderId,role:'admin'}])
+    assert.equal((await request('/'+created.id+'/owner',post(value),'admin')).status,400,JSON.stringify(value));
+  assert.equal((await request('/'+created.id+'/owner',patch({owner_id:outsiderId}),'admin')).status,404);
+  assert.equal((await request('/'+created.id+'/owner',post({owner_id:outsiderId}))).status,403);
+  assert.equal((await request('/'+id(99)+'/owner',post({owner_id:outsiderId}),'admin')).status,404);
+  assert.equal((await request('/'+created.id+'/owner',post({owner_id:id(5)}),'admin')).status,409);
+  assert.equal((await request('/'+created.id+'/owner',post({owner_id:id(99)}),'admin')).status,409);
+  response = await request('/'+created.id+'/owner',post({owner_id:outsiderId}),'admin');
+  assert.equal(response.status,200);
+  const reassigned = await response.json() as { id:string; owner_id:string };
+  assert.deepEqual(Object.keys(reassigned).sort(),['id','owner_id']);
+  assert.deepEqual([reassigned.id,reassigned.owner_id],[created.id,outsiderId]);
+  assert.equal((await request('/'+created.id,{},outsider)).status,200);
+  assert.equal((await request('/'+created.id,{},owner)).status,404);
   await sql.exec('SET SESSION AUTHORIZATION postgres; RESET ROLE');
   assert.equal((await sql.query<{n:number}>('SELECT count(*)::int AS n FROM gifts WHERE donor_id=$1',[id(10)])).rows[0].n,1);
-  assert.deepEqual((await sql.query('SELECT action FROM audit_events ORDER BY action')).rows, [{action:'donor.archive'},{action:'donor.update'}]);
+  assert.deepEqual((await sql.query('SELECT action FROM audit_events ORDER BY action')).rows,
+    [{action:'donor.archive'},{action:'donor.create'},{action:'donor.reassign'},{action:'donor.update'}]);
+});
+test('creation returns 409 and writes nothing when the organization has no eligible board owner', async t => {
+  const sql = new PGlite();
+  t.after(() => sql.close());
+  for (const file of ['001_core.sql','002_assignment.sql','003_owner_override.sql'])
+    await sql.exec(await readFile(new URL('../../db/migrations/' + file, import.meta.url), 'utf8'));
+  await sql.query("INSERT INTO organizations(id,name) VALUES($1,'CIC')", [id(1)]);
+  await sql.query("INSERT INTO memberships(id,org_id,clerk_subject,role) VALUES($1,$2,'admin','admin')", [id(5),id(1)]);
+  await sql.exec('CREATE ROLE donor_test LOGIN NOINHERIT; GRANT cic_runtime TO donor_test; SET SESSION AUTHORIZATION donor_test');
+  const db: Database = { connect: async () => ({
+    query: (text, values) => sql.query<Record<string, unknown>>(text, values), release: () => {},
+  }) };
+  const env = EnvSchema.parse({ DATABASE_URL:'postgresql://localhost/test', CIC_ORG_ID:id(1), CLERK_SECRET_KEY:'sk_test_fixture', CLERK_JWT_ISSUER:'https://example.clerk.accounts.dev', APP_ORIGIN:'http://localhost:4200' });
+  const server = createApp(env, db, async header => {
+    if (header === 'Bearer admin') return { subject:'admin', mfa:true };
+    throw new HttpError(401);
+  }).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
+  const address = server.address(); assert.ok(address && typeof address !== 'string');
+  const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/donors`, { method:'POST',
+    headers:{Authorization:'Bearer admin','Content-Type':'application/json'},
+    body:JSON.stringify({name:'Unowned',consent:'granted',metadata:{}}) });
+  assert.equal(response.status,409);
+  await sql.exec('SET SESSION AUTHORIZATION postgres; RESET ROLE');
+  assert.equal((await sql.query<{n:number}>('SELECT count(*)::int AS n FROM donors')).rows[0].n,0);
+  assert.equal((await sql.query<{n:number}>('SELECT count(*)::int AS n FROM audit_events')).rows[0].n,0);
 });

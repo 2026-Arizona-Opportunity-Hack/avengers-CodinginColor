@@ -6,6 +6,7 @@ import type { Identity } from './auth.ts';
 import { donors } from './donors.ts';
 import { gifts } from './gifts.ts';
 import { createReportingRouter } from './reporting.ts';
+import { createDashboardRouter } from './dashboard.ts';
 
 export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
   const app = express();
@@ -34,6 +35,8 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.use('/api/v1/donors', express.json({ limit: '32kb' }), donors(env, db, verify));
   app.use('/api/v1/gifts', express.json({ limit: '32kb' }), gifts(env, db, verify));
   app.use(createReportingRouter(env, db, verify));
+  // Key-authenticated CIC dashboard routes (no Clerk session); aggregates only.
+  app.use(createDashboardRouter(db, { offset: '-07:00', minDonors: 3, limitPerMinute: 60 }));
   app.use((_req, _res, next) => next(new HttpError(404)));
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error instanceof HttpError ? error.status : error?.type === 'entity.parse.failed' ? 400 : error?.type === 'entity.too.large' ? 413 : 503;

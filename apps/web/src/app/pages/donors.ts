@@ -19,7 +19,7 @@ type Sort = 'name' | 'lifetime' | 'recent';
         </div>
         <div class="actions">
           @if (store.isAdmin()) { <a class="btn" routerLink="/import">Import file</a> }
-          <a class="btn primary" routerLink="/donors/new">Add donor</a>
+          @if (!store.live()) { <a class="btn primary" routerLink="/donors/new">Add donor</a> }
         </div>
       </header>
 

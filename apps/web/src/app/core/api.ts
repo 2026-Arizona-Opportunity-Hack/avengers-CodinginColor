@@ -1,0 +1,140 @@
+import { Injectable, signal } from '@angular/core';
+import type { Clerk } from '@clerk/clerk-js';
+import type { Consent, Role } from './models';
+
+/**
+ * Live connection to apps/api. Configured at runtime by /config.json so one build serves
+ * demo and production; with no config the app stays in demo mode. Both values are public:
+ * a Clerk publishable key is safe in the browser, and the API checks every request.
+ */
+export interface LiveConfig { apiBase: string; clerkPublishableKey: string; }
+
+export type LiveStatus = 'off' | 'loading' | 'signed-out' | 'ready' | 'error';
+
+export interface ApiMe { id: string; org_id: string; role: Role; }
+export interface ApiDonor {
+  id: string; org_id: string; owner_id: string | null; name: string; email: string | null; phone: string | null;
+  consent: Consent; metadata: Record<string, unknown>; archived_at: string | null;
+}
+export interface ApiDonorPatch {
+  name?: string; email?: string | null; phone?: string | null; consent?: Consent; metadata?: Record<string, unknown>;
+}
+export interface ApiSegmentTotals { donors: number; prior_cents: number; current_cents: number; }
+export interface ApiRetention {
+  as_of: string;
+  windows: { current: { from: string; to: string }; prior: { from: string; to: string } };
+  byCurrency: Record<string, {
+    donors: { donor_id: string; segment: string; prior_cents: number; current_cents: number; name: string | null }[];
+    segments: Record<string, ApiSegmentTotals>;
+    retention: { retained_donors: number; prior_donors: number };
+    totals: { prior_cents: number; current_cents: number };
+  }>;
+}
+
+export class ApiError extends Error {
+  constructor(readonly status: number) {
+    super(status === 401 ? 'Your session ended. Sign in again.'
+      : status === 403 ? 'You do not have access to that.'
+      : status === 404 ? 'That record was not found or is not yours.'
+      : status === 429 ? 'Too many requests. Wait a moment and try again.'
+      : status === 0 ? 'Cannot reach the server.'
+      : status >= 500 ? 'The server is unavailable. Try again shortly.'
+      : 'The server rejected the request.');
+  }
+}
+
+const API_BASE = /^(https:\/\/[^\s/]+|http:\/\/localhost(:\d+)?)?$/;
+
+export async function loadLiveConfig(): Promise<LiveConfig | null> {
+  try {
+    const res = await fetch('config.json', { cache: 'no-store' });
+    if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null;
+    const raw = (await res.json()) as Partial<LiveConfig>;
+    const apiBase = typeof raw.apiBase === 'string' ? raw.apiBase.replace(/\/$/, '') : null;
+    const key = raw.clerkPublishableKey;
+    if (apiBase === null || !API_BASE.test(apiBase) || typeof key !== 'string' || !/^pk_(test|live)_\S+$/.test(key)) return null;
+    return { apiBase, clerkPublishableKey: key };
+  } catch {
+    return null;
+  }
+}
+
+@Injectable({ providedIn: 'root' })
+export class Api {
+  readonly status = signal<LiveStatus>('off');
+  readonly error = signal<string | null>(null);
+  private config: LiveConfig | null = null;
+  private clerk: Clerk | null = null;
+
+  /** Loads Clerk only in live mode, so demo builds never fetch it. */
+  async start(config: LiveConfig, onSignedIn: () => void, onSignedOut: () => void) {
+    this.config = config;
+    this.status.set('loading');
+    try {
+      const { Clerk } = await import('@clerk/clerk-js');
+      this.clerk = new Clerk(config.clerkPublishableKey);
+      await this.clerk.load();
+      let hadSession = !!this.clerk.session;
+      if (hadSession) onSignedIn(); else this.status.set('signed-out');
+      this.clerk.addListener(({ session }) => {
+        if (session && !hadSession) { hadSession = true; onSignedIn(); }
+        if (!session && hadSession) { hadSession = false; onSignedOut(); this.status.set('signed-out'); }
+      });
+    } catch {
+      this.fail('Sign-in could not load. Check the Clerk publishable key in config.json.');
+    }
+  }
+
+  fail(message: string) {
+    this.error.set(message);
+    this.status.set('error');
+  }
+
+  canRetry() { return !!this.clerk?.session; }
+
+  mountSignIn(node: HTMLDivElement) { this.clerk?.mountSignIn(node); }
+  unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
+  async signOut() { await this.clerk?.signOut(); }
+
+  private async request<T>(path: string, init: RequestInit = {}, parse: 'json' | 'blob' = 'json'): Promise<T> {
+    if (!this.config || !this.clerk?.session) throw new ApiError(401);
+    const token = await this.clerk.session.getToken();
+    if (!token) throw new ApiError(401);
+    let res: Response;
+    try {
+      res = await fetch(`${this.config.apiBase}${path}`, {
+        ...init,
+        credentials: 'omit',
+        headers: { ...(init.body ? { 'Content-Type': 'application/json' } : {}), Authorization: `Bearer ${token}` },
+      });
+    } catch {
+      throw new ApiError(0);
+    }
+    if (!res.ok) throw new ApiError(res.status);
+    return (parse === 'blob' ? res.blob() : res.json()) as Promise<T>;
+  }
+
+  me() { return this.request<ApiMe>('/api/v1/me'); }
+
+  /** Every donor this member may see. The API caps a page at 100, so this pages until done. */
+  async allDonors(): Promise<ApiDonor[]> {
+    const all: ApiDonor[] = [];
+    for (let offset = 0; ; offset += 100) {
+      const page = await this.request<{ items: ApiDonor[] }>(`/api/v1/donors?limit=100&offset=${offset}`);
+      all.push(...page.items);
+      if (page.items.length < 100) return all;
+    }
+  }
+
+  patchDonor(id: string, patch: ApiDonorPatch) {
+    return this.request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(id)}`, { method: 'PATCH', body: JSON.stringify(patch) });
+  }
+
+  archiveDonor(id: string) {
+    return this.request<ApiDonor>(`/api/v1/donors/${encodeURIComponent(id)}/archive`, { method: 'POST' });
+  }
+
+  retention(asOf: string) {
+    return this.request<ApiRetention>(`/api/v1/reports/retention?asOf=${encodeURIComponent(asOf)}`);
+  }
+}

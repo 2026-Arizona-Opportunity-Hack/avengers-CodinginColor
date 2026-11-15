@@ -2,8 +2,22 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Store } from '../core/store';
 import { date, money, pct, today } from '../core/format';
-import { SEGMENTS, SEGMENT_COPY, Segment, retention, yearWindows, ytdWindows } from '../core/retention';
+import { RetentionResult, SEGMENTS, SEGMENT_COPY, Segment, retention, yearWindows, ytdWindows } from '../core/retention';
+import { Api, ApiError, ApiRetention } from '../core/api';
 import { SOURCE_LABEL } from '../core/models';
+
+/** Server report (USD) in the page's shape. Segment rules are identical; see core/retention.ts. */
+function fromServer(report: ApiRetention): RetentionResult {
+  const c = report.byCurrency['USD'];
+  const counts = Object.fromEntries(SEGMENTS.map((s) => [s, c?.segments[s]?.donors ?? 0])) as RetentionResult['counts'];
+  const cents = Object.fromEntries(SEGMENTS.map((s) => [s, { prior: c?.segments[s]?.prior_cents ?? 0, current: c?.segments[s]?.current_cents ?? 0 }])) as RetentionResult['cents'];
+  return {
+    windows: report.windows, counts, cents,
+    donors: (c?.donors ?? []).filter((d): d is typeof d & { segment: Segment } => (SEGMENTS as readonly string[]).includes(d.segment)),
+    retained: c?.retention.retained_donors ?? 0, priorDonors: c?.retention.prior_donors ?? 0,
+    totals: { prior: c?.totals.prior_cents ?? 0, current: c?.totals.current_cents ?? 0 },
+  };
+}
 
 @Component({
   selector: 'app-retention',
@@ -17,13 +31,16 @@ import { SOURCE_LABEL } from '../core/models';
           <p class="lede">Each donor who gave in either period is placed in exactly one segment by comparing net settled giving this period with last period.</p>
         </div>
         <div class="segmented" role="group" aria-label="Period">
-          @for (p of periods; track p.value) {
+          @for (p of store.live() ? periods.slice(0, 1) : periods; track p.value) {
             <button type="button" [attr.aria-pressed]="period() === p.value" (click)="period.set(p.value); selected.set(null)">{{ p.label }}</button>
           }
         </div>
       </header>
 
       <p class="window mono">{{ windowLabel() }}</p>
+      @if (store.live()) {
+        <p class="live-note" role="status">{{ serverError() ?? (server() ? 'Computed by the server from the gifts you can see.' : 'Loading the report from the server…') }}</p>
+      }
 
       <section class="stats" aria-label="Retention summary">
         <div class="stat"><p class="label">Retention rate</p><p class="value">{{ pct(r().retained, r().priorDonors) }}</p>
@@ -86,7 +103,7 @@ import { SOURCE_LABEL } from '../core/models';
               <tbody>
                 @for (d of drill(); track d.donor_id) {
                   <tr>
-                    <th scope="row"><a [routerLink]="['/donors', d.donor_id]">{{ store.donor(d.donor_id)?.name }}</a></th>
+                    <th scope="row"><a [routerLink]="['/donors', d.donor_id]">{{ store.donor(d.donor_id)?.name ?? serverNames().get(d.donor_id) }}</a></th>
                     <td>{{ store.member(store.donor(d.donor_id)?.owner_id ?? null)?.name }}</td>
                     <td class="num mono">{{ money(d.prior_cents) }}</td>
                     <td class="num mono">{{ money(d.current_cents) }}</td>
@@ -135,6 +152,7 @@ import { SOURCE_LABEL } from '../core/models';
             </table>
           </section>
         }
+        @if (!store.live()) {
         <section aria-labelledby="src-h">
           <div class="section-head"><h2 id="src-h">Where new donors came from</h2></div>
           <table class="table">
@@ -145,6 +163,7 @@ import { SOURCE_LABEL } from '../core/models';
             </tbody>
           </table>
         </section>
+        }
       </div>
     </div>
   `,
@@ -168,11 +187,16 @@ import { SOURCE_LABEL } from '../core/models';
     .swatch.dots { background: radial-gradient(var(--brand) 1.2px, var(--paper) 1.5px) 0 0 / 4px 4px; }
     .seg-btn { padding: 0; height: auto; font-weight: 600; }
     tr.picked { background: var(--wash); }
+    .live-note { font-size: 12.5px; margin: -8px 0 16px; }
     .drill { margin-top: 20px; padding: 16px 20px; border: 1px solid var(--rule); border-radius: var(--radius); }
   `,
 })
 export class RetentionPage {
   protected readonly store = inject(Store);
+  private readonly api = inject(Api);
+  protected readonly server = signal<RetentionResult | null>(null);
+  protected readonly serverError = signal<string | null>(null);
+  protected readonly serverNames = signal(new Map<string, string>());
   protected readonly money = money;
   protected readonly pct = pct;
   protected readonly copy = SEGMENT_COPY;
@@ -189,9 +213,11 @@ export class RetentionPage {
   protected readonly nudged = signal(new Set<string>());
 
   private readonly windows = computed(() => (this.period() === 'ytd' ? ytdWindows(this.now) : yearWindows(Number(this.period()))));
-  protected readonly r = computed(() => retention(this.store.gifts(), this.windows()));
+  protected readonly r = computed(() => this.store.live()
+    ? this.server() ?? retention([], this.windows())
+    : retention(this.store.gifts(), this.windows()));
   protected readonly windowLabel = computed(() => {
-    const w = this.windows();
+    const w = this.r().windows;
     const end = (s: string) => date(new Date(Date.parse(s) - 1).toISOString());
     return `This period ${date(w.current.from)} – ${end(w.current.to)} · last period ${date(w.prior.from)} – ${end(w.prior.to)}`;
   });
@@ -216,7 +242,9 @@ export class RetentionPage {
     return this.r().donors.filter((d) => d.segment === s).sort((a, b) => b.prior_cents + b.current_cents - (a.prior_cents + a.current_cents));
   });
 
-  protected readonly years = computed(() => [this.thisYear - 2, this.thisYear - 1, this.thisYear].map((year) => {
+  protected readonly years = computed(() => this.store.live()
+    ? [{ year: this.thisYear, r: this.r(), giving: this.r().counts.new + this.r().counts.reactivated + this.r().retained }]
+    : [this.thisYear - 2, this.thisYear - 1, this.thisYear].map((year) => {
     const r = retention(this.store.gifts(), year === this.thisYear ? ytdWindows(this.now) : yearWindows(year));
     return { year, r, giving: r.counts.new + r.counts.reactivated + r.retained };
   }).reverse());
@@ -239,6 +267,14 @@ export class RetentionPage {
     }
     return [...counts.entries()].map(([label, n]) => ({ label, n })).sort((a, b) => b.n - a.n);
   });
+
+  constructor() {
+    if (!this.store.live()) return;
+    this.api.retention(this.now).then((report) => {
+      this.server.set(fromServer(report));
+      this.serverNames.set(new Map((report.byCurrency['USD']?.donors ?? []).filter((d) => d.name).map((d) => [d.donor_id, d.name!])));
+    }).catch((e) => this.serverError.set(e instanceof ApiError ? e.message : 'The retention report could not load.'));
+  }
 
   protected signed(cents: number) {
     return `${cents > 0 ? '+' : cents < 0 ? '−' : ''}${money(Math.abs(cents))}`;
