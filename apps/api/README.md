@@ -23,6 +23,15 @@ checks current database membership. Admin tokens must contain a verified second
 factor (`fva[1] >= 0`); MFA enrollment alone grants no access.
 
 Database context and runtime role are transaction-local; failed transactions roll
-back, and failed rollback destroys the pooled connection. Tests use mocked Clerk,
-HTTP, and database clients; they do not prove live provider configuration or Neon
-connectivity. No donor or gift routes are implemented in this slice.
+back, and failed rollback destroys the pooled connection. Tests stub Clerk and include HTTP requests against PGlite with the migration and
+restricted role; they do not prove live provider configuration or Neon connectivity.
+
+Authenticated `GET /api/v1/donors` lists active donors with optional `q`,
+`owner_id`, `archived=true|false`, `limit` (1?100, default 25), and `offset`
+(default 0). Results are ordered by name then ID and include `items`, `limit`,
+and `offset`. `GET /api/v1/donors/:id` returns one donor, including archived
+records. Board members see only their own donors; admins see their organization's.
+`PATCH /api/v1/donors/:id` accepts a nonempty subset of name, email, phone,
+consent, and metadata. `POST /api/v1/donors/:id/archive` archives without
+deleting gifts. Both writes record an audit event in the same transaction.
+Inaccessible donors return 404. Donor creation and gift routes are not included.
