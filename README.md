@@ -90,6 +90,10 @@ Project requirements and delivery roles: [CIC Donor Platform Implementation Plan
 
 ## Run it locally
 
+Live administrators can reassign a donor to any active same-organization board
+member, including members without donors. Assignment and open-task transfer remain
+server-controlled and audited; board members cannot list other eligible owners.
+
 Live donor views load their scoped gift and contact history from the API. Logging
 a call, text, email or meeting persists a real communication and refreshes the queue;
 giving summaries separate currencies using the workspace currency selector.
