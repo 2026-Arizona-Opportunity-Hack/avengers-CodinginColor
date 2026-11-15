@@ -12,8 +12,10 @@ const gift = (id: string, occurred_at: string, amount_cents = 1000, refund_cents
 });
 function setup() {
   vi.spyOn(Date, 'now').mockReturnValue(Date.parse('2026-11-15T12:00:00-07:00'));
+  const gifts = signal<Gift[]>([]);
   const store = {
-    live: signal(false), signedIn: signal(true), sessionEpoch: signal(1), gifts: signal<Gift[]>([]), currency: signal('EUR'), followUps: signal([]),
+    live: signal(false), signedIn: signal(true), sessionEpoch: signal(1), gifts, ledgerGifts: gifts, currency: signal('EUR'), followUps: signal([]),
+    historicalDonor: () => ({ owner_id: 'member' }),
     donors: signal([{ id: 'visible', owner_id: 'member' }]), boardMembers: signal([{ id: 'member', name: 'Owner' }]),
     communications: signal([]), campaign: () => ({ program_id: 'program' }), program: () => ({ title: 'Academy' }),
     netCents: (g: Gift) => g.status === 'settled' ? g.amount_cents - g.refund_cents : 0,
@@ -36,6 +38,17 @@ it('uses net settled scoped gifts and the selected currency, including currency 
   expect(page.money(4500)).toContain('€'); expect(page.dollars(45)).toContain('€');
   store.currency.set('GBP'); expect(page.money(4500)).toContain('£');
   store.gifts.set([]); expect(page.r().totals.current).toBe(0); expect(page.byProgram()).toEqual([]);
+});
+
+it('keeps archived giving in overview totals, charts and owner raised amounts without restoring active workload', () => {
+  const { store, page } = setup();
+  store.donors.set([]);
+  store.ledgerGifts.set([gift('archived', '2026-06-01T12:00:00Z', 5029, 29)]);
+  expect(page.r().totals.current).toBe(5000);
+  expect(page.cum(2026)[5]).toBe(5000);
+  expect(page.byProgram()).toEqual([{ label: 'Academy', cents: 5000 }]);
+  expect(page.recentGifts().map(g => g.id)).toEqual(['archived']);
+  expect(page.portfolios()).toMatchObject([{ donors: 0, raised: 5000 }]);
 });
 
 it('uses Phoenix day and year boundaries consistently and excludes future gifts', () => {

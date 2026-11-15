@@ -96,7 +96,7 @@ import { SOURCE_LABEL } from '../core/models';
                 <span class="d-avatar" aria-hidden="true">{{ store.initials(name(d.donor_id)) }}</span>
                 <div class="min-w-0 flex-1">
                   <a class="font-semibold no-underline hover:underline" [routerLink]="['/donors', d.donor_id]">{{ name(d.donor_id) }}</a>
-                  <p class="sub">{{ store.member(store.donor(d.donor_id)?.owner_id ?? null)?.name ?? 'Owner not visible' }}</p>
+                  <p class="sub">{{ store.member(store.historicalDonor(d.donor_id)?.owner_id ?? null)?.name ?? 'Owner not visible' }}</p>
                 </div>
                 <div class="amounts"><span class="sub">{{ money(d.prior_cents) }}</span><ng-icon name="lucideArrowRight" size="13" aria-hidden="true" /><span class="font-semibold">{{ money(d.current_cents) }}</span></div>
                 @if (s === 'lapsed') {
@@ -244,7 +244,7 @@ export class RetentionPage {
   };
   protected readonly rate = computed(() => (this.r().priorDonors ? (this.r().retained / this.r().priorDonors) * 100 : 0));
   protected change(s: Segment) { return this.r().cents[s].current - this.r().cents[s].prior; }
-  protected name(id: string) { return this.store.donor(id)?.name ?? this.serverNames().get(id) ?? 'Donor'; }
+  protected name(id: string) { return this.store.historicalDonor(id)?.name ?? this.serverNames().get(id) ?? 'Donor'; }
   protected readonly maxSource = computed(() => Math.max(1, ...this.newBySource().map((s) => s.n)));
 
   private readonly periodNames = computed(() => {
@@ -311,7 +311,7 @@ export class RetentionPage {
   }).reverse());
 
   protected readonly byOwner = computed(() => this.store.boardMembers().filter(m => !this.scope.owner() || m.id === this.scope.owner()).map((m) => {
-    const mine = this.r().donors.filter((d) => this.store.donor(d.donor_id)?.owner_id === m.id);
+    const mine = this.r().donors.filter((d) => this.store.historicalDonor(d.donor_id)?.owner_id === m.id);
     return {
       name: m.name,
       kept: mine.filter((d) => ['increased', 'flat', 'decreased'].includes(d.segment)).length,

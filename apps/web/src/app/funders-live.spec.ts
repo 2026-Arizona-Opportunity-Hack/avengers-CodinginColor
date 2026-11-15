@@ -17,6 +17,7 @@ const packet: ApiFunderPacket = {
 function setup(admin = true) {
   const signedIn = signal(true), epoch = signal(1);
   const store = { donors: signal([{ id: 'funder', name: 'Example Foundation' }]),
+    historicalDonors: signal([{ id: 'funder', name: 'Example Foundation' }]),
     programs: signal([{ id: 'program', title: 'Academy' }]), isAdmin: signal(admin), signedIn, sessionEpoch: epoch };
   const api = { request: vi.fn(async (_path: string, _init?: RequestInit, _parse?: string): Promise<unknown> => packet) };
   TestBed.configureTestingModule({ providers: [{ provide: Store, useValue: store }, { provide: Api, useValue: api }] });
@@ -43,6 +44,16 @@ it('renders actual packet currencies, provenance and unavailable outcomes', asyn
   expect(f.api.request.mock.calls[0][0]).toContain('/api/v1/reports/funder-packet?funderId=funder&programId=program');
   const text = f.fixture.nativeElement.textContent;
   for (const fact of ['Example Foundation', 'USD', 'EUR', '11.34', '20.00', 'txn-1', 'Unattributed', 'does not mean zero']) expect(text).toContain(fact);
+});
+
+it('offers archived funders and requests their retained gift history', async () => {
+  const f = setup();
+  f.store.donors.set([]);
+  f.store.historicalDonors.set([{ id: 'archived-funder', name: 'Archived Foundation' }]);
+  await f.settle();
+  const select = f.fixture.nativeElement.querySelector('select') as HTMLSelectElement;
+  expect(select.options[0].value).toBe('archived-funder'); expect(select.options[0].textContent).toBe('Archived Foundation');
+  expect(f.api.request.mock.calls[0][0]).toContain('funderId=archived-funder');
 });
 
 it('shows reported zero as zero, separately from not-reported outcomes', async () => {

@@ -17,7 +17,7 @@ const report: ApiRetention = { as_of: '2026-11-15', windows: ytdWindows('2026-11
 for (const Page of [OverviewPage, RetentionPage]) {
   describe(Page.name, () => {
     function setup() {
-      const store = { live: signal(true), signedIn: signal(true), sessionEpoch: signal(1), currency: signal('EUR'), gifts: signal([]), donor: () => null };
+      const store = { live: signal(true), signedIn: signal(true), sessionEpoch: signal(1), currency: signal('EUR'), gifts: signal([]), ledgerGifts: signal([]), donor: () => null, historicalDonor: () => null };
       const api = { retention: vi.fn(async (): Promise<ApiRetention> => report) };
       TestBed.configureTestingModule({ providers: [{ provide: Store, useValue: store }, { provide: Api, useValue: api }] });
       const page = TestBed.runInInjectionContext(() => new Page()) as unknown as {
