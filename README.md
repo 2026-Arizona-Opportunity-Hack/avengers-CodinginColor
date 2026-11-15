@@ -6,7 +6,7 @@ shows each person's actual role: admins see the organization; board members see 
 assigned donors and related history and tasks. No Clerk, Neon or two-factor setup is needed. This
 public experience never loads live config or authentication, including with `?demo=0`. Demo edits and
 persona preferences are browser-local and survive refresh. Real accounts, roles and
-donor records are unaffected. Settings includes **Reset demo data**.
+donor records are unaffected. Settings includes **Reset demo data**. Fresh demo drafts use fictional conversation records and structured program interests, plus the selected donor's latest settled net gift. Existing saved drafts stay unchanged until you choose **Regenerate draft** in Follow-ups. Regeneration uses current local donor facts and clears approval; review and approve again before composing. Sent history is retained.
 
 The live **Ask your data** screen finds authorized active donors by retention, gift status,
 currency and net giving threshold. It explains its filters, asks for clarification on unsupported

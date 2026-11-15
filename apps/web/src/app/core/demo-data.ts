@@ -1,3 +1,4 @@
+import { personalizeDraft } from './draft-personalization';
 import {
   Campaign, Communication, Dataset, Donor, DonorKind, Draft, FollowUp, Gift, Member, Outcome, Source, Template,
 } from './models';
@@ -91,26 +92,26 @@ const YEARS_BY_PATTERN: Record<Pattern, Array<[number, number]>> = {
 
 const SOURCES: Source[] = ['spreadsheet', 'zeffy', 'benevity', 'az_gives', 'zeffy', 'spreadsheet', 'united_way'];
 
-const TEMPLATES: Template[] = [
+export const TEMPLATES: Template[] = [
   {
     id: 't-thanks-email', name: 'Thank you for your gift', purpose: 'thank_you', channel: 'email',
     subject: 'Thank you, {{first_name}}',
-    body: 'Hi {{first_name}},\n\nThank you for your gift of {{amount}} to {{campaign}}. It goes straight to students learning to build with technology in Phoenix.\n\nI will send you a short update on what your support made possible this quarter.\n\nWith gratitude,\n{{owner_name}}\nCoding in Color',
+    body: 'Hi {{first_name}},\n\n{{gift_context}}\n\n{{history_context}}\n\n{{interest_context}}\n\n{{program_facts}}\n\nWith gratitude,\n{{owner_name}}\nCoding in Color',
   },
   {
     id: 't-thanks-text', name: 'Thank you (text)', purpose: 'thank_you', channel: 'text',
     subject: '',
-    body: 'Hi {{first_name}}, it is {{owner_name}} from Coding in Color. Your {{amount}} gift to {{campaign}} just came through. Thank you. Students will feel this one.',
+    body: 'Hi {{first_name}}, it is {{owner_name}} from Coding in Color. {{gift_context}} {{history_context}} {{interest_context}}',
   },
   {
     id: 't-quarterly', name: 'Quarterly update', purpose: 'quarterly', channel: 'email',
     subject: '{{quarter}} at Coding in Color',
-    body: 'Hi {{first_name}},\n\nA short update for {{quarter}}:\n\n- AI Academy: students completed their capstone projects.\n- Day of Compute: our largest event yet in Phoenix.\n- Summer Camp: registration opens in the spring.\n\nThe full report is attached. Thank you for being part of this.\n\n{{owner_name}}\nCoding in Color',
+    body: 'Hi {{first_name}},\n\nA short update for {{quarter}}.\n\n{{gift_context}}\n\n{{history_context}}\n\n{{interest_context}}\n\n{{program_facts}}\n\n{{owner_name}}\nCoding in Color',
   },
   {
     id: 't-nudge', name: 'We miss you', purpose: 'nudge', channel: 'email',
     subject: 'What your support built last year',
-    body: 'Hi {{first_name}},\n\nLast year your gift helped students in our programs. I would love to show you what happened since, and invite you to our next event.\n\nCould we find 15 minutes this month?\n\n{{owner_name}}\nCoding in Color',
+    body: 'Hi {{first_name}},\n\n{{gift_context}}\n\n{{history_context}}\n\n{{interest_context}}\n\nCould we find 15 minutes this month?\n\n{{owner_name}}\nCoding in Color',
   },
   {
     id: 't-digest', name: 'Board assignment digest', purpose: 'assignment_digest', channel: 'email',
@@ -232,22 +233,42 @@ export function buildDemoDataset(): Dataset {
     }
   }
 
+  const outcomes: Outcome[] = [];
+  const metrics: Array<[string, string, number[]]> = [
+    ['p-ai', 'Students enrolled', [38, 52, 71]], ['p-ai', 'Capstone projects shipped', [21, 33, 49]],
+    ['p-camp', 'Campers served', [60, 84, 96]], ['p-camp', 'Scholarships awarded', [18, 30, 41]],
+    ['p-doc', 'Attendees', [140, 220, 310]], ['p-doc', 'Volunteer mentors', [22, 35, 48]],
+  ];
+  for (const [program, metric, values] of metrics) {
+    values.forEach((value, k) => outcomes.push({
+      program_id: program, year: 2024 + k, metric,
+      value: program === 'p-doc' && k === 2 && metric === 'Volunteer mentors' ? null : value, approved: true,
+    }));
+  }
+
+  // Fictional conversations and interests for the synthetic walkthrough, never real donor claims.
+  gifts.filter((g) => g.occurred_at >= '2026-11-01' && g.status === 'settled').slice(0, 6).forEach((gift, i) => {
+    const donor = donors.find((d) => d.id === gift.donor_id)!;
+    donor.custom['interests'] = PROGRAMS[i % PROGRAMS.length].title;
+    comms.push({ id: `cm-example-${i}`, donor_id: donor.id, member_id: donor.owner_id!,
+      kind: i % 2 ? 'call' : 'email', direction: 'inbound', summary: 'Program interest conversation',
+      body: `Fictional demo conversation: asked for information about ${donor.custom['interests']}.`,
+      occurred_at: iso(addDays('2026-11-01', i), 11), draft_id: null });
+  });
+
   // Recent gifts that still need a thank-you: system drafts, human approves and sends.
-  const recent = gifts.filter((x) => x.occurred_at >= '2026-11-01' && x.status !== 'void');
+  const recent = gifts.filter((x) => x.occurred_at >= '2026-11-01' && x.status === 'settled' && x.amount_cents > x.refund_cents);
   const firstName = (d: Donor) => (d.kind === 'individual' ? d.name.split(' ')[0] : d.name);
   for (const gift of recent.slice(0, 6)) {
     const donor = donors.find((d) => d.id === gift.donor_id)!;
     const owner = MEMBERS.find((m) => m.id === donor.owner_id)!;
     const t = TEMPLATES.find((x) => x.purpose === 'thank_you' && x.channel === donor.preferred_channel)!;
-    const campaign = CAMPAIGNS.find((x) => x.id === gift.campaign_id)?.title ?? 'Coding in Color';
-    const amount = `$${(gift.amount_cents / 100).toLocaleString('en-US')}`;
-    const fill = (s: string) => s.replace(/{{first_name}}/g, firstName(donor)).replace(/{{amount}}/g, amount)
-      .replace(/{{campaign}}/g, campaign).replace(/{{owner_name}}/g, owner.name.split(' ')[0]);
+    const { subject, body } = personalizeDraft(t, donor, { gifts, campaigns: CAMPAIGNS, communications: comms, outcomes, programs: PROGRAMS }, { owner_name: owner.name.split(' ')[0] }, iso(ANCHOR));
     drafts.push({
       id: `dr-${drafts.length + 1}`, donor_id: donor.id, recipient_member_id: null, owner_id: owner.id,
       template_id: t.id, channel: t.channel, to: (t.channel === 'text' ? donor.phone : donor.email) ?? '',
-      subject: fill(t.subject), body: fill(t.body),
-      reason: `${amount} gift on ${gift.occurred_at.slice(0, 10)}${gift.status === 'pending' ? ' (pending settlement)' : ''}`,
+      subject, body,
+      reason: `Settled gift on ${gift.occurred_at.slice(0, 10)}`,
       status: 'pending', created_at: iso(addDays(gift.occurred_at.slice(0, 10), 1), 8),
       approved_by: null, approved_at: null, sent_by: null, sent_at: null,
     });
@@ -266,18 +287,6 @@ export function buildDemoDataset(): Dataset {
     });
   }
 
-  const outcomes: Outcome[] = [];
-  const metrics: Array<[string, string, number[]]> = [
-    ['p-ai', 'Students enrolled', [38, 52, 71]], ['p-ai', 'Capstone projects shipped', [21, 33, 49]],
-    ['p-camp', 'Campers served', [60, 84, 96]], ['p-camp', 'Scholarships awarded', [18, 30, 41]],
-    ['p-doc', 'Attendees', [140, 220, 310]], ['p-doc', 'Volunteer mentors', [22, 35, 48]],
-  ];
-  for (const [program, metric, values] of metrics) {
-    values.forEach((value, k) => outcomes.push({
-      program_id: program, year: 2024 + k, metric,
-      value: program === 'p-doc' && k === 2 && metric === 'Volunteer mentors' ? null : value, approved: true,
-    }));
-  }
 
   return {
     version: DATASET_VERSION,
@@ -288,7 +297,7 @@ export function buildDemoDataset(): Dataset {
     gifts,
     communications: comms,
     followUps,
-    templates: TEMPLATES,
+    templates: structuredClone(TEMPLATES),
     drafts,
     outcomes,
     apiKeys: [{
