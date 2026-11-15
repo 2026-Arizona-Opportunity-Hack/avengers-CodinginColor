@@ -8,5 +8,5 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true
   },
-  "include": ["packages/contracts/**/*.ts"]
+  "include": ["packages/contracts/**/*.ts", "apps/api/**/*.ts", "db/**/*.ts", "tests/migrate.test.ts"]
 }
