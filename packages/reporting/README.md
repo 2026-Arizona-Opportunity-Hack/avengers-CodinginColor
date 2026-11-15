@@ -119,3 +119,19 @@ curl -H "Authorization: Bearer $CIC_DASHBOARD_KEY" "https://<host>/api/v1/activi
 - **Errors:** `401` for a missing, malformed, unknown or revoked key; `400` for a bad
   query; `429` after 60 requests per minute per key (honor `Retry-After`); `503` if
   the database is unavailable.
+- Summary and activity share one PostgreSQL quota per valid key across app instances.
+  Counters reset on database calendar-minute boundaries; rejected requests also count.
+  Unknown or revoked keys do not allocate counters. Quota failures return `503`.
+
+### Aggregate access audit rollout
+
+Migration `019_aggregate_access_audit.sql` prepares append-only service-key audit storage.
+Apply the reviewed migration before deploying the dependent API integration; the schema
+alone does not record requests. Events contain only organization/key IDs, fixed route,
+200/429 status, event ID and timestamp. No credentials, hashes, queries or donor data are stored.
+Only organization admins can read events through the runtime role. Unknown/revoked keys
+cannot append events, and application roles cannot update/delete history.
+
+Rollback the calling application first and retain the table/history. There is no automatic
+purge or cascading deletion. CIC's operator must confirm retention and review event volume;
+this migration does not authorize a retention job, production execution or rollout.

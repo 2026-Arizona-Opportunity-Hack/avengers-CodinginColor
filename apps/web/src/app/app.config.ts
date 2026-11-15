@@ -4,8 +4,14 @@ import { provideIcons } from '@ng-icons/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { APP_ICONS } from './core/icons';
 import { routes } from './app.routes';
-import { loadLiveConfig } from './core/api';
 import { Store } from './core/store';
+import { demoWorkspaceMode } from './core/demo-workspace';
+
+export async function initializeWorkspace(store: Store) {
+  const demo = demoWorkspaceMode();
+  store.enableDemo(demo === 'enter');
+  if (demo === 'sign-in') store.signInDemo('m-ceo');
+}
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -13,10 +19,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'top' }), withViewTransitions({ skipInitialTransition: true })),
     provideIcons(APP_ICONS),
     provideEchartsCore({ echarts: () => import('./core/echarts-setup').then((m) => m.default) }),
-    // A deployed config.json switches the app to the live API; without one it runs on demo data.
-    provideAppInitializer(() => {
-      const store = inject(Store);
-      return loadLiveConfig().then((config) => { if (config) store.connect(config); });
-    }),
+    // The public app always stays synthetic, even when live backend config is deployed.
+    provideAppInitializer(() => initializeWorkspace(inject(Store))),
   ],
 };

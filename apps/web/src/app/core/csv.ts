@@ -40,6 +40,7 @@ export function downloadCsv(name: string, rows: Array<Array<string | number>>) {
 export const TARGETS = {
   first_name: 'First name', last_name: 'Last name', full_name: 'Full name', email: 'Email', phone: 'Phone',
   company: 'Company', amount: 'Donation amount', contact_person: 'Contact person', campaign: 'Campaign', date: 'Gift date',
+  external_id: 'Transaction ID',
   ignore: 'Do not import',
 } as const;
 export type Target = keyof typeof TARGETS;
@@ -55,6 +56,7 @@ const SYNONYMS: Record<Exclude<Target, 'ignore'>, string[]> = {
   contact_person: ['contact person', 'board contact', 'owner', 'relationship manager', 'solicitor'],
   campaign: ['campaign', 'campaign name', 'fund', 'appeal', 'designation'],
   date: ['date', 'donation date', 'gift date', 'payment date', 'transaction date'],
+  external_id: ['transaction id', 'external id', 'payment id', 'donation id'],
 };
 
 export interface ColumnGuess {

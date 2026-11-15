@@ -10,13 +10,12 @@ import { generateApiKey } from '../../packages/reporting/summary.ts';
 import type { Database } from './db.ts';
 import { HttpError } from './env.ts';
 import { createDashboardRouter } from './dashboard.ts';
-import { RateLimiter } from './rate-limit.ts';
 
 const id = (n: number) => `00000000-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const ORG = id(1), OTHER = id(2), ADMIN = id(10), BOARD = id(11), OTHER_ADMIN = id(12), AI = id(20), FUND = id(30);
 const migrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
 
-async function setup(t: test.TestContext, limitPerMinute = 60, limiter?: RateLimiter) {
+async function setup(t: test.TestContext, limitPerMinute = 60) {
   const db = new PGlite();
   t.after(() => db.close());
   const owner = { query: async (s: string, v?: unknown[]) => v ? db.query<Record<string, unknown>>(s, v) : (await db.exec(s)).at(-1)! };
@@ -41,19 +40,21 @@ async function setup(t: test.TestContext, limitPerMinute = 60, limiter?: RateLim
   await db.exec(`CREATE ROLE cic_app_test NOLOGIN NOINHERIT NOBYPASSRLS; GRANT cic_runtime TO cic_app_test;
     SET SESSION AUTHORIZATION cic_app_test;`);
   const api: Database = { connect: async () => ({ query: (s, v) => db.query<Record<string, unknown>>(s, v), release: () => {} }) };
-  const app = express();
-  app.use(createDashboardRouter(api, { offset: '-07:00', minDonors: 3, limitPerMinute, limiter }));
-  const errors: ErrorRequestHandler = (error, _req, res, _next) => {
-    res.status(error instanceof HttpError ? error.status : 503).json({ error: 'x' });
+  const start = async () => {
+    const app = express();
+    app.use(createDashboardRouter(api, { offset: '-07:00', minDonors: 3, limitPerMinute }));
+    const errors: ErrorRequestHandler = (error, _req, res, _next) => {
+      res.status(error instanceof HttpError ? error.status : 503).json({ error: 'x' });
+    };
+    app.use(errors);
+    const server = app.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    t.after(async () => { server.closeAllConnections(); await new Promise<void>((r) => server.close(() => r())); });
+    const address = server.address();
+    assert.ok(address && typeof address !== 'string');
+    return (path: string, headers: Record<string, string> = {}) => fetch(`http://127.0.0.1:${address.port}${path}`, { headers });
   };
-  app.use(errors);
-  const server = app.listen(0, '127.0.0.1');
-  await once(server, 'listening');
-  t.after(async () => { server.closeAllConnections(); await new Promise<void>((r) => server.close(() => r())); });
-  const address = server.address();
-  assert.ok(address && typeof address !== 'string');
-  const get = (path: string, headers: Record<string, string> = {}) => fetch(`http://127.0.0.1:${address.port}${path}`, { headers });
-  return { db, owner, key, otherKey, get };
+  return { db, owner, key, otherKey, get: await start(), start };
 }
 
 test('summary returns suppressed, per-currency aggregates for a valid key and nothing identifying', async (t) => {
@@ -149,14 +150,44 @@ test('missing, malformed, unknown and revoked keys are 401; bad queries 400', as
 });
 
 test('unknown keys leave no rate-limit state behind', async (t) => {
-  // Review on #53: every well-formed unknown key used to stay in the limiter map forever.
-  const limiter = new RateLimiter({ limit: 60, windowMs: 60_000, maxEntries: 1000 });
-  const { get } = await setup(t, 60, limiter);
+  const { db, get } = await setup(t);
   for (let i = 0; i < 30; i++) {
     const res = await get('/api/v1/summary?from=2026-01-01&to=2027-01-01', { Authorization: `Bearer ${generateApiKey().key}` });
     assert.equal(res.status, 401);
   }
-  assert.equal(limiter.size, 0);
+  await db.exec('SET SESSION AUTHORIZATION postgres');
+  assert.deepEqual((await db.query('SELECT * FROM api_rate_windows')).rows, []);
+});
+
+test('two app instances share quota across routes and commit rejected attempts', async (t) => {
+  const { db, key, otherKey, get, start } = await setup(t, 2);
+  const other = await start();
+  const auth = { 'X-API-Key': key.key };
+  assert.equal((await get('/api/v1/activity', auth)).status, 200);
+  assert.equal((await other('/api/v1/summary?from=2026-01-01&to=2027-01-01', auth)).status, 200);
+  const rejected = await get('/api/v1/activity', auth);
+  assert.equal(rejected.status, 429);
+  assert.ok(Number(rejected.headers.get('retry-after')) >= 1);
+  assert.ok(Number(rejected.headers.get('retry-after')) <= 60);
+  assert.equal((await other('/api/v1/activity', auth)).status, 429);
+  assert.equal((await other('/api/v1/activity', { 'X-API-Key': otherKey.key })).status, 200);
+  await db.exec('SET SESSION AUTHORIZATION postgres');
+  const counters = (await db.query<{ bucket: string; hits: number }>('SELECT bucket,hits FROM api_rate_windows')).rows;
+  assert.deepEqual(counters.find(row => row.bucket === `aggregate:${key.hash}`), { bucket: `aggregate:${key.hash}`, hits: 4 });
+  assert.ok(!JSON.stringify(counters).includes(key.key));
+  await revokeKey({ query: (sql, values) => db.query(sql, values) }, ORG, key.hint);
+  await db.exec('SET SESSION AUTHORIZATION cic_app_test');
+  assert.equal((await other('/api/v1/activity', auth)).status, 401, 'revocation takes precedence over exhausted quota');
+});
+
+test('quota dependency failure is closed and leaves no counter', async (t) => {
+  const { db, key, get } = await setup(t);
+  await db.exec(`SET SESSION AUTHORIZATION postgres;
+    REVOKE EXECUTE ON FUNCTION public.cic_consume_limit(text,integer) FROM cic_runtime;
+    SET SESSION AUTHORIZATION cic_app_test;`);
+  assert.equal((await get('/api/v1/activity', { 'X-API-Key': key.key })).status, 503);
+  await db.exec('SET SESSION AUTHORIZATION postgres');
+  assert.deepEqual((await db.query('SELECT * FROM api_rate_windows')).rows, []);
 });
 
 test('each key is rate limited and told when to retry', async (t) => {

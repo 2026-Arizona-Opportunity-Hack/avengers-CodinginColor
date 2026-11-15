@@ -1,0 +1,45 @@
+# Deploys main to Vercel production on every push (#30). The Vercel GitHub app is not installed
+# on this org, so the workflow uploads the commit with the Vercel CLI and Vercel builds it with the
+# project's settings and secrets, then runs the repo's smoke check. Needs one repository secret:
+# VERCEL_TOKEN. Runtime secrets (database, Clerk) stay in the Vercel project as sensitive values.
+name: Deploy to Vercel
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://cadence-cic.vercel.app
+    env:
+      VERCEL_ORG_ID: team_2sIQklix1Z9CnYTyu0AZ4C2K
+      VERCEL_PROJECT_ID: prj_TzIPvONtpXAgV9mzaDK8n3CttPdv
+      VERCEL_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24.15.0
+      - name: Install Vercel CLI
+        run: npm install --global vercel@65.9.0
+      # Vercel builds remotely, where the sensitive variables (DATABASE_URL, CLERK_SECRET_KEY) are
+      # injected; `vercel pull` cannot read sensitive values, so a local prebuilt build would fail.
+      - name: Deploy (remote build)
+        run: vercel deploy --prod --yes --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      - name: Smoke check
+        run: node deploy/smoke.ts https://cadence-cic.vercel.app

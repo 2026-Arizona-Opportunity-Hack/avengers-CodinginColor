@@ -1,8 +1,17 @@
 # avengers — Coding in Color
 
+The public app is a synthetic **Try Now** workspace. Open `/` or `/sign-in`, then choose **Try Now**.
+It opens the central dashboard immediately as demo admin. The top-left person switcher
+shows each person's actual role: admins see the organization; board members see their
+assigned donors and related history and tasks. No Clerk, Neon or two-factor setup is needed. This
+public experience never loads live config or authentication, including with `?demo=0`. Demo edits and
+persona preferences are browser-local and survive refresh. Real accounts, roles and
+donor records are unaffected. Settings includes **Reset records**.
+
 The live **Ask your data** screen finds authorized active donors by retention, gift status,
 currency and net giving threshold. It explains its filters, asks for clarification on unsupported
 wording, and works without model keys. Questions and donor records never go to the optional model.
+In the demo workspace, the same search rules run locally on synthetic records without API or model requests.
 The [synthetic provider benchmark](docs/audits/search-provider-benchmark-2026-11-15.md)
 records measured accuracy, latency and the optional-advice ordering correction.
 

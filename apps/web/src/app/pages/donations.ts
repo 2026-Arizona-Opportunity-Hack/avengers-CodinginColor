@@ -51,6 +51,11 @@ import { downloadCsv } from '../core/csv';
         <section class="panel" aria-labelledby="m-h">
           <div class="panel-head">
             <h2 id="m-h">Net giving by month</h2>
+            <label>Chart type
+              <select class="select" [value]="chartType()" (change)="setChartType($event)">
+                <option value="bar">Bar</option><option value="line">Line</option><option value="area">Area</option>
+              </select>
+            </label>
             <dl class="mini" aria-live="polite">
               <div><dt>Gifts</dt><dd>{{ rows().length }}</dd></div>
               <div><dt>Gross</dt><dd>{{ money(totals().gross) }}</dd></div>
@@ -58,7 +63,11 @@ import { downloadCsv } from '../core/csv';
               <div><dt>Net</dt><dd class="net">{{ money(totals().net) }}</dd></div>
             </dl>
           </div>
-          <div echarts [options]="monthOptions()" [initOpts]="{ renderer: 'svg' }" class="h-[260px] px-3 pb-3"></div>
+          @if (rows().length) {
+            <div echarts [options]="monthOptions()" [initOpts]="{ renderer: 'svg' }" class="h-[260px] px-3 pb-3"></div>
+          } @else {
+            <div class="empty" role="status"><p>No gifts match. Change the filters above.</p></div>
+          }
         </section>
         <section class="panel" aria-labelledby="s-h">
           <div class="panel-head"><h2 id="s-h">Where it came from</h2></div>
@@ -146,6 +155,11 @@ export class DonationsPage {
   protected readonly source = signal('');
   protected readonly status = signal('');
   protected readonly shownMonths = signal(3);
+  protected readonly chartType = signal<'bar' | 'line' | 'area'>('bar');
+  protected setChartType(e: Event) {
+    const value = this.val(e);
+    if (value === 'bar' || value === 'line' || value === 'area') this.chartType.set(value);
+  }
   protected val(e: Event) { return (e.target as HTMLSelectElement).value; }
 
   protected readonly years = computed(() =>
@@ -191,13 +205,19 @@ export class DonationsPage {
 
   protected readonly monthOptions = computed<EChartsCoreOption>(() => {
     const series = [...this.months()].reverse().slice(-18);
+    const type = this.chartType();
     return {
       ...BASE,
       grid: { left: 4, right: 8, top: 16, bottom: 4, containLabel: true },
       tooltip: { ...BASE.tooltip, trigger: 'axis', axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,122,61,0.06)' } }, valueFormatter: (v: unknown) => this.money(Number(v)) },
       xAxis: { type: 'category', data: series.map((m) => `${SHORT[Number(m.key.slice(5, 7)) - 1]} ’${m.key.slice(2, 4)}`), axisLine, axisTick, axisLabel: { color: INK_MUTED, fontSize: 11 } },
       yAxis: { type: 'value', axisLabel: { color: INK_MUTED, formatter: this.compact }, splitLine },
-      series: [{ name: 'Net giving', type: 'bar', data: series.map((m) => m.net), barMaxWidth: 28, itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] } }],
+      series: [{ name: 'Net giving', data: series.map((m) => m.net),
+        ...(type === 'bar'
+          ? { type: 'bar', barMaxWidth: 28, itemStyle: { color: GREEN, borderRadius: [6, 6, 0, 0] } }
+          : { type: 'line', smooth: false, showSymbol: true, symbolSize: 7, itemStyle: { color: GREEN },
+              lineStyle: { color: GREEN, width: 2 }, areaStyle: type === 'area' ? { color: GREEN, opacity: 0.16 } : undefined }),
+      }],
     };
   });
 
