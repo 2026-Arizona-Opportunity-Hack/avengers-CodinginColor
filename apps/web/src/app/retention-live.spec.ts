@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { signal, type Signal } from '@angular/core';
 import { Api, ApiError, type ApiRetention } from './core/api';
 import { Store } from './core/store';
+import { ReportFilters } from './core/report-filters';
 import { SEGMENTS, ytdWindows, type RetentionResult } from './core/retention';
 import { OverviewPage } from './pages/overview';
 import { RetentionPage } from './pages/retention';
@@ -23,7 +24,7 @@ for (const Page of [OverviewPage, RetentionPage]) {
         r: Signal<RetentionResult>; server: Signal<ApiRetention | null>; serverError: Signal<string | null>; money(cents: number): string;
       };
       const settle = async () => { TestBed.tick(); await Promise.resolve(); await Promise.resolve(); TestBed.tick(); };
-      return { store, api, page, settle };
+      return { store, api, page, settle, filters: TestBed.inject(ReportFilters) };
     }
 
     it('uses server scoped facts and changes currency without mixing or refetching', async () => {
@@ -47,6 +48,16 @@ for (const Page of [OverviewPage, RetentionPage]) {
     it('surfaces server rejection without using local gifts as a successful report', async () => {
       const f = setup(); f.api.retention.mockRejectedValueOnce(new ApiError(403)); await f.settle();
       expect(f.page.server()).toBeNull(); expect(f.page.serverError()).toBe('You do not have access to that.');
+    });
+
+    it('reloads shared filter queries and stops requests for invalid periods', async () => {
+      const f = setup(); await f.settle();
+      f.filters.from.set('2026-04-01'); f.filters.through.set('2026-11-14'); f.filters.program.set('program'); f.filters.owner.set('owner');
+      f.filters.campaign.set('campaign'); f.filters.cohort.set('2025'); await f.settle();
+      expect(f.api.retention).toHaveBeenLastCalledWith('2026-11-14', { from: '2026-04-01', programId: 'program', ownerId: 'owner', campaignId: 'campaign', cohort: '2025' });
+      const calls = f.api.retention.mock.calls.length; f.filters.from.set('2026-12-01'); await f.settle();
+      expect(f.api.retention).toHaveBeenCalledTimes(calls); expect(f.page.server()).toBeNull();
+      expect(f.page.serverError()).toContain('valid reporting period');
     });
   });
 }
