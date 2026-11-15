@@ -1,38 +1,23 @@
-# Cadence for Coding in Color
+# Coding in Color
 
-Cadence is an open-source donor and funder relationship platform built for Coding in Color at the ASU Fall Hackathon 2026. It brings donor and gift records, human-reviewed follow-ups, import review, and funder reporting into one workspace. Open [cadence-cic.vercel.app](https://cadence-cic.vercel.app), choose **Try Now**, and explore fictional records stored in your browser. No account is required. Admins see the organization; board personas see their assigned records. Switching people returns to Overview; edits and persona selection survive refresh.
+Coding in Color is an open-source donor and funder relationship platform built for the nonprofit Coding in Color. It brings donor and gift records, human-reviewed follow-ups, import review, and funder reporting into one workspace. Open [cadence-cic.vercel.app](https://cadence-cic.vercel.app), choose **Try Now**, and explore fictional records stored in your browser. No account is required. Admins see the organization; board personas see their assigned records. Switching people returns to Overview; edits and persona selection survive refresh.
 
 Fresh drafts use fictional conversation records and structured program interests plus the selected donor's latest settled net gift. Existing saved drafts stay unchanged until **Regenerate draft** in Follow-ups. Regeneration uses current local facts and clears approval; review and approve again before composing. Sent history is retained. Settings includes **Reset records**.
 
-The public frontend never loads Clerk, `config.json` or protected API routes, even with `?demo=0`. Browser data does not prove server persistence, authorization or delivery. The separate backend retains Clerk verification, admin MFA and database row-level security. Source implementation, recorded tests and deployment acceptance are distinct; see [requirements](docs/REQUIREMENTS.md) and [the live acceptance gate](docs/P0-LIVE-PLAN.md). No new deployment check was performed for this documentation repair.
+The public frontend never loads Clerk, `config.json` or protected API routes, even with `?demo=0`. Browser data does not prove server persistence, authorization or delivery. The separate backend retains Clerk verification, admin MFA and database row-level security. Source implementation, recorded tests and deployment acceptance are distinct; see [requirements](docs/REQUIREMENTS.md) and [the live acceptance gate](docs/P0-LIVE-PLAN.md).
 
 | | |
 |---|---|
 | **Nonprofit** | [Coding in Color](https://www.ohack.dev/nonprofit/YIXYdYCoxIZC08uQ5DL3) |
 | **Problem** | [Donor & Funder Relationship Platform (CIC Problem 2)](https://www.ohack.dev/project/e26932c0df1b11f189a8dead68f07eb5) |
-| **Team** | [avengers](https://www.ohack.dev/hack/fall-2026/team/959f5c24e05811f1adacdeadb145c312) · [Team Dashboard](https://www.ohack.dev/hack/fall-2026/manageteam) |
-| **Slack** | [#avengers](https://opportunity-hack.slack.com/app_redirect?channel=avengers) · [#npo-coding-in-color](https://opportunity-hack.slack.com/app_redirect?channel=npo-coding-in-color) · [#ask-a-mentor](https://opportunity-hack.slack.com/archives/C01E5CGDQ74) |
 
-> This is the team's one repository. Judges, the Team Dashboard and the nonprofit use this repo. Do not create a second project repo.
+## Contributors
 
-## Final day and submission
-
-Hackathon schedule for Sun Nov 15: recording starts at **12:00 PM MST**; hacking ends at **2:00 PM MST**. Submission is through the [Team Dashboard](https://www.ohack.dev/hack/fall-2026/manageteam).
-
-- [ ] Push code to this repository in small pull requests.
-- [ ] Add the project story to the dashboard: problem, who it helps, what is built, and what's next.
-- [ ] Add a demo video of four minutes or less. Show the product, not slides. Link it on the dashboard.
-- [ ] Submit through the dashboard.
-- [ ] Keep this README current with setup, deployment, team and live/demo links.
-- Optional: [DevPost entry](https://opportunity-hack-2026-arizona.devpost.com/). The dashboard is the submission of record.
-
-## Team
-
-- [Ash](https://github.com/ashworks1706) — UI and shared visual components (Person 3)
-- [Ibrahim Ali](https://github.com/ibrahim-alii) — core backend (Person 2)
-- [Aayan Mapara](https://github.com/amapara27) — data ingestion and reconciliation (Person 1)
-- [Soumya Mejari](https://github.com/smejari1) — outreach and follow-ups (Person 4)
-- [Nathan Narrik](https://github.com/nathannarik) — reporting, deployment and integration QA (Person 5)
+- [Ash](https://github.com/ashworks1706) — UI and shared visual components
+- [Ibrahim Ali](https://github.com/ibrahim-alii) — core backend
+- [Aayan Mapara](https://github.com/amapara27) — data ingestion and reconciliation
+- [Soumya Mejari](https://github.com/smejari1) — outreach and follow-ups
+- [Nathan Narrik](https://github.com/nathannarik) — reporting, deployment and integration QA
 
 ## What it does
 
@@ -229,19 +214,9 @@ Saved review fingerprints exact file bytes and binds decisions to a plan hash; t
 - Messages require human approval and manual sending. Aggregate reporting exposes no donor identities and suppresses small groups.
 - Read [mobile accessibility audit](docs/audits/mobile-accessibility-2026-11-15.md) and [requirements/audit evidence](docs/REQUIREMENTS.md). Audit scores are snapshots, not a site-wide conformance claim.
 
-## Demo video
-
-Demo video: not yet supplied. Add the final link here and on the Team Dashboard before submission.
+## Demo usage
 
 See the [demo script](docs/DEMO.md). Narrate once that Try Now uses fictional browser data; no on-screen synthetic badge is required. A 7/7 smoke result only proves public routes/config behavior; include signed-in server proofs only after rehearsing them on the deployed site.
-
-## Agent message board
-
-Team and agents coordinate on the pinned [GitHub issue #3](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/3). The board is not an agent launcher. See the [board guide](https://marvelous-relative-5de.notion.site/hack) and `tools/board.py` for commands.
-
-## After the hackathon
-
-The team should finish with Coding in Color, transfer service ownership, confirm nonprofit acceptance, and keep this repository and its documentation current. See the [Definition of Done](https://www.ohack.dev/about/completion) and [`docs/DEPLOY.md`](docs/DEPLOY.md) for handoff and operations notes.
 
 ## License
 
