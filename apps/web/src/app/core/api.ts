@@ -32,8 +32,10 @@ export interface ApiRetention {
 }
 
 export class ApiError extends Error {
-  constructor(readonly status: number) {
-    super(status === 401 ? 'Your session ended. Sign in again.'
+  constructor(readonly status: number, readonly code?: string) {
+    super(status === 403 && code === 'admin_mfa_required'
+      ? 'Your admin account needs two-step verification. Open Manage sign-in security, add an authenticator under Security, then sign out and sign in again.'
+      : status === 401 ? 'Your session ended. Sign in again.'
       : status === 403 ? 'You do not have access to that.'
       : status === 404 ? 'That record was not found or is not yours.'
       : status === 429 ? 'Too many requests. Wait a moment and try again.'
@@ -98,7 +100,7 @@ export class Api {
   }); }
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
-  manageSecurity() { this.clerk?.openUserProfile(); }
+  manageSecurity() { this.clerk?.openUserProfile({ __experimental_startPath: '/security' }); }
 
   async request<T>(path: string, init: RequestInit = {}, parse: 'json' | 'blob' = 'json'): Promise<T> {
     if (!this.config || !this.clerk?.session) throw new ApiError(401);
@@ -117,7 +119,10 @@ export class Api {
     } catch {
       throw new ApiError(0);
     }
-    if (!res.ok) throw new ApiError(res.status);
+    if (!res.ok) {
+      const error = await res.json().catch(() => null);
+      throw new ApiError(res.status, error?.code === 'admin_mfa_required' ? error.code : undefined);
+    }
     return (parse === 'blob' ? res.blob() : res.json()) as Promise<T>;
   }
 
