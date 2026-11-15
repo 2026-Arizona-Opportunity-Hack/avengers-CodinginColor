@@ -16,6 +16,7 @@ import { createDashboardRouter } from './dashboard.ts';
 import { createApiKeyRouter } from './api-keys.ts';
 import { createOutreachRouter } from './outreach.ts';
 import { createMessageRouter } from './outreach-messages.ts';
+import { groundedDrafts } from './grounded-drafts.ts';
 
 export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
   const app = express();
@@ -77,10 +78,12 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.use(createOutreachRouter(env, db, verify));
   app.use('/api/v1/drafts', express.json({ limit: '32kb' }));
   app.use(createMessageRouter(env, db, verify));
+  app.use(groundedDrafts(env, db, verify));
   app.use((_req, _res, next) => next(new HttpError(404)));
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error instanceof HttpError ? error.status : error?.type === 'entity.parse.failed' ? 400 : error?.type === 'entity.too.large' ? 413 : 503;
-    res.status(status).json({ error: status === 503 ? 'Service unavailable' : 'Request rejected' });
+    res.status(status).json({ error: status === 503 ? 'Service unavailable' : 'Request rejected',
+      ...(error instanceof HttpError && error.authCode === 'admin_mfa_required' ? { code: error.authCode } : {}) });
   };
   app.use(errors);
   return app;
