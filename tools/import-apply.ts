@@ -61,13 +61,15 @@ async function applyOne(client: Client, operation: Operation, actor: string): Pr
     || (existing.external_id ?? null) !== (fields.external_id ?? null)
     || !sameRow(existing.source_row, fields.source_row ? { ...fields.source_row } : null);
   if (identityChanged) throw new Error('Gift identity fields cannot be changed');
-  await client.query(
+  // RLS can hide the row after the read, so a zero-row update must not look successful.
+  const updated = rowsOf(await client.query(
     `UPDATE gifts SET amount_cents = $2::bigint, refund_cents = $3::bigint,
        currency = $4, occurred_at = $5::timestamptz, status = $6,
        campaign_id = $7::uuid, updated_at = now()
-     WHERE id = $1::uuid AND org_id = cic_org_id()`,
+     WHERE id = $1::uuid AND org_id = cic_org_id() RETURNING id::text AS id`,
     [operation.gift_id, String(fields.amount_cents), String(fields.refund_cents),
-      fields.currency, fields.occurred_at, fields.status, fields.campaign_id ?? null]);
+      fields.currency, fields.occurred_at, fields.status, fields.campaign_id ?? null]));
+  if (updated.length !== 1) throw new Error('Gift correction affected no row');
   await client.query(
     `INSERT INTO audit_events (org_id, actor_id, action, target_id, status)
      VALUES (cic_org_id(), $1::uuid, 'gift.correct', $2::uuid, 'success')`,

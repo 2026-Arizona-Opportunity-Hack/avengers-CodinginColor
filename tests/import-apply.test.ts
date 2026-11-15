@@ -23,7 +23,9 @@ async function begin(db: PGlite, subject: string) {
   await db.query(`SELECT set_config('app.org_id', $1, true), set_config('app.user_id', $2, true)`, [org, subject]);
 }
 
-const countGifts = async (db: PGlite) => Number((await db.query(`SELECT count(*)::int AS n FROM gifts`)).rows[0].n);
+const rows = async <T extends Record<string, unknown>>(db: PGlite, sql: string, params: unknown[] = []) =>
+  (await db.query(sql, params)).rows as T[];
+const countGifts = async (db: PGlite) => Number((await rows<{ n: number }>(db, `SELECT count(*)::int AS n FROM gifts`))[0].n);
 
 test('reviewed inserts preserve exact money and do not commit the caller transaction', async () => {
   const db = new PGlite();
@@ -39,16 +41,17 @@ test('reviewed inserts preserve exact money and do not commit the caller transac
     await begin(db, 'alice');
     const committed = await applyReviewedGifts(db, { org_id: org, operations: [insert(0)] });
     await db.exec('COMMIT');
-    const stored = (await db.query(`SELECT id::text, amount_cents::text, refund_cents::text, source, external_id,
+    const stored = (await rows<{ amount_cents: string; refund_cents: string; source: string; external_id: string; source_row: unknown; same_instant: boolean }>(db,
+      `SELECT id::text, amount_cents::text, refund_cents::text, source, external_id,
       source_row, occurred_at = $2::timestamptz AS same_instant
-      FROM gifts WHERE id = $1`, [committed.applied[0].id, when])).rows[0];
+      FROM gifts WHERE id = $1`, [committed.applied[0].id, when]))[0];
     assert.equal(stored.amount_cents, String(huge));
     assert.equal(stored.refund_cents, '0');
     assert.equal(stored.source, "zeffy'; drop");
     assert.equal(stored.external_id, 'tx-1');
     assert.equal(stored.same_instant, true);
     assert.deepEqual(stored.source_row, { batch_id: batch, row_key: '2' });
-    assert.deepEqual((await db.query(`SELECT actor_id::text, action, target_id::text, status FROM audit_events`)).rows,
+    assert.deepEqual(await rows<{ actor_id: string; action: string; target_id: string; status: string }>(db, `SELECT actor_id::text, action, target_id::text, status FROM audit_events`),
       [{ actor_id: alice, action: 'gift.insert', target_id: committed.applied[0].id, status: 'success' }]);
   } finally { await db.close(); }
 });
@@ -67,8 +70,8 @@ test('a failed apply leaves earlier writes and a usable transaction', async () =
       insert(3, { external_id: null, source_row: { batch_id: batch, row_key: 'same' } }),
       insert(4, { external_id: null, amount_cents: 2000, source_row: { batch_id: batch, row_key: 'same' } }),
     ] }), /provenance|source row|conflict/i);
-    assert.deepEqual((await db.query(`SELECT external_id FROM gifts ORDER BY external_id`)).rows, [{ external_id: 'kept' }]);
-    assert.equal((await db.query(`SELECT 1 AS ok`)).rows[0].ok, 1);
+    assert.deepEqual(await rows<{ external_id: string }>(db, `SELECT external_id FROM gifts ORDER BY external_id`), [{ external_id: 'kept' }]);
+    assert.equal((await rows<{ ok: number }>(db, `SELECT 1 AS ok`))[0].ok, 1);
     await db.exec('COMMIT');
   } finally { await db.close(); }
 });
@@ -87,7 +90,7 @@ test('gift writes stay inside the caller scope', async () => {
     const applied = await applyReviewedGifts(db, { org_id: org, operations: [insert(0, {
       donor_id: unassigned, external_id: 'open', source_row: { batch_id: batch, row_key: 'open' } })] });
     await db.exec('COMMIT');
-    assert.equal((await db.query(`SELECT donor_id::text FROM gifts WHERE id = $1`, [applied.applied[0].id])).rows[0].donor_id, unassigned);
+    assert.equal((await rows<{ donor_id: string }>(db, `SELECT donor_id::text FROM gifts WHERE id = $1`, [applied.applied[0].id]))[0].donor_id, unassigned);
   } finally { await db.close(); }
 });
 
@@ -108,13 +111,30 @@ test('corrections change financial facts only and record the session member', as
         draft: draft({ external_id: 'tx-new', amount_cents: 1000 }) }] }), /identity/);
     await assert.rejects(() => applyReviewedGifts(db, { org_id: org, operations: [
       { kind: 'gift', row: 2, op: 'correct', gift_id: giftA, reviewer_id: bob, draft: financial }] }), /reviewer/);
-    const stored = (await db.query(`SELECT amount_cents::text, refund_cents::text, status, external_id, source_row FROM gifts WHERE id = $1`, [giftA])).rows[0];
+    const stored = (await rows<{ amount_cents: string; refund_cents: string; status: string; external_id: string; source_row: unknown }>(db,
+      `SELECT amount_cents::text, refund_cents::text, status, external_id, source_row FROM gifts WHERE id = $1`, [giftA]))[0];
     assert.deepEqual(stored, { amount_cents: '2500', refund_cents: '100', status: 'pending', external_id: 'tx-old',
       source_row: { batch_id: batch, row_key: '2' } });
-    assert.deepEqual((await db.query(`SELECT actor_id::text, action, target_id::text FROM audit_events`)).rows,
+    assert.deepEqual(await rows<{ actor_id: string; action: string; target_id: string }>(db, `SELECT actor_id::text, action, target_id::text FROM audit_events`),
       [{ actor_id: alice, action: 'gift.correct', target_id: giftA }]);
     await db.exec('COMMIT');
   } finally { await db.close(); }
+});
+
+test('a correction that updates no row fails and writes no audit', async () => {
+  const sql: string[] = [];
+  const client = { query: async (text: string) => {
+    sql.push(text);
+    if (text.includes('cic_org_id()::text')) return { rows: [{ org }] };
+    if (text.includes('cic_member_id()')) return { rows: [{ actor: alice }] };
+    if (text.startsWith('SELECT donor_id')) return { rows: [{ donor_id: donorA, source: "zeffy'; drop", external_id: 'tx-old', source_row: { batch_id: batch, row_key: '2' } }] };
+    if (text.startsWith('UPDATE')) return { rows: [] };
+    return { rows: [] };
+  } };
+  const financial = draft({ amount_cents: 2500, refund_cents: 100, status: 'pending', external_id: 'tx-old' });
+  await assert.rejects(() => applyReviewedGifts(client, { org_id: org, operations: [
+    { kind: 'gift', row: 0, op: 'correct', gift_id: giftA, reviewer_id: alice, draft: financial }] }), /no row|not found/i);
+  assert.equal(sql.some(text => text.includes('gift.correct')), false);
 });
 
 test('donor creation and unresolved donor rows are not applied', async () => {
@@ -128,8 +148,8 @@ test('donor creation and unresolved donor rows are not applied', async () => {
     await assert.rejects(() => applyReviewedGifts(db, { org_id: org, operations: [pendingGift] }), /donor/);
     await applyReviewedGifts(db, { org_id: org, operations: [] });
     assert.equal(await countGifts(db), 0);
-    assert.equal((await db.query(`SELECT count(*)::int AS n FROM audit_events`)).rows[0].n, 0);
-    assert.equal((await db.query(`SELECT 1 AS ok`)).rows[0].ok, 1);
+    assert.equal((await rows<{ n: number }>(db, `SELECT count(*)::int AS n FROM audit_events`))[0].n, 0);
+    assert.equal((await rows<{ ok: number }>(db, `SELECT 1 AS ok`))[0].ok, 1);
     await db.exec('ROLLBACK');
   } finally { await db.close(); }
 });
