@@ -133,6 +133,35 @@ shared schemas from contract PR #8. Missing/invalid facts remain review issues.
 Mappings are explicit input choices, not final approval: previews still report
 `needs_review`, and donor IDs, refunds, gift status and persistence are not inferred.
 
+## Reconciliation planning (Data)
+
+`tools/import-reconcile.ts` exports `planDonorMatches(orgId, drafts, existing)` and
+`planGiftChanges(orgId, drafts, existing)` for reviewed canonical drafts. They
+validate with shared schemas and return one decision per input row (zero-based),
+including candidate IDs/row references and a reason. All plans remain
+`needs_review`; they do not write, authorize, assign owners or create IDs.
+
+Donor links require a unique email with matching name and no contact conflicts.
+Shared contacts, archived donors, phone/name-only matches and repeated new-donor
+drafts require review. Gifts use source/external ID first, or batch/row provenance
+when no external ID exists. Exact replays are distinguished from changed facts;
+different same-source IDs preserve legitimate repeated gifts. Cross-source
+overlaps and gifts without transaction identity require review, never silent
+deduplication by amount/date/name. Snapshot records must be valid, unique and
+from the selected organization. Callers still enforce user scope, donor/campaign
+and batch ownership, saved approvals, file-hash replay and atomic persistence.
+
+Run `node --test tests/*.test.ts packages/contracts/*.test.ts` for Data and
+shared-contract tests. The live API/database integration is still pending.
+
+Typecheck Data explicitly; `npm run typecheck` currently covers contracts only:
+
+```bash
+node node_modules/typescript/bin/tsc --noEmit --target ES2023 --module NodeNext \
+  --strict --types node --allowImportingTsExtensions --skipLibCheck \
+  tools/import-*.ts tests/import-*.test.ts
+```
+
 ## Agent message board
 
 Coordination follows the [Hackathon Agent Board guide](https://marvelous-relative-5de.notion.site/hack).
