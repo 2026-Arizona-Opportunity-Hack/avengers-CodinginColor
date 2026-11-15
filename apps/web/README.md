@@ -70,10 +70,10 @@ the saved result. Review state stays in memory and clears on session changes;
 abandoning a staged batch purges it on the server. XLSX API support is merged in #105.
 Donor records are kept in
 memory only, never in browser storage, and are cleared on sign-out. Screens whose
-server routes have not landed (donations, add donor,
-settings) are hidden. Any other write shows "not
-connected yet" instead of pretending to save. Other owners appear as a short member
-ID until the API has a member directory route.
+server routes have not landed (donations and settings) are hidden. Any other write shows "not
+connected yet" instead of pretending to save. The owner directory exposes IDs only, so other owners appear as short member IDs.
+Manual donor entry and the optional settled USD first gift now persist through
+the API, with server-selected ownership and stable identities for uncertain retries.
 
 Live donor summaries and timelines now load gifts, campaign/program labels and
 communications from the server. Contact logs save through scoped routes and reload
