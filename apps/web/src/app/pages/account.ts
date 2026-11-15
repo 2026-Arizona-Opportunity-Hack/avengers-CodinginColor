@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { Store } from '../core/store';
+import { Api } from '../core/api';
 
 interface Permission { label: string; allowed: boolean; }
 
@@ -64,6 +65,7 @@ interface Permission { label: string; allowed: boolean; }
             <p class="font-medium">This session</p><p class="text-muted-foreground text-sm">{{ store.live() ? 'Signed in with Clerk. Donor records stay in memory and clear on sign-out.' : 'Demo session in this browser only.' }}</p></div>
         </div>
         <div class="mt-6 flex flex-wrap gap-2">
+          @if (store.live()) { <button hlmBtn variant="outline" type="button" (click)="api.manageSecurity()">Manage sign-in security</button> }
           <button hlmBtn variant="outline" (click)="signOut()"><ng-icon name="lucideLogOut" size="16" /> Sign out</button>
         </div>
       </section>
@@ -84,6 +86,7 @@ interface Permission { label: string; allowed: boolean; }
 })
 export class AccountPage {
   protected readonly store = inject(Store);
+  protected readonly api = inject(Api);
   private readonly router = inject(Router);
   protected readonly name = computed(() => this.store.me().name || 'Signed in');
 

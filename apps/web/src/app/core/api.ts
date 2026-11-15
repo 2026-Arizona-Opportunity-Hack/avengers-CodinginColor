@@ -72,9 +72,9 @@ export class Api {
     this.config = config;
     this.status.set('loading');
     try {
-      const { Clerk } = await import('@clerk/clerk-js');
+      const [{ Clerk }, { ui }] = await Promise.all([import('@clerk/clerk-js'), import('@clerk/ui')]);
       this.clerk = new Clerk(config.clerkPublishableKey);
-      await this.clerk.load();
+      await this.clerk.load({ ui });
       let hadSession = !!this.clerk.session;
       if (hadSession) onSignedIn(); else this.status.set('signed-out');
       this.clerk.addListener(({ session }) => {
@@ -96,6 +96,7 @@ export class Api {
   mountSignIn(node: HTMLDivElement) { this.clerk?.mountSignIn(node); }
   unmountSignIn(node: HTMLDivElement) { this.clerk?.unmountSignIn(node); }
   async signOut() { await this.clerk?.signOut(); }
+  manageSecurity() { this.clerk?.openUserProfile(); }
 
   async request<T>(path: string, init: RequestInit = {}, parse: 'json' | 'blob' = 'json'): Promise<T> {
     if (!this.config || !this.clerk?.session) throw new ApiError(401);

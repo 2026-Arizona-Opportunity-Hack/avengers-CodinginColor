@@ -1,5 +1,13 @@
 import { Api } from './core/api';
 
+it('opens Clerk account security without changing the API access state', () => {
+  const api = new Api(), openUserProfile = vi.fn();
+  Object.assign(api, { clerk: { openUserProfile } });
+  api.status.set('error'); api.manageSecurity();
+  expect(openUserProfile).toHaveBeenCalledOnce();
+  expect(api.status()).toBe('error');
+});
+
 it('preserves upload headers and bytes while enforcing the current session bearer', async () => {
   const api = new Api();
   Object.assign(api, { config: { apiBase: 'https://api.example.org' },
