@@ -30,7 +30,7 @@ natural-language accuracy, every reporting boundary or a model comparison.
 | Expected filters and donor results | 16/16 |
 | Expected clarifications, without provider calls | 8/8 |
 | Provider responses matching filter meaning | 16/16 |
-| Advice accepted by current production comparison | 0/16 |
+| Advice accepted by baseline production comparison | 0/16 |
 | Deterministic fallbacks | 16/16 |
 | Provider unavailable / invalid schema / changed meaning | 0 / 0 / 0 |
 | Supported HTTP p50 / p95 | 701.79 / 1228.26 ms |
@@ -40,7 +40,7 @@ natural-language accuracy, every reporting boundary or a model comparison.
 Percentiles use nearest rank. Timings include body parsing and local scoped queries;
 HTTP measurement excludes database/server setup and real identity verification.
 
-The zero accepted-advice count is significant: `ask-data.ts` compares JSON strings.
+The baseline zero accepted-advice count exposed a defect: `ask-data.ts` compared JSON strings.
 Its locally constructed filter object's property order differs from the Zod-parsed
 response's order. All 16 semantically correct responses were therefore rejected for
 ordering, and local filters supplied every correct answer. This benchmark does not
@@ -49,6 +49,25 @@ ordering mismatches separately from genuinely changed filters. A preceding pilot
 also passed 24/24, with 15 semantic echoes and one unavailable response; it is not
 included in the table above.
 
-Issue #109 remains open for deployed P0 acceptance, broader evaluation and disposition
-of the ineffective optional-advice comparison. No donor data or real-account changes
-were made. The script creates only disposable synthetic records locally.
+### Value-comparison correction, 18:04:26 UTC
+
+The route now selects strictly validated advice by value, independent of property order.
+The benchmark uses that same selection function to count admission rather than copying
+the route's condition. A regression fails with the original string comparison and passes
+with value comparison. Changed scope, currency, threshold, status, period, segment and
+extra fields still retain the local filters; HTTP tests retain RLS and privacy checks.
+
+The same corpus and configured model were run again, with the same synthetic-only scope:
+
+| Measurement | After correction |
+|---|---:|
+| Expected supported results / clarifications | 16/16 / 8/8 |
+| Provider semantic echoes / selected advice | 16/16 / 16/16 |
+| Fallback / unavailable / invalid / changed filters | 0 / 0 / 0 / 0 |
+| Supported HTTP p50 / p95 | 911.05 / 2133.77 ms |
+| Provider p50 / p95 | 900.72 / 2119.65 ms |
+
+The timing variation between these small runs is not evidence of a speed improvement
+or regression. Equal filter values remain mandatory; the model cannot change local intent.
+Issue #109 remains open for deployed P0 acceptance and broader evaluation. No donor data
+or real-account changes were made. The script creates only disposable synthetic records locally.
