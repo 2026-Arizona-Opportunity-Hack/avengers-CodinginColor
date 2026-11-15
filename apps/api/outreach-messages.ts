@@ -68,7 +68,7 @@ async function loadDraft(client: Client, id: string): Promise<{ draft: Draft; do
   return { draft, donor };
 }
 /** A qualifying contact completes that donor's open quarterly touch for the contact's quarter. */
-async function closeTouches(client: Client, donorId: string, at: string, actor: string): Promise<number> {
+export async function closeTouches(client: Client, donorId: string, at: string, actor: string): Promise<number> {
   const open = (await client.query(`SELECT id, donor_id, owner_id, kind, quarter, title, status, ${stamp('due_at')} AS due_at
     FROM follow_ups WHERE donor_id = $1 AND status = 'open'`, [donorId])).rows as OutreachTask[];
   const ids = tasksClosedBy(open, { donor_id: donorId, occurred_at: at, qualifying: true }, OFFSET);
@@ -94,7 +94,7 @@ export function createMessageRouter(env: Env, db: Database, verify: (header: str
         c.actor_id, c.note, d.subject, d.body FROM communications c
         JOIN donors n ON n.org_id=c.org_id AND n.id=c.donor_id
         LEFT JOIN drafts d ON d.org_id=c.org_id AND d.id=c.draft_id
-        WHERE c.org_id=$1 AND n.archived_at IS NULL ORDER BY c.occurred_at DESC,c.id LIMIT $2 OFFSET $3`,
+        WHERE c.org_id=$1 ORDER BY c.occurred_at DESC,c.id LIMIT $2 OFFSET $3`,
       [env.CIC_ORG_ID, page.limit, page.offset])).rows);
     res.json({ items, ...page });
   });

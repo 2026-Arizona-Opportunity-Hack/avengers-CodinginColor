@@ -1,8 +1,13 @@
 import express from 'express';
+import { debrief } from './debrief.ts';
 import type { ErrorRequestHandler } from 'express';
 import { HttpError, type Env } from './env.ts';
 import { withMember, type Database } from './db.ts';
 import type { Identity } from './auth.ts';
+import { donorImpactAdmin } from './donor-impact-admin.ts';
+import { donorImpact } from './donor-impact.ts';
+import { staffInvitations } from './staff-invitations.ts';
+import { claimInvitation } from './invitation-claim.ts';
 import { members } from './members.ts';
 import { donors } from './donors.ts';
 import { gifts } from './gifts.ts';
@@ -12,6 +17,7 @@ import { createDashboardRouter } from './dashboard.ts';
 import { createApiKeyRouter } from './api-keys.ts';
 import { createOutreachRouter } from './outreach.ts';
 import { createMessageRouter } from './outreach-messages.ts';
+import { askData } from './ask-data.ts';
 import { groundedDrafts } from './grounded-drafts.ts';
 
 export function createApp(env: Env, db: Database, verify: (header: string | undefined) => Promise<Identity>) {
@@ -38,6 +44,7 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.get('/healthz', (_req, res) => { res.json({ status: 'ok' }); });
   app.get('/api/v1/me', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
+    await claimInvitation(db, env.CIC_ORG_ID, identity);
     const member = await withMember(db, env.CIC_ORG_ID, identity, async (_client, membership) => membership);
     res.json(member);
   });
@@ -57,10 +64,14 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
     });
     res.json({ items });
   });
+  app.use('/api/v1/impact', express.json({ limit: '4kb' }), donorImpactAdmin(env, db, verify));
+  app.use('/api/v1/impact', donorImpact(env, db, verify));
+  app.use('/api/v1/invitations', express.json({ limit: '4kb' }), staffInvitations(env, db, verify));
   app.use('/api/v1/members', express.json({ limit: '4kb' }), members(env, db, verify));
   app.use('/api/v1/donors', express.json({ limit: '32kb' }), donors(env, db, verify));
   app.use('/api/v1/gifts', express.json({ limit: '32kb' }), gifts(env, db, verify));
   app.use('/api/v1/imports', imports(env, db, verify));
+  app.use('/api/v1/ask-data', askData(env, db, verify));
   app.use(createReportingRouter(env, db, verify));
   // Key-authenticated CIC dashboard routes (no Clerk session); aggregates only.
   app.use(createDashboardRouter(db, { offset: '-07:00', minDonors: 3, limitPerMinute: 60 }));
@@ -71,10 +82,12 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
   app.use('/api/v1/drafts', express.json({ limit: '32kb' }));
   app.use(createMessageRouter(env, db, verify));
   app.use(groundedDrafts(env, db, verify));
+  app.use(debrief(env, db, verify));
   app.use((_req, _res, next) => next(new HttpError(404)));
   const errors: ErrorRequestHandler = (error, _req, res, _next) => {
     const status = error instanceof HttpError ? error.status : error?.type === 'entity.parse.failed' ? 400 : error?.type === 'entity.too.large' ? 413 : 503;
-    res.status(status).json({ error: status === 503 ? 'Service unavailable' : 'Request rejected' });
+    res.status(status).json({ error: status === 503 ? 'Service unavailable' : 'Request rejected',
+      ...(error instanceof HttpError && error.authCode === 'admin_mfa_required' ? { code: error.authCode } : {}) });
   };
   app.use(errors);
   return app;

@@ -139,7 +139,7 @@ interface Insight { icon: string; tone: 'danger' | 'attention' | 'positive' | 'n
             @for (g of recentGifts(); track g.id) {
               <li class="flex items-center gap-3">
                 <div class="min-w-0 flex-1">
-                  <a class="font-semibold no-underline hover:underline" [routerLink]="['/donors', g.donor_id]">{{ store.donor(g.donor_id)?.name }}</a>
+                  <a class="font-semibold no-underline hover:underline" [routerLink]="['/donors', g.donor_id]">{{ store.historicalDonor(g.donor_id)?.name }}</a>
                   <p class="text-muted-foreground truncate text-[13px]">{{ store.campaign(g.campaign_id)?.title ?? 'General support' }} · {{ dateShort(g.occurred_at) }}</p>
                 </div>
                 <span class="num font-semibold">{{ money(store.netCents(g)) }}</span>
@@ -389,7 +389,7 @@ export class OverviewPage {
       const steps = this.openSteps().filter((f) => ids.has(f.donor_id));
       return {
         id: m.id, name: m.name, donors: donors.length,
-        raised: this.scope.gifts().filter((g) => ids.has(g.donor_id) && this.inPeriod(g.occurred_at)).reduce((s, g) => s + this.store.netCents(g), 0),
+        raised: this.scope.gifts().filter((g) => this.store.historicalDonor(g.donor_id)?.owner_id === m.id && this.inPeriod(g.occurred_at)).reduce((s, g) => s + this.store.netCents(g), 0),
         reached: new Set(comms.filter((c) => c.occurred_at >= since).map((c) => c.donor_id)).size,
         overdue: steps.filter((f) => f.due_on < this.now).length,
       };
