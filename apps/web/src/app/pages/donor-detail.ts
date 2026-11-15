@@ -196,7 +196,7 @@ const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
               <fieldset>
                 <legend class="field-legend">Type</legend>
                 <div class="segmented">
-                  @for (k of kinds; track k) {
+                  @for (k of kinds(); track k) {
                     <button type="button" [attr.aria-pressed]="logKind() === k" (click)="logKind.set(k)">{{ kindLabel[k] }}</button>
                   }
                 </div>
@@ -263,12 +263,12 @@ export class DonorDetailPage {
   private readonly router = inject(Router);
   readonly id = input.required<string>();
 
-  protected readonly money = money;
+  protected readonly money = (cents: number) => money(cents, this.store.currency());
   protected readonly date = date;
   protected readonly relativeDue = relativeDue;
   protected readonly kindLabel = KIND_LABEL;
   protected readonly icons = KIND_ICON;
-  protected readonly kinds: CommunicationKind[] = ['text', 'email', 'call', 'meeting', 'note'];
+  protected readonly kinds = computed<CommunicationKind[]>(() => this.store.live() ? ['text', 'email', 'call', 'meeting'] : ['text', 'email', 'call', 'meeting', 'note']);
   protected readonly consents: Consent[] = ['unknown', 'granted', 'denied'];
   protected readonly filters = [
     { value: 'all', label: 'All' }, { value: 'gifts', label: 'Gifts' }, { value: 'comms', label: 'Communications' },
@@ -297,7 +297,7 @@ export class DonorDetailPage {
   protected readonly steps = computed(() =>
     this.store.followUps().filter((f) => f.donor_id === this.id() && f.status === 'open').sort((a, b) => a.due_on.localeCompare(b.due_on)));
   protected readonly lastContact = computed(() =>
-    this.store.communicationsFor(this.id()).filter((c) => c.direction !== 'internal').map((c) => c.occurred_at).sort().at(-1) ?? null);
+    this.store.communicationsFor(this.id()).filter((c) => c.direction !== 'internal' && c.status !== 'failed').map((c) => c.occurred_at).sort().at(-1) ?? null);
 
   protected readonly timeline = computed<TimelineEntry[]>(() => {
     const entries: TimelineEntry[] = [];
@@ -307,7 +307,7 @@ export class DonorDetailPage {
         const program = this.store.program(campaign?.program_id ?? null);
         entries.push({
           type: 'gift', at: g.occurred_at, id: g.id, title: campaign?.title ?? 'General support',
-          detail: g.refund_cents ? `Refunded ${money(g.refund_cents)}` : program ? `Restricted to ${program.title}` : 'Unrestricted',
+          detail: g.refund_cents ? `Refunded ${this.money(g.refund_cents)}` : program ? `Restricted to ${program.title}` : 'Unrestricted',
           amount: g.amount_cents, status: g.status, source: SOURCE_LABEL[g.source],
         });
       }
@@ -328,16 +328,16 @@ export class DonorDetailPage {
     this.logDialog()?.nativeElement.showModal();
   }
 
-  protected saveLog(event: Event) {
+  protected async saveLog(event: Event) {
     event.preventDefault();
     const form = new FormData(event.target as HTMLFormElement);
     const summary = String(form.get('summary') ?? '').trim();
     const when = String(form.get('when') ?? this.now);
     if (!summary) return;
-    this.store.logCommunication({
+    if (!await this.store.logCommunication({
       donor_id: this.id(), kind: this.logKind(), summary, body: String(form.get('body') ?? '').trim(),
-      occurred_at: `${when}T${new Date().toISOString().slice(11, 19)}Z`,
-    });
+      occurred_at: `${when}T12:00:00-07:00`,
+    })) return;
     (event.target as HTMLFormElement).reset();
     this.logDialog()?.nativeElement.close();
     this.flash.set(`${KIND_LABEL[this.logKind()]} logged on the timeline.`);

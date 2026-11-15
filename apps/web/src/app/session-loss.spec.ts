@@ -50,7 +50,7 @@ function pendingLiveRefresh() {
     start: async (_config: unknown, _onIn: () => void, onOut: () => void) => { onSignedOut = onOut; },
     me: vi.fn(() => oldMember), allDonors: vi.fn(async () => []),
     request: vi.fn(async (path: string) => path.includes('follow-ups')
-      ? { overdue: [], due_this_week: [], upcoming: [] } : { items: [] }),
+      ? { overdue: [], due_this_week: [], upcoming: [] } : path === '/api/v1/catalog' ? { programs: [], campaigns: [] } : { items: [] }),
     fail: (message: string) => { api.error.set(message); api.status.set('error'); },
   };
   TestBed.configureTestingModule({ providers: [{ provide: Api, useValue: api }] });

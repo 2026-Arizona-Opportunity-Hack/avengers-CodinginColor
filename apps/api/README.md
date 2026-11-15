@@ -50,11 +50,16 @@ without deleting gifts. Creates, updates, reassignments, and archives record an
 audit event inside the same transaction. Inaccessible donors return 404.
 
 Historical gifts form their own ledger, separate from communications and
-follow-ups. Authenticated `GET /api/v1/gifts?donor_id=<uuid>` requires a strict
-donor UUID plus `limit` (1-100, default 50) and `offset`, returns
+follow-ups. Authenticated `GET /api/v1/gifts?donor_id=<uuid>` accepts an optional
+strict donor UUID plus `limit` (1-100, default 50) and `offset`, returns
 `{items, limit, offset}` ordered by `occurred_at` then `id`, includes archived
 donors' history, and returns 404 when the donor is not visible. Amounts are exact
 safe-integer cents and timestamps keep PostgreSQL microsecond precision.
+Without donor_id it returns the member's visible gift ledger under RLS.
+`GET /api/v1/catalog` returns same-org program/campaign labels for authenticated
+members. `GET /api/v1/communications?limit=100&offset=0` pages the visible donors'
+contact history, including approved draft links and actual status. Both endpoints
+enforce active membership, organization and the admin MFA requirement.
 `POST /api/v1/gifts` accepts donor, campaign (nullable), amount, refund,
 currency, occurred_at, status and optional `external_id`; the server forces
 `source='manual'` and `source_row=null` and rejects provenance, org, owner, role

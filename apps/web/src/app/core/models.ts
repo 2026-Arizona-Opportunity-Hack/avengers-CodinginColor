@@ -62,6 +62,7 @@ export type CommunicationKind = 'email' | 'text' | 'call' | 'meeting' | 'note';
 
 /** Something that already happened between CIC and a donor. Never a future plan. */
 export interface Communication {
+  status?: string;
   id: string;
   donor_id: string;
   member_id: string;

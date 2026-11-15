@@ -63,6 +63,12 @@ funder reports, settings) are hidden. Any other write shows "not
 connected yet" instead of pretending to save. Other owners appear as a short member
 ID until the API has a member directory route.
 
+Live donor summaries and timelines now load gifts, campaign/program labels and
+communications from the server. Contact logs save through scoped routes and reload
+history/quarterly tasks before reporting success. The giving currency selector
+keeps summaries in one currency at a time. Internal notes remain a separate pending
+workflow; failed delivery is never counted as a successful contact.
+
 ## Design rules
 
 - Coding in Color palette from the brand guidelines: dark green `#007A3D`, white, tinted green `#E6F4ED`, `#00A850` for small accents only. Text is black, or white on dark green. No gray text.

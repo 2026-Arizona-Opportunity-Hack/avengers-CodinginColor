@@ -3,7 +3,8 @@ const usdExact = new Intl.NumberFormat('en-US', { style: 'currency', currency: '
 const day = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' });
 const dayShort = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' });
 
-export const money = (cents: number) => usd.format(cents / 100);
+export const money = (cents: number, currency = 'USD') => currency === 'USD' ? usd.format(cents / 100)
+  : new Intl.NumberFormat('en-US', { style: 'currency', currency, maximumFractionDigits: 0 }).format(cents / 100);
 export const moneyExact = (cents: number) => usdExact.format(cents / 100);
 export const date = (value: string) => day.format(new Date(value.length === 10 ? `${value}T12:00:00-07:00` : value));
 export const dateShort = (value: string) => dayShort.format(new Date(value.length === 10 ? `${value}T12:00:00-07:00` : value));

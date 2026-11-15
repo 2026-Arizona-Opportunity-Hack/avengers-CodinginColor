@@ -83,6 +83,11 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
         </button>
 
         <div class="ms-auto flex items-center gap-1.5">
+          @if (store.live()) {
+            <label class="field text-xs">Giving currency<select class="select" [value]="store.currency()" (change)="store.selectedCurrency.set($any($event.target).value)">
+              @for (currency of store.currencies().length ? store.currencies() : ['USD']; track currency) { <option [value]="currency">{{ currency }}</option> }
+            </select></label>
+          }
           <button hlmBtn variant="ghost" size="icon" class="relative" [hlmDropdownMenuTrigger]="bell" align="end"
             [attr.aria-label]="'Follow-ups due: ' + due().length">
             <ng-icon name="lucideBell" size="18" />
