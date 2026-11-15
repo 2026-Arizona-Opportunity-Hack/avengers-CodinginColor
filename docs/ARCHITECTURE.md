@@ -6,9 +6,11 @@ Why Cadence is built the way it is, what each choice cost, and how it shaped the
 
 ```mermaid
 flowchart LR
-  U[Browser<br/>Angular app] -->|same origin| F[Vercel Function<br/>src/index.ts]
+  U[Public Angular Try Now] -->|static assets only| F[Vercel Function<br/>src/index.ts]
+  U --> Local[Fictional browser storage]
   F -->|static files from public/| U
   F --> API[Express API<br/>apps/api]
+  Client[Separately authenticated client] --> API
   API -->|verify session| C[Clerk]
   API -->|restricted role + RLS| DB[(Neon PostgreSQL)]
   API -. optional, structured only .-> AI[AI model / Jev]
@@ -18,7 +20,7 @@ flowchart LR
 
 ## 1. One service for the app and the API
 
-**Choice:** One Vercel Function (`src/index.ts`) serves both the built Angular app and the Express API from the same origin. The browser reads `config.json` to find the API.
+**Choice:** One Vercel Function (`src/index.ts`) serves both the built Angular app and the Express API from the same origin. Public startup always uses fictional browser data; it never reads `config.json`, starts Clerk or connects to the protected API. The deployment builder still emits public config for retained integration code and the smoke contract.
 
 **Why:** No CORS setup, one deploy, one URL for CIC to remember, and it fits the plan's $20/month hosting budget.
 
@@ -56,7 +58,7 @@ sequenceDiagram
 
 ## 4. Invite-only sign-in with admin MFA checked on the server
 
-**Choice:** Clerk handles sign-in with public sign-up turned off. The API, not just the screen, refuses an admin session without a verified second factor (`apps/api/auth.ts`).
+**Choice:** The separate protected API verifies Clerk sessions and refuses an admin session without a verified second factor (`apps/api/auth.ts`). Public Try Now has no Clerk login, enrollment or live-mode toggle; persona selection is a browser demonstration, not authentication.
 
 **Why:** Donor contact details are sensitive, and the people who can export them must use two-step verification.
 
@@ -64,7 +66,7 @@ sequenceDiagram
 
 ## 5. Imports are reviewed before anything is saved
 
-**Choice:** Imports run in stages. Nothing is written until an admin approves, and the commit is all-or-nothing.
+**Choice:** Backend imports run in stages. Nothing is written until an admin approves, and the commit is all-or-nothing. The pipeline/hash/audit diagram below describes that protected backend. Public imports instead review and save browser-local records; their documented US/Phoenix date interpretation and replay checks do not prove server persistence.
 
 ```mermaid
 flowchart LR
@@ -87,7 +89,7 @@ flowchart LR
 
 ## 6. People send every message
 
-**Choice:** Cadence drafts from templates. A person approves the exact content, which is stored as a hash, and editing the draft clears the approval. The send opens the person's own email or SMS app (`mailto:` / `sms:`), and the send is logged on the donor's timeline.
+**Choice:** Cadence drafts from templates. Backend approval binds exact content with a hash; browser Try Now keeps local approval state. Editing or explicitly regenerating an unsent draft clears approval. Compose links open the person's own email or SMS app (`mailto:` / `sms:`); only a person's confirmation can log a manual send. Neither local history nor opening a compose link proves delivery.
 
 ```mermaid
 stateDiagram-v2
@@ -104,19 +106,19 @@ stateDiagram-v2
 
 ## 7. AI is optional and kept small
 
-**Choice:** The model only chooses: which filters a question means (Ask your data), or which stored facts go into a donor update. It sees placeholder IDs and categories, never donor names or raw notes. The wording comes from CIC's own data. Jev suggests a mapping for an unknown column header only, and a person must accept it. Without keys, built-in rules give the same features.
+**Choice:** Public Ask your data uses supported local filters, without model/API requests. Retained backend adapters can propose bounded filter choices or select supplied structured facts; Jev suggests unknown column mappings for human review. These optional integrations are separate from the public walkthrough and do not authorize model writes or autonomous sending.
 
 **Why:** Donor privacy, predictable wording, and no paid AI dependency for core features.
 
 **Impact:** Less free-form writing, but the app works with no AI configured. Benchmarking found that valid model answers were rejected because of JSON key order. That was fixed in #222 (issue #221).
 
-## 8. One web build for demo and live
+## 8. Public Try Now with retained backend integration source
 
-**Choice:** `config.json` switches the same build between live mode (Clerk + API) and demo mode (synthetic data held in the browser). In live mode, any action not yet wired to the server says "nothing was saved" instead of pretending.
+**Choice:** Public startup selects browser-local data before config/auth access. `config.json` and `?demo=0` cannot enable live login. Actual admin and board personas use their own role scope; changing person returns to Overview. Retained live-client/backend source remains protected and is not an exposed public mode.
 
 **Why:** Designers and judges could use the full UI before the backend was deployed, without risk to real data.
 
-**Impact:** Faster UI work and the Try Now experience. The cost is two code paths in the store, and a clear rule that demo mode proves nothing about the server.
+**Impact:** The public walkthrough needs no account or database and cannot change production records. Two code paths remain in the source, but public UI evidence proves only browser behavior. Backend acceptance requires separate authenticated tests; no current deployed result is claimed by this document.
 
 ## 9. Aggregate-only read API for CIC's dashboard
 
