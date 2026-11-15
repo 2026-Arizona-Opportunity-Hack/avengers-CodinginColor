@@ -120,6 +120,19 @@ it('requires a fresh review after a stale-plan response and can purge the staged
   expect(api.request).toHaveBeenCalledWith('/api/v1/imports/batch/abandon', expect.objectContaining({ method: 'POST' }));
 });
 
+it('discards upload results after destruction before the session effect can run', async () => {
+  const { api, fixture, store, page, upload } = setup();
+  let resolve!: (value: unknown) => void;
+  api.request.mockImplementationOnce(() => new Promise(done => { resolve = done; }));
+  const pending = upload();
+  store.sessionEpoch.update(n => n + 1);
+  fixture.destroy();
+  resolve({ ...batch, status: 'committed' });
+  await pending;
+  expect(page.batch()).toBeNull();
+  expect(page.previewRows()).toEqual([]);
+});
+
 it('uses mapped row statuses and refunds without replacing them with batch defaults', async () => {
   const { api, fixture, page, upload } = setup();
   api.request.mockResolvedValueOnce(batch).mockResolvedValueOnce({ ...batch, layout: {}, preview: {
