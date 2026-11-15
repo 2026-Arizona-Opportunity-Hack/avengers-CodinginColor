@@ -47,6 +47,14 @@ export function createApp(env: Env, db: Database, verify: (header: string | unde
     }));
     res.json(catalog);
   });
+  app.get('/api/v1/owners', async (req, res) => {
+    const identity = await verify(req.get('Authorization'));
+    const items = await withMember(db, env.CIC_ORG_ID, identity, async (client, member) => {
+      if (member.role !== 'admin') throw new HttpError(403);
+      return (await client.query('SELECT * FROM public.assignable_owners()')).rows;
+    });
+    res.json({ items });
+  });
   app.use('/api/v1/donors', express.json({ limit: '32kb' }), donors(env, db, verify));
   app.use('/api/v1/gifts', express.json({ limit: '32kb' }), gifts(env, db, verify));
   app.use('/api/v1/imports', imports(env, db, verify));
