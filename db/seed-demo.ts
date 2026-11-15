@@ -7,13 +7,13 @@ interface SeedClient {
   query(sql: string, values?: unknown[]): Promise<{ rows: Record<string, unknown>[] }>;
 }
 export class SeedError extends Error {}
-export type SeedResult = { programs: number; campaigns: number; donors: number; gifts: number; follow_ups: number };
+export type SeedResult = { programs: number; campaigns: number; donors: number; gifts: number; follow_ups: number; outcomes: number };
 
 /**
  * Deterministic demo IDs, scoped per organization: the same org re-seeds to the same rows, while
  * another org gets its own (a global fixed ID made a second org's seed silently insert nothing).
  */
-export function demoId(orgId: string, kind: 'a' | 'b' | 'c' | 'd' | 'e', n: number): string {
+export function demoId(orgId: string, kind: 'a' | 'b' | 'c' | 'd' | 'e' | 'f', n: number): string {
   const h = createHash('sha256').update(`cic-demo:${orgId}:${kind}:${n}`).digest('hex');
   const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-4${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
@@ -60,7 +60,7 @@ async function assertPrivileged(client: SeedClient) {
  */
 export async function seedDemo(client: SeedClient, orgId: string): Promise<SeedResult> {
   if (!z.uuid().safeParse(orgId).success) throw new SeedError('CIC_ORG_ID must be a UUID');
-  const id = (kind: 'a' | 'b' | 'c' | 'd' | 'e', n: number) => demoId(orgId, kind, n);
+  const id = (kind: 'a' | 'b' | 'c' | 'd' | 'e' | 'f', n: number) => demoId(orgId, kind, n);
   await assertPrivileged(client);
   await client.query('BEGIN');
   try {
@@ -70,16 +70,25 @@ export async function seedDemo(client: SeedClient, orgId: string): Promise<SeedR
     const owners = (await client.query(`SELECT id FROM memberships
       WHERE org_id = $1 AND active AND role = 'board' ORDER BY clerk_subject`, [orgId])).rows.map((r) => r.id as string);
     if (owners.length === 0) throw new SeedError('No active board members: provision at least one with db/provision.ts');
+    const admin = (await client.query(`SELECT id FROM memberships
+      WHERE org_id = $1 AND active AND role = 'admin' ORDER BY clerk_subject LIMIT 1`, [orgId])).rows[0];
+    if (!admin) throw new SeedError('No active administrator: provision one to approve fictional demo outcomes');
     if ((await client.query(`SELECT 1 FROM donors WHERE org_id = $1
         AND coalesce(metadata->>'demo', '') <> 'true' LIMIT 1`, [orgId])).rows.length > 0) {
       throw new SeedError('Refusing to seed: this organization already has non-demo donors');
     }
-    const result: SeedResult = { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0 };
+    const result: SeedResult = { programs: 0, campaigns: 0, donors: 0, gifts: 0, follow_ups: 0, outcomes: 0 };
     const inserted = async (sql: string, values: unknown[]) => (await client.query(sql, values)).rows.length;
 
     for (const [i, title] of PROGRAMS.entries()) {
       result.programs += await inserted(`INSERT INTO programs (id, org_id, title) VALUES ($1, $2, $3)
         ON CONFLICT (id) DO NOTHING RETURNING id`, [id('a', i), orgId, title]);
+      result.outcomes += await inserted(`INSERT INTO program_outcomes
+        (id, org_id, program_id, period_from, period_to, metric, value, unit, source, approved_by, approved_at)
+        VALUES ($1, $2, $3, '2026-01-01T00:00:00-07:00', '2027-01-01T00:00:00-07:00',
+          'Participants served', $4, 'participants', 'Fictional demo fixture; not CIC program results', $5,
+          '2026-11-14T12:00:00-07:00') ON CONFLICT DO NOTHING RETURNING id`,
+      [id('f', i), orgId, id('a', i), [24, 40, 60][i], admin.id]);
     }
     for (const [i, [title, program]] of CAMPAIGNS.entries()) {
       result.campaigns += await inserted(`INSERT INTO campaigns (id, org_id, program_id, title) VALUES ($1, $2, $3, $4)
@@ -151,7 +160,7 @@ if (import.meta.main) {
     client = new Client({ connectionString: url.href, connectionTimeoutMillis: 10000 });
     await client.connect();
     const r = await seedDemo(client, process.env.CIC_ORG_ID ?? '');
-    console.log(`Inserted ${r.programs} programs, ${r.campaigns} campaigns, ${r.donors} donors, ${r.gifts} gifts, ${r.follow_ups} follow-ups (existing rows skipped)`);
+    console.log(`Inserted ${r.programs} programs, ${r.campaigns} campaigns, ${r.donors} donors, ${r.gifts} gifts, ${r.follow_ups} follow-ups, ${r.outcomes} fictional approved outcomes (existing rows skipped)`);
   } catch (error) {
     // Driver errors can contain connection details; only our own messages are printed.
     console.error(error instanceof SeedError ? `Seeding failed: ${error.message}`
