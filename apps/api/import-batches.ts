@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { previewCsv } from '../../tools/import-preview.ts';
 import { buildImportDrafts } from '../../tools/import-drafts.ts';
-import { GiftWriteSchema } from '../../packages/contracts/index.ts';
+import { GiftWriteSchema, IdSchema } from '../../packages/contracts/index.ts';
 import { HttpError } from './env.ts';
 import type { Client } from './db.ts';
 export class ImportError extends HttpError {
@@ -20,9 +20,10 @@ export const Layout=z.strictObject({mapping:z.record(z.string(),z.string().nulla
 export type Batch={id:string;org_id:string;source:string;filename:string;file_sha256:string;raw_csv:Uint8Array|null;
   status:'reviewing'|'committed'|'abandoned';layout:z.infer<typeof Layout>|null;donor_decisions:unknown[]|null;gift_decisions:unknown[]|null;
   donor_plan_hash:string|null;gift_plan_hash:string|null;reviewer_id:string|null;result:Record<string,unknown>|null};
-export async function batchOf(client:Client,id:string,org:string):Promise<Batch> {
+export async function batchOf(client:Client,id:unknown,org:string):Promise<Batch> {
+  const key=IdSchema.safeParse(id); if(!key.success) return fail(404,'import_not_found');
   await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",['cic-import:'+org]);
-  const r=await client.query('SELECT * FROM import_batches WHERE id=$1 AND org_id=$2 FOR UPDATE',[id,org]);
+  const r=await client.query('SELECT * FROM import_batches WHERE id=$1 AND org_id=$2 FOR UPDATE',[key.data,org]);
   if(!r.rows.length) return fail(404,'import_not_found'); return r.rows[0] as unknown as Batch;
 }
 export function staged(batch:Batch) {if(batch.status!=='reviewing') fail(409,'batch_not_reviewing');}
@@ -41,6 +42,7 @@ export function draftsOf(batch:Batch,layout:unknown=batch.layout??{}) {
   } catch(e) {
     if(e instanceof ImportError) throw e;
     if(e instanceof TypeError) fail(400,'invalid_utf8');
+    if(e instanceof Error&&['CSV header is missing','CSV has blank or duplicate headers'].includes(e.message)) fail(400,'invalid_csv');
     return fail(400,l.date_format?'invalid_date_options':'invalid_mapping');
   }
 }

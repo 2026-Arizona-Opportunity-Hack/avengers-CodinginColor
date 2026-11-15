@@ -42,7 +42,7 @@ export function registerImportReview(router:Router,access:ImportAccess,org:strin
   for(const kind of ['donor','gift'] as const) {
     const path=kind+'s';
     router.post(`/:id/${path}/plan`,async(req,res)=>res.json(await access(req.get('Authorization'),async(c,m)=>{
-      const b=await batchOf(c,parse(IdSchema,req.params.id),org); sameReviewer(b,m.id);
+      const b=await batchOf(c,req.params.id,org); sameReviewer(b,m.id);
       const p=await plans(c,b,org),plan=kind==='donor'?p.donor:giftPlan(b,p).gift;
       if(kind==='donor'&&b.donor_plan_hash!==plan.plan_hash) {
         await c.query("UPDATE import_batches SET donor_plan_hash=$2,donor_decisions=NULL,gift_decisions=NULL,gift_plan_hash=NULL WHERE id=$1",[b.id,plan.plan_hash]);
@@ -53,7 +53,7 @@ export function registerImportReview(router:Router,access:ImportAccess,org:strin
         excluded:p.drafts.excluded.length,unresolved:p.drafts.unresolved};
     })));
     router.post(`/:id/${path}/review`,async(req,res)=>res.json(await access(req.get('Authorization'),async(c,m)=>{
-      const input=parse(Review,req.body),b=await batchOf(c,parse(IdSchema,req.params.id),org); sameReviewer(b,m.id);
+      const input=parse(Review,req.body),b=await batchOf(c,req.params.id,org); sameReviewer(b,m.id);
       if(input.decisions.some(d=>d.kind!==kind)) fail(400,'invalid_decision');
       const p=await plans(c,b,org),plan=kind==='donor'?p.donor:giftPlan(b,p).gift;
       if(input.plan_hash!==plan.plan_hash||b[kind==='donor'?'donor_plan_hash':'gift_plan_hash']!==plan.plan_hash) stale(plan.plan_hash);
@@ -70,7 +70,7 @@ export function registerImportReview(router:Router,access:ImportAccess,org:strin
   }
   router.get('/:id/plan/rows',async(req,res)=>res.json(await access(req.get('Authorization'),async c=>{
     const q=parse(z.strictObject({kind:z.enum(['donor','gift']),offset:z.coerce.number().int().nonnegative().default(0),limit:z.coerce.number().int().min(1).max(200).default(100)}),req.query);
-    const b=await batchOf(c,parse(IdSchema,req.params.id),org),p=await plans(c,b,org),plan=q.kind==='donor'?p.donor:giftPlan(b,p).gift;
+    const b=await batchOf(c,req.params.id,org),p=await plans(c,b,org),plan=q.kind==='donor'?p.donor:giftPlan(b,p).gift;
     const group=plan[`${q.kind}s`],items:unknown[]=[];
     for(const row of group.rows.slice(q.offset,q.offset+q.limit)) {
       const item={...row,draft:group.drafts[row.row],candidates:group.reviewed.filter(r=>row.existingIds.includes(String((r as {id:string}).id)))};
