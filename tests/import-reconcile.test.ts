@@ -112,6 +112,17 @@ test('batch/row provenance supports replay without IDs; edited replay stays in r
   assert.equal(planGiftChanges(org, [{ ...noId, amount_cents: 500 }], [existing]).rows[0].action, 'review');
 });
 
+test('re-exported files with new batch provenance cannot auto-insert no-ID gifts again', () => {
+  // Byte changes such as CRLF or BOM give a re-saved export a new file hash and batch ID.
+  const stored = { ...gift, external_id: null, source_row: { batch_id: batch, row_key: '2' }, id: other, org_id: org };
+  const reupload = { ...gift, external_id: null, source_row: { batch_id: id, row_key: '2' } };
+  const row = planGiftChanges(org, [reupload], [stored]).rows[0];
+  assert.equal(row.action, 'review');
+  assert.equal(row.reason, 'possible_file_replay');
+  assert.deepEqual(row.existingIds, [other]);
+  assert.equal(planGiftChanges(org, [{ ...reupload, amount_cents: 1001 }], [stored]).rows[0].action, 'insert');
+});
+
 test('all 210 source rows can enter donor reconciliation without mutating input or leaking contacts in decisions', () => {
   const drafts = ['cic_donor_spreadsheet.csv', 'zeffy_export.csv', 'benevity_export.csv'].flatMap((name, i) => {
     const source = ['spreadsheet', 'zeffy', 'benevity'][i];
