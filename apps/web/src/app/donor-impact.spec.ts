@@ -26,3 +26,30 @@ it('renders a denied donor grant without staff or donor details',async()=>{
   const {api,fixture}=setup(false);api.request.mockRejectedValueOnce(new ApiError(403));api.authenticated.set(true);fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
   expect(fixture.nativeElement.textContent).toContain('Your donor account is not enabled.');expect(fixture.nativeElement.textContent).not.toContain('Summer');
 });
+
+it('clears previous donor records while a replacement identity loads or fails',async()=>{
+  const {api,fixture}=setup();await fixture.whenStable();fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).toContain('Summer');
+  let reject!:(reason:unknown)=>void;
+  api.request.mockImplementationOnce(()=>new Promise((_resolve,fail)=>{reject=fail;}));
+  api.identityVersion.update(value=>value+1);fixture.detectChanges();
+  const pending=fixture.nativeElement.textContent;
+  reject(new ApiError(403));await fixture.whenStable();fixture.detectChanges();
+  expect(pending).not.toContain('Summer');expect(pending).not.toContain('Learners');
+  expect(fixture.nativeElement.textContent).not.toContain('Summer');
+  expect(fixture.nativeElement.textContent).toContain('Your donor account is not enabled.');
+});
+it('discards an old donor response after a direct authenticated identity switch',async()=>{
+  const {api,fixture}=setup();await fixture.whenStable();fixture.detectChanges();
+  let finishOld!:(value:ImpactFeed)=>void,finishNew!:(value:ImpactFeed)=>void;
+  api.request.mockImplementationOnce(()=>new Promise(resolve=>{finishOld=resolve;}));
+  fixture.nativeElement.querySelectorAll('button')[1].click();
+  api.request.mockImplementationOnce(()=>new Promise(resolve=>{finishNew=resolve;}));
+  api.identityVersion.update(value=>value+1);fixture.detectChanges();
+  finishNew({...feed,gifts:[{...feed.gifts[0],campaign:'New donor gift'}],outcomes:[]});
+  await fixture.whenStable();fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).toContain('New donor gift');
+  finishOld(feed);await fixture.whenStable();fixture.detectChanges();
+  expect(fixture.nativeElement.textContent).toContain('New donor gift');
+  expect(fixture.nativeElement.textContent).not.toContain('Summer');
+});
