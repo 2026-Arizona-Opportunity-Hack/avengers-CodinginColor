@@ -63,6 +63,9 @@ What's built on `main` (API, database and rules):
   same reviewed API flow, with bounded workbook parsing and original-file fingerprints (#105).
 - **Donors and gifts:** one record per donor with an owner, a gift ledger with audited corrections,
   and admin reassignment that moves open follow-ups along with the donor.
+  The live Donations screen keeps currencies separate and limits CSV download to admins.
+  Archived donors retain their gift/contact history; donor records show separate donation history,
+  communications and future-task sections.
 - **Follow-ups:** a queue of overdue, this-week and upcoming items, plus one quarterly touch per
   donor. Messages are drafted from templates and need human approval, then go out from the
   person's own email or phone and are logged once. Nothing is sent automatically.

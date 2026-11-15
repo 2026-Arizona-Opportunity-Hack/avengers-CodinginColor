@@ -15,7 +15,7 @@ export const NAV: NavGroup[] = [
   { label: 'Workspace', items: [
     { path: '/', label: 'Overview', icon: 'lucideLayoutDashboard', exact: true },
     { path: '/donors', label: 'Donors', icon: 'lucideUsers', live: true },
-    { path: '/donations', label: 'Donations', icon: 'lucideHandCoins' },
+    { path: '/donations', label: 'Donations', icon: 'lucideHandCoins', live: true },
     { path: '/outreach', label: 'Follow-ups', icon: 'lucideSend', live: true },
   ] },
   { label: 'Insights', items: [

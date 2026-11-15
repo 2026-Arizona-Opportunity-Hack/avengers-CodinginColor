@@ -23,7 +23,7 @@ export const routes: Routes = [
       { path: 'donors', title: 'Donors · Coding in Color', loadComponent: () => import('./pages/donors').then((m) => m.DonorsPage) },
       { path: 'donors/new', title: 'Add donor · Coding in Color', loadComponent: () => import('./pages/donor-new').then((m) => m.DonorNewPage) },
       { path: 'donors/:id', title: 'Donor · Coding in Color', loadComponent: () => import('./pages/donor-detail').then((m) => m.DonorDetailPage) },
-      { path: 'donations', canMatch: [demoOnly], title: 'Donations · Coding in Color', loadComponent: () => import('./pages/donations').then((m) => m.DonationsPage) },
+      { path: 'donations', title: 'Donations · Coding in Color', loadComponent: () => import('./pages/donations').then((m) => m.DonationsPage) },
       { path: 'outreach', title: 'Follow-ups · Coding in Color', loadComponent: () => import('./pages/outreach').then((m) => m.OutreachPage) },
       { path: 'import', title: 'Import · Coding in Color', canMatch: [adminOnly, demoOnly], loadComponent: () => import('./pages/import').then((m) => m.ImportPage) },
       { path: 'retention', title: 'Retention · Coding in Color', loadComponent: () => import('./pages/retention').then((m) => m.RetentionPage) },

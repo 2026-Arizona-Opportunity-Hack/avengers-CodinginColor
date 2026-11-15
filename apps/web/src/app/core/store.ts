@@ -113,9 +113,12 @@ export class Store {
   });
   private readonly visibleIds = computed(() => new Set(this.donors().map((d) => d.id)));
   readonly selectedCurrency = signal('USD');
-  readonly currencies = computed(() => [...new Set(this.data().gifts.filter(g => this.visibleIds().has(g.donor_id)).map(g => g.currency))].sort());
+  readonly historicalDonors = computed(() => this.data().donors.filter(d => this.isAdmin() || d.owner_id === this.me().id));
+  private readonly historicalIds = computed(() => new Set(this.historicalDonors().map(d => d.id)));
+  readonly currencies = computed(() => [...new Set(this.data().gifts.filter(g => this.historicalIds().has(g.donor_id)).map(g => g.currency))].sort());
   readonly currency = computed(() => this.currencies().includes(this.selectedCurrency()) ? this.selectedCurrency() : this.currencies()[0] ?? 'USD');
   readonly gifts = computed(() => this.data().gifts.filter((g) => this.visibleIds().has(g.donor_id) && g.currency === this.currency()));
+  readonly ledgerGifts = computed(() => this.data().gifts.filter(g => this.historicalIds().has(g.donor_id) && g.currency === this.currency()));
   readonly communications = computed(() => this.data().communications.filter((c) => this.visibleIds().has(c.donor_id)));
   readonly followUps = computed(() => this.data().followUps.filter((f) => this.visibleIds().has(f.donor_id)));
   readonly drafts = computed(() => this.data().drafts.filter((d) =>
@@ -147,6 +150,8 @@ export class Store {
 
   member(id: string | null) { return this.members().find((m) => m.id === id) ?? null; }
   donor(id: string) { return this.donors().find((d) => d.id === id) ?? null; }
+  historicalDonor(id: string) { return this.historicalDonors().find(d => d.id === id) ?? null; }
+  historicalContacts(id: string) { return this.historicalIds().has(id) ? this.data().communications.filter(c => c.donor_id === id) : []; }
   campaign(id: string | null) { return this.campaigns().find((c) => c.id === id) ?? null; }
   program(id: string | null) { return this.programs().find((p) => p.id === id) ?? null; }
   template(id: string) { return this.templates().find((t) => t.id === id) ?? null; }
@@ -205,7 +210,7 @@ export class Store {
     const outreachGeneration = ++this.outreachLoadGeneration;
     this.api.status.set('loading');
     try {
-      const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
+      const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors(true)]);
       if (generation !== this.liveLoadGeneration) return;
       const request: outreach.Request = (path, init) => this.api.request(path, init);
       const [followUps, drafts, apiKeys, gifts, communications, catalog, owners] = await Promise.all([
