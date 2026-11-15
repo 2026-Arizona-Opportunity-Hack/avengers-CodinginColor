@@ -81,6 +81,10 @@ demo data in the browser.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
+Unmapped headers can request optional Jev suggestions. Only the selected header leaves the server;
+the reviewer must explicitly accept a suggestion and apply the mapping. Without a configured key
+or when the provider is unavailable, deterministic aliases and manual mapping continue to work.
+
 The live admin Import screen uses the API for upload, mapping, donor/gift review
 and atomic commit. It requires explicit status/refund and missing date/currency
 facts, acknowledges invalid records, and separates source totals from canonical
