@@ -10,7 +10,11 @@ import { demoWorkspaceMode } from './core/demo-workspace';
 
 export async function initializeWorkspace(store: Store) {
   const demo = demoWorkspaceMode();
-  if (demo) { store.enableDemo(demo === 'enter'); return; }
+  if (demo) {
+    store.enableDemo(demo === 'enter');
+    if (demo === 'sign-in') store.signInDemo('m-ceo');
+    return;
+  }
   const config = await loadLiveConfig();
   if (config) store.connect(config);
 }
