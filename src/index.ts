@@ -22,6 +22,13 @@ const db = new Pool({ connectionString: env.DATABASE_URL, max: 3, idleTimeoutMil
 
 // The built web app is served first; API and health paths always fall through to createApp.
 // Keep the path a literal URL relative to this file so Vercel's file tracer bundles public/.
-const publicDir = fileURLToPath(new URL('../public/', import.meta.url));
-export default express().disable('x-powered-by').use(webApp(publicDir))
+const publicDir = fileURLToPath(new URL('../public', import.meta.url));
+// The tracer only bundles the whole folder when it sees express.static() on that path in this file;
+// passing it into webApp() alone bundled just the JS chunks (no index.html, config.json or fonts).
+const assets = express.static(publicDir, {
+  index: false, dotfiles: 'ignore', fallthrough: true,
+  // config.json and index.html change on every deploy; hashed assets can be cached.
+  setHeaders: (res, path) => { if (/\.(?:html|json)$/i.test(path)) res.setHeader('Cache-Control', 'no-cache'); },
+});
+export default express().disable('x-powered-by').use(webApp(publicDir, assets))
   .use(createApp(env, db, createVerifier(env, clerkProvider(env))));

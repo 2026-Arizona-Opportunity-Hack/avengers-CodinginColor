@@ -8,10 +8,10 @@ import express, { type RequestHandler } from 'express';
 const API = /^\/(?:api(?:\/|$)|healthz$)/;
 const ASSET = /\.[a-z0-9]+$/i;
 
-export function webApp(dir: string): express.Router {
+export function webApp(dir: string, assets?: RequestHandler): express.Router {
   const router = express.Router();
   const index = join(dir, 'index.html');
-  router.use(express.static(dir, {
+  router.use(assets ?? express.static(dir, {
     dotfiles: 'ignore', index: false, fallthrough: true,
     setHeaders: (res, path) => {
       // config.json and index.html change on every deploy; hashed assets can be cached.
