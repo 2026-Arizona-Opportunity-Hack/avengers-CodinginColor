@@ -630,6 +630,11 @@ export class Store {
   importRows(rows: ImportRow[], source: Source, fileName: string, fingerprint: string): { created: number; merged: number; gifts: number; skipped: number } {
     if (this.live() || !this.isAdmin()) throw new Error('Only a demo admin can import synthetic records.');
     if (!/^[a-f0-9]{64}$/.test(fingerprint)) throw new Error('The file identity could not be verified.');
+    // Older demo gifts have only filename provenance, so require review rather than guessing a match.
+    if (rows.some(r => r.action !== 'skip' && r.gift && !r.gift.external_id) &&
+        this.allGifts().some(g => g.source === source && g.external_id?.startsWith(`${fileName}#`))) {
+      throw new Error('This filename has gifts from an older import without file verification. Nothing was saved; review those gifts and supply source transaction IDs before importing again.');
+    }
     const result = { created: 0, merged: 0, gifts: 0, skipped: 0 };
     const createdByKey = new Map<string, string>();
     this.mutate((d) => {

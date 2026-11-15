@@ -25,6 +25,15 @@ function setup() {
 }
 const row = 'QA Date,qa@example.org,23.45,"12/20/2025, 12:27 PM",';
 
+it('blocks legacy filename-only gifts for human review instead of duplicating or guessing', async () => {
+  const { store, page, upload } = setup();
+  await upload(row + 'qa-date.csv#1');
+  const before = structuredClone(store.allGifts());
+  await upload(row);
+  expect(page.commitError()).toContain('older import without file verification. Nothing was saved');
+  expect(store.allGifts()).toEqual(before);
+});
+
 it('replays the actual parsed CSV with zero added gifts or net giving, including a renamed file', async () => {
   const { store, page, upload } = setup();
   await upload(row);
