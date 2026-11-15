@@ -97,6 +97,30 @@ test('approval binds content: edits drop it, other owners cannot approve, compos
   assert.equal((await call('POST', `/api/v1/drafts/${draft.id}/approve`, 'admin')).status, 200);
 });
 
+test('compose rechecks consent, contact and archive after approval', async (t) => {
+  const { call, asOwner } = await setup(t);
+  const approve = async () => {
+    const draft = await (await call('POST', '/api/v1/drafts', 'board-a', thanks)).json();
+    assert.equal((await call('POST', `/api/v1/drafts/${draft.id}/approve`, 'board-a')).status, 200);
+    return `/api/v1/drafts/${draft.id}/compose`;
+  };
+  const unchanged = await approve();
+  assert.equal((await call('GET', unchanged, 'board-a')).status, 200);
+  const consent = await approve();
+  await asOwner(`UPDATE donors SET consent = 'denied' WHERE id = '${DONOR_A}'`);
+  assert.equal((await call('GET', consent, 'board-a')).status, 409);
+  assert.equal((await call('POST', consent.replace('compose', 'manual-send'), 'board-a', { confirmed: true })).status, 409);
+  await asOwner(`UPDATE donors SET consent = 'granted' WHERE id = '${DONOR_A}'`);
+  const contact = await approve();
+  await asOwner(`UPDATE donors SET email = 'avery.new@example.org' WHERE id = '${DONOR_A}'`);
+  assert.equal((await call('GET', contact, 'board-a')).status, 409);
+  await asOwner(`UPDATE donors SET email = 'avery@example.org' WHERE id = '${DONOR_A}'`);
+  const archived = await approve();
+  await asOwner(`UPDATE donors SET archived_at = now() WHERE id = '${DONOR_A}'`);
+  assert.equal((await call('GET', archived, 'board-a')).status, 409);
+  assert.equal((await call('POST', archived.replace('compose', 'manual-send'), 'board-a', { confirmed: true })).status, 409);
+});
+
 test('a confirmed manual send is logged once, freezes the draft, and closes the quarter touch', async (t) => {
   const { call, asOwner } = await setup(t);
   const draft = await (await call('POST', '/api/v1/drafts', 'board-a', thanks)).json();

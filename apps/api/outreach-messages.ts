@@ -33,7 +33,7 @@ function parse<T>(schema: z.ZodType<T>, input: unknown): T {
 function rule(error: unknown): never {
   if (!(error instanceof ApprovalError)) throw error;
   if (/not this donor's owner/.test(error.message)) throw new HttpError(403);
-  if (/declined contact|already sent|must be approved|contact changed|Only an unapproved/.test(error.message)) {
+  if (/declined contact|archived|already sent|must be approved|contact changed|Only an unapproved/.test(error.message)) {
     throw new HttpError(409);
   }
   throw new HttpError(400);
@@ -48,15 +48,15 @@ async function visibleDonor(client: Client, id: string): Promise<MessageDonor> {
   if (!row) throw new HttpError(404);
   return row as MessageDonor;
 }
-/** A draft and its donor's current owner, consent and contact; RLS turns other owners' drafts into 404s. */
+/** A draft and its donor's current owner, consent, contact and archive state; RLS turns other owners' drafts into 404s. */
 async function loadDraft(client: Client, id: string): Promise<{ draft: Draft; donor: MessageDonor }> {
   const [r] = (await client.query(`SELECT d.donor_id, d.channel, d.recipient, d.subject, d.body, d.status,
       d.approval_hash, d.approved_by, ${stamp('d.approved_at')} AS approved_at,
-      n.owner_id, n.consent, n.email, n.phone
+      n.owner_id, n.consent, n.email, n.phone, n.archived_at IS NOT NULL AS archived
     FROM drafts d JOIN donors n ON n.org_id = d.org_id AND n.id = d.donor_id WHERE d.id = $1`, [id])).rows;
   if (!r) throw new HttpError(404);
   const donor = { id: String(r.donor_id), owner_id: r.owner_id as string | null, consent: r.consent as MessageDonor['consent'],
-    email: r.email as string | null, phone: r.phone as string | null };
+    email: r.email as string | null, phone: r.phone as string | null, archived: r.archived === true };
   const draft: Draft = { donor_id: donor.id, owner_id: donor.owner_id, channel: r.channel as Draft['channel'],
     recipient: String(r.recipient), subject: r.subject as string | null, body: String(r.body), status: r.status as Draft['status'],
     approval: r.approval_hash ? { hash: String(r.approval_hash), approved_by: String(r.approved_by), approved_at: String(r.approved_at) } : null };
@@ -137,9 +137,9 @@ export function createMessageRouter(env: Env, db: Database, verify: (header: str
   router.get('/api/v1/drafts/:id/compose', async (req, res) => {
     const identity = await verify(req.get('Authorization'));
     const id = parse(IdSchema, req.params.id);
-    const href = await withMember(db, env.CIC_ORG_ID, identity, async (client) => {
-      const { draft } = await loadDraft(client, id);
-      try { return composeLink(draft); } catch (error) { rule(error); }
+    const href = await withMember(db, env.CIC_ORG_ID, identity, async (client, member) => {
+      const { draft, donor } = await loadDraft(client, id);
+      try { return composeLink(draft, donor, actorOf(member)); } catch (error) { rule(error); }
     });
     res.json({ href });
   });

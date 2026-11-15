@@ -7,7 +7,7 @@ export class ApprovalError extends Error {}
 export type Channel = 'email' | 'sms';
 export type Actor = { member_id: string; role: 'admin' | 'board' };
 export type MessageDonor = { id: string; owner_id: string | null; consent: 'unknown' | 'granted' | 'denied';
-  email?: string | null; phone?: string | null };
+  email?: string | null; phone?: string | null; archived?: boolean };
 export type Draft = {
   donor_id: string; owner_id: string | null; channel: Channel; recipient: string;
   subject: string | null; body: string;
@@ -69,6 +69,7 @@ function checkContent(channel: Channel, subject: string | null, body: string) {
 }
 
 function assertContactAllowed(donor: MessageDonor) {
+  if (donor.archived) throw new ApprovalError('Donor is archived');
   if (donor.consent === 'denied') throw new ApprovalError('Donor declined contact');
 }
 function assertMayAct(actor: Actor, ownerId: string | null) {
@@ -150,11 +151,12 @@ export function recordManualSend(d: Draft, donor: MessageDonor, actor: Actor,
   };
 }
 
-/** `mailto:` / `sms:` link that opens the person's own app with the approved text; every part is encoded. */
-export function composeLink(d: Draft): string {
-  if (d.status !== 'approved' || !d.approval || d.approval.hash !== contentHash(d)) {
-    throw new ApprovalError('Message must be approved exactly as it will be sent');
-  }
+/**
+ * `mailto:` / `sms:` link that opens the person's own app with the approved text; every part is encoded.
+ * Rechecks the donor as it is now (consent, contact, archive, owner), since those can change after approval.
+ */
+export function composeLink(d: Draft, donor: MessageDonor, actor: Actor): string {
+  assertSendable(d, donor, actor);
   const enc = encodeURIComponent;
   return d.channel === 'email'
     ? `mailto:${enc(d.recipient)}?subject=${enc(d.subject ?? '')}&body=${enc(d.body)}`
