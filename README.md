@@ -63,25 +63,41 @@ numbers in memory; it never writes donors or gifts.
 
 ## Tech stack
 
-- Frontend:
-- Backend:
-- Database:
-- APIs / services:
+- Frontend: not on `main` yet. Angular is the planned direction (see the implementation plan).
+- Backend: Node.js 24.2+ with TypeScript run directly by Node, Express 5, and Zod validation shared through `packages/contracts`.
+- Database: PostgreSQL 16+ (Neon in production). Row-level security scopes every query to the signed-in member's organization and, for board members, to their own donors.
+- APIs / services: Clerk for invite-only sign-in. Tests run real migrations on in-memory PostgreSQL (PGlite); no live service or credentials are needed.
 
 ## Run it locally
+
+Tests and checks need no accounts or keys:
 
 ```bash
 git clone https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor.git
 cd avengers-CodinginColor
-cp .env.example .env   # fill in your own values — never commit .env
-# install + start commands here
+npm ci
+npm run typecheck
+npm run test:contracts
+npm run test:api
+node --test tests/*.test.ts tests/*.test.mjs packages/reporting/*.test.ts
 ```
+
+Running the API against a real database and Clerk instance:
+
+```bash
+cp .env.example .env   # fill in your own values — never commit .env
+node --env-file-if-exists=.env db/migrate.ts   # uses MIGRATION_DATABASE_URL
+npm run start:api                             # GET /healthz should return {"status":"ok"}
+```
+
+Database setup (the two logins, provisioning the organization and members) and hosting
+are covered step by step in the deploy runbook, `docs/DEPLOY.md` (#42).
 
 ## Links
 
-- Live demo:
+- Live demo: not deployed yet (#30)
 - Demo video:
-- Design / docs:
+- Design / docs: [implementation plan](CIC_Donor_Platform_Implementation_Plan.pdf), [API](apps/api/README.md), [database](db/README.md), [reporting](packages/reporting/README.md) (after #34)
 
 ## CSV import preflight
 
