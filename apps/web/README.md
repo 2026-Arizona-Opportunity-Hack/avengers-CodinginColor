@@ -1,10 +1,6 @@
 # Coding in Color web app
 
-Admin first sign-in can require two-step enrollment before staff data loads. The explicit
-setup action opens `/setup-security`, embeds Clerk Security, and guides authenticator verification
-and private recovery-code handling. Finish setup checks enrollment, signs out, and returns to
-a fresh sign-in; only the server's normal MFA check can grant workspace access. Board accounts
-do not acquire an MFA requirement from this flow. Actual enrollment must be completed by the user.
+The public app opens **Try Now** without an account. It always uses fictional browser data before config/auth access, including when `config.json` exists. Clerk widgets and live security/account routes are not part of this public flow; backend session verification, MFA and authorization remain enforced separately.
 
 Angular 22 interface for the CIC donor platform. Owner: UI (@ashworks1706).
 
@@ -40,55 +36,18 @@ Each page has one job.
 ## Data
 
 The app currently runs on a synthetic, deterministic demo dataset stored in the
-browser (`src/app/core/demo-data.ts`, `store.ts`). Use the **Signed in as** menu to
+browser (`src/app/core/demo-data.ts`, `store.ts`). Use the **Switch person** selector to
 switch between an admin and a board member and see role scoping. The UI mirrors
 the server's rules; the API and PostgreSQL row-level security remain the authority.
-Settings → Reset demo data restores the original records.
+Settings → Reset records restores the original records.
 
-### Live mode (#59)
+### Retained backend integration source
 
-Put a `config.json` next to `index.html` (in `public/` for `npm start`, or in the
-deployed `dist/web/browser/`) to sign in with Clerk and read the real API:
+API and live-client implementations remain in the repository with their authorization and validation. Public startup does not activate them. `/setup-security`, `/sign-up` and `/impact` redirect to Try Now; `?demo=0` does not expose a live login. Adding `public/config.json` cannot switch this build to real accounts or server persistence.
 
-```json
-{ "apiBase": "https://api.example.org", "clerkPublishableKey": "pk_test_REPLACE_ME" }
-```
+For separately authenticated backend development, follow [API contracts](../api/README.md) and [deployment operations](../../docs/DEPLOY.md). Keep database URLs, Clerk secrets and session credentials out of this static app and browser storage. No anonymous production API access is added by Try Now.
 
-Both values are public. `apiBase` is `""` when the API serves the app from the same
-origin, and the API's `APP_ORIGIN` must equal the app's origin. With no valid
-`config.json` the app stays in demo mode.
-
-In live mode, Donors, Donor detail (edit and archive) and Retention read and write
-through `GET/PATCH /api/v1/donors`, `POST /api/v1/donors/:id/archive`,
-`GET /api/v1/me` and `GET /api/v1/reports/retention`. Queues and drafts load from
-the scoped outreach routes. Administrators can issue and revoke real keys on
-Read API; raw keys are shown once and kept out of browser storage. Follow-ups
-supports server-backed task creation/completion, quarterly task planning (admin),
-draft editing and approval, consent-checked email/SMS compose, and confirmed manual
-send logging with scoped history. Quarterly touches require a logged contact.
-The admin Funder reports screen now requests the server's funder/program/period
-packet and downloads its audited CSV. Print/PDF uses the same loaded report.
-Amounts remain per-currency with unattributed gifts separate; unavailable outcome
-data is never replaced with zero. Administrators can upload and review aggregate JSON outcomes, then explicitly approve them.
-The example uses the selected program and period; fill the actual source and results.
-Reports refresh after persistence. Same program/period/metric uploads correct prior approved values.
-
-Import now uploads original CSV/XLSX bytes and walks through server mapping,
-explicit financial facts, invalid-record acknowledgments, donor/gift decisions,
-per-currency reconciliation and atomic commit. Re-uploading the same file returns
-the saved result. Review state stays in memory and clears on session changes;
-abandoning a staged batch purges it on the server. XLSX API support is merged in #105.
-Donor records are kept in
-memory only, never in browser storage, and are cleared on sign-out. Live Donations and Team settings are enabled. Unsupported writes show "not
-connected yet" instead of pretending to save. The owner directory exposes IDs only, so other owners appear as short member IDs.
-Manual donor entry and the optional settled USD first gift now persist through
-the API, with server-selected ownership and stable identities for uncertain retries.
-
-Live donor summaries and timelines now load gifts, campaign/program labels and
-communications from the server. Contact logs save through scoped routes and reload
-history/quarterly tasks before reporting success. The giving currency selector
-keeps summaries in one currency at a time. Internal notes remain a separate pending
-workflow; failed delivery is never counted as a successful contact.
+Public edits, imports and drafts stay in browser storage. Persona changes return to Overview with actual admin/board scope. See [the recording script](../../docs/DEMO.md) for release rehearsal checks.
 
 ## Design rules
 
@@ -106,7 +65,11 @@ The earlier UI redesign reported Lighthouse accessibility100 on its then-existin
 - Outreach: Cadence drafts. A person approves, sends from their own email or
   phone, then records it. Nothing is sent automatically.
 
-The overview uses scoped persisted gifts and outreach, the selected currency, net settled amounts, and Phoenix calendar boundaries.
+The overview uses scoped browser-local gifts and outreach, the selected currency, net settled amounts, and Phoenix calendar boundaries.
+
+### Retained live-client reporting code
+
+The following describes retained server integration source, not the current public Try Now experience. Public startup does not connect these requests.
 
 Overview and Retention read server retention KPIs for the selected currency.
 Currency changes select the matching server bucket; sign-out clears loaded reports.

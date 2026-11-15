@@ -1,4 +1,4 @@
-/** Shared ECharts styling: recessive axes and grid, Cadence ink for text, thin marks. */
+/** Shared ECharts styling: recessive axes and grid, Coding in Color ink for text, thin marks. */
 export const INK = '#0f1a15';
 export const INK_MUTED = '#475950';
 export const HAIR = 'rgba(15, 26, 21, 0.08)';

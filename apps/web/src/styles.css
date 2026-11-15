@@ -1,9 +1,9 @@
 /*
-  Cadence design system: light glass over a soft Coding in Color green backdrop.
+  Coding in Color design system: light glass over a soft Coding in Color green backdrop.
   - One accent: CIC green #007A3D, only for the primary action, selection and positive trends.
   - Attention is amber, overdue/destructive is red; both always ship with an icon or words.
   - Glass needs something behind it: the drifting backdrop lives on <body>.
-  Layers: theme < base < components (spartan luma + Cadence classes) < utilities.
+  Layers: theme < base < components (spartan luma + Coding in Color classes) < utilities.
 */
 @layer theme, base, components, utilities;
 @import 'tailwindcss/theme.css' layer(theme);
@@ -72,7 +72,7 @@
   --sidebar-border: rgb(255 255 255 / 0.7);
   --sidebar-ring: var(--green-600);
 
-  /* Cadence-specific roles */
+  /* Coding in Color-specific roles */
   --glass: rgb(255 255 255 / 0.86);
   --glass-strong: rgb(255 255 255 / 0.95);
   --glass-edge: transparent;
@@ -177,7 +177,7 @@
 @keyframes vt-in { from { opacity: 0; } }
 ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
 
-/* ---------- Cadence components (legacy class names, glass look) ---------- */
+/* ---------- Coding in Color components (legacy class names, glass look) ---------- */
 
 @layer components {
   .glass { background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
