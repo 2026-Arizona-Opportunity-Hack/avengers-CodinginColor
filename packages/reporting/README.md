@@ -132,6 +132,11 @@ alone does not record requests. Events contain only organization/key IDs, fixed 
 Only organization admins can read events through the runtime role. Unknown/revoked keys
 cannot append events, and application roles cannot update/delete history.
 
+The dependent dashboard integration records authenticated 200/429 outcomes in the
+same transaction as quota consumption, before returning data or a retry response.
+Aggregation, serialization or audit failures return no aggregates and roll back both.
+Other failure statuses are outside this initial audit scope.
+
 Rollback the calling application first and retain the table/history. There is no automatic
 purge or cascading deletion. CIC's operator must confirm retention and review event volume;
 this migration does not authorize a retention job, production execution or rollout.
