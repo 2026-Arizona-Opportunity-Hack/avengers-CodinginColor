@@ -78,6 +78,7 @@ export class Store {
   private readonly api = inject(Api);
   /** True once a config.json points at a real API. Demo data and browser storage are then never used. */
   readonly live = signal(false);
+  readonly demoAdmin = signal(false);
   /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
   readonly notice = signal<string | null>(null);
   private liveLoadGeneration = 0;
@@ -105,7 +106,7 @@ export class Store {
 
   /** Until live data loads there is no member; fall back to the least-privileged role. */
   readonly me = computed<Member>(() => this.members().find((m) => m.id === this.sessionId()) ?? this.members()[0] ?? NO_MEMBER);
-  readonly isAdmin = computed(() => this.me().role === 'admin');
+  readonly isAdmin = computed(() => (!this.live() && this.demoAdmin()) || this.me().role === 'admin');
   readonly boardMembers = computed(() => this.members().filter((m) => m.role === 'board' && m.active));
 
   /** Donors this session may see: admins see the organization, board members their own. */
@@ -165,11 +166,19 @@ export class Store {
     return this.giftsFor(donorId).filter((g) => g.status !== 'void').sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))[0] ?? null;
   }
 
-  setSession(id: string) { if (!this.live()) this.sessionId.set(id); }
+  setSession(id: string) { this.signInDemo(id); }
+
+  enableDemo(entering: boolean) {
+    if (this.live()) return;
+    this.demoAdmin.set(true);
+    if (entering) this.data.set(buildDemoDataset());
+    if (entering || !this.members().some(m => m.active && m.id === this.sessionId())) this.sessionId.set('m-ceo');
+    if (entering) this.signInDemo('m-ceo');
+  }
 
   /** Demo sign-in: no password exists because no real account exists. Live mode uses Clerk. */
   signInDemo(id: string) {
-    if (this.live() || !this.members().some((m) => m.id === id)) return;
+    if (this.live() || !this.members().some((m) => m.active && m.id === id)) return;
     this.sessionId.set(id);
     this.demoSignedIn.set(true);
     this.sessionEpoch.update((n) => n + 1);
@@ -195,6 +204,7 @@ export class Store {
 
   /** Switches to live mode and loads the signed-in member's data once Clerk has a session. */
   connect(config: LiveConfig) {
+    if (this.demoAdmin()) return;
     this.liveLoadGeneration++;
     this.live.set(true);
     this.data.set(this.emptyDataset([], []));

@@ -59,13 +59,25 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
       </a>
     </ng-template>
 
+    <ng-template #demoPersona>
+      @if (store.demoAdmin()) {
+        <label class="demo-persona">Demo admin · synthetic data
+          <select class="select" aria-label="Switch demo person" [value]="store.me().id" (change)="switchTo($any($event.target).value)">
+            @for (m of store.members(); track m.id) { @if (m.active) { <option [value]="m.id">{{ m.name }} · {{ m.role === 'board' ? 'Board member' : 'Admin' }}</option> } }
+          </select>
+        </label>
+      }
+    </ng-template>
+
     <aside class="rail" aria-label="Sidebar">
       <ng-container [ngTemplateOutlet]="brand" />
+      <ng-container [ngTemplateOutlet]="demoPersona" />
       <div class="mt-6 flex-1 overflow-y-auto pe-1"><ng-container [ngTemplateOutlet]="navList" /></div>
     </aside>
 
     <div class="main-col">
       <header class="topbar frosted">
+        <div class="lg:hidden"><ng-container [ngTemplateOutlet]="demoPersona" /></div>
         <hlm-sheet side="left" #drawer="hlmSheet">
           <button hlmBtn variant="ghost" size="icon" class="lg:hidden" data-tour="mobile-nav" hlmSheetTrigger aria-label="Open navigation">
             <ng-icon name="lucideMenu" size="18" />
@@ -121,7 +133,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
             <hlm-avatar size="sm" aria-hidden="true"><span hlmAvatarFallback class="avatar-fallback">{{ store.initials(meName()) }}</span></hlm-avatar>
             <span class="hidden min-w-0 flex-col text-start leading-tight md:flex">
               <span class="truncate text-[13px] font-medium">{{ meName() }}</span>
-              <span class="text-muted-foreground truncate text-xs">{{ store.isAdmin() ? 'Admin' : 'Board member' }}</span>
+              <span class="text-muted-foreground truncate text-xs">{{ store.demoAdmin() ? 'Demo admin' : store.isAdmin() ? 'Admin' : 'Board member' }}</span>
             </span>
             <ng-icon name="lucideChevronDown" size="15" class="text-muted-foreground hidden md:block" aria-hidden="true" />
             <span class="sr-only">Account menu</span>
@@ -138,6 +150,8 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
               <hlm-dropdown-menu-separator />
               @if (store.me().role === 'board') { <button hlmDropdownMenuItem (triggered)="guide()?.start()">Restart workspace tour</button> }
               <button hlmDropdownMenuItem (triggered)="router.navigateByUrl('/account')"><ng-icon name="lucideUser" size="16" /> Account and security</button>
+              @if (store.live()) { <a hlmDropdownMenuItem href="/sign-in?demo=1">Try Now with synthetic data</a> }
+              @if (store.demoAdmin()) { <a hlmDropdownMenuItem href="/sign-in?demo=0">Use live workspace sign-in</a> }
               @if (!store.live()) {
                 <hlm-dropdown-menu-separator />
                 <hlm-dropdown-menu-label>Switch demo account</hlm-dropdown-menu-label>
@@ -183,6 +197,9 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     }
     @media (min-width: 1024px) { .rail { display: flex; } .main-col { padding-inline-start: var(--rail-w); } }
     .brand { display: flex; align-items: center; gap: 10px; padding: 2px 10px; text-decoration: none; font-size: 14.5px; }
+    .demo-persona { display: grid; gap: 4px; margin: 12px 8px 0; font-size: 11px; color: var(--ink-600); }
+    .demo-persona .select { width: 100%; max-width: 180px; height: 34px; font-size: 12px; }
+    @media (max-width: 1023px) { .demo-persona { margin: 0; max-width: 128px; font-size: 9px; } }
     .nav-group { padding: 0 12px 6px; font-size: 12px; font-weight: 500; color: var(--ink-600); }
     .nav-link {
       display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 12px; border-radius: 9px;
