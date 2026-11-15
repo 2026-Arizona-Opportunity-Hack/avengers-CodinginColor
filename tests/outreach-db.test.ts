@@ -110,6 +110,20 @@ test('communications: append-only, scoped to visible donors, and one record per 
   assert.equal((await as('admin', 'SELECT id FROM communications')).length, 3);
 });
 
+test('a communication can only reference a draft written for the same donor', async (t) => {
+  // Review on #55: an org-only FK let another donor's draft be attached to this donor's history.
+  const { as } = await setup(t);
+  const [draftB] = await as('admin', `INSERT INTO drafts (org_id, donor_id, author_id, channel, recipient, subject, body)
+    VALUES ('${ORG}', '${DONOR_B}', '${ADMIN}', 'email', 'jordan@example.org', 'Hi', 'Hi Jordan') RETURNING id`);
+  const [draftA] = await as('admin', `INSERT INTO drafts (org_id, donor_id, author_id, channel, recipient, subject, body)
+    VALUES ('${ORG}', '${DONOR_A}', '${ADMIN}', 'email', 'avery@example.org', 'Hi', 'Hi Avery') RETURNING id`);
+  const link = (donor: string, draft: unknown) => `INSERT INTO communications
+    (org_id, donor_id, draft_id, channel, actor_id, occurred_at, status, qualifying)
+    VALUES ('${ORG}', '${donor}', '${draft}', 'email', '${ADMIN}', now(), 'logged_contact', true) RETURNING id`;
+  await assert.rejects(as('admin', link(DONOR_A, draftB.id)), /foreign key/);
+  assert.equal((await as('admin', link(DONOR_A, draftA.id))).length, 1);
+});
+
 test('a non-superuser CREATEROLE migration owner can apply 001-005', async (t) => {
   const db = new PGlite();
   t.after(() => db.close());

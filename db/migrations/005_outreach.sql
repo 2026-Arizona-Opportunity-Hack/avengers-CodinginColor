@@ -46,6 +46,8 @@ CREATE TABLE drafts (
   -- Every non-draft state carries the hash of the exact content that was approved.
   CHECK ((status = 'draft') = (approval_hash IS NULL)),
   UNIQUE (org_id, id),
+  -- Lets communications prove a referenced draft belongs to the same donor.
+  UNIQUE (org_id, donor_id, id),
   FOREIGN KEY (org_id, donor_id) REFERENCES donors(org_id, id),
   FOREIGN KEY (org_id, author_id) REFERENCES memberships(org_id, id),
   FOREIGN KEY (org_id, approved_by) REFERENCES memberships(org_id, id)
@@ -69,7 +71,8 @@ CREATE TABLE communications (
   -- A failed delivery is never a qualifying contact.
   CHECK (status <> 'failed' OR NOT qualifying),
   FOREIGN KEY (org_id, donor_id) REFERENCES donors(org_id, id),
-  FOREIGN KEY (org_id, draft_id) REFERENCES drafts(org_id, id),
+  -- A logged message can only reference a draft written for this same donor (review on #55).
+  FOREIGN KEY (org_id, donor_id, draft_id) REFERENCES drafts(org_id, donor_id, id),
   FOREIGN KEY (org_id, actor_id) REFERENCES memberships(org_id, id)
 );
 -- A repeated send of the same approved message cannot create a second record.
