@@ -16,7 +16,7 @@ function stamp(value: string): string | null {
         <p>Notes stay in this browser until you review and save. Dates use Phoenix time. Nothing is sent to the donor.</p>
         <fieldset [disabled]="busy() || !!pending || saved()">
           <label class="field">Paste notes<textarea class="textarea" rows="4" maxlength="7000" [value]="raw()" (input)="raw.set($any($event.target).value)"></textarea></label>
-          <p>Optional lines: Action: follow-up title, Due: YYYY-MM-DD, Subject: email subject, Draft: message. Dates are never guessed.</p>
+          <p>Optional lines: Action: follow-up title, Due: YYYY-MM-DDTHH:mm, Subject: email subject, Draft: message. Dates and times are never guessed.</p>
           <button class="btn" type="button" (click)="propose()" [disabled]="!raw().trim()">Prepare review</button>
         </fieldset>
         @if (ready()) {
@@ -75,7 +75,7 @@ export class DebriefEntry {
     const lines = this.raw().trim().split(/\r?\n/);
     const field = (key: string) => lines.find(line => new RegExp(`^${key}:`, 'i').test(line))?.replace(/^[^:]+:\s*/, '').trim() ?? '';
     this.note.set(lines.filter(line => !/^(Action|Due|Subject|Draft):/i.test(line)).join('\n'));
-    this.action.set(field('Action')); this.due.set(/^\d{4}-\d{2}-\d{2}$/.test(field('Due')) ? `${field('Due')}T09:00` : '');
+    this.action.set(field('Action')); this.due.set(stamp(field('Due')) ? field('Due') : '');
     this.subject.set(field('Subject')); this.body.set(field('Draft')); this.channel.set(field('Draft') ? 'email' : '');
     this.reviewed.set(false); this.ready.set(true); this.message.set('Review the proposal and enter the actual contact time.');
   }
@@ -108,8 +108,9 @@ export class DebriefEntry {
       try { await this.store.refreshLive(); } catch { if (current()) this.message.set('Debrief saved. Reload to refresh the timeline.'); }
     } catch (error) {
       if (!current()) return;
-      if (error instanceof ApiError && error.status === 400) { this.pending = null; this.reviewed.set(false); }
-      this.message.set(error instanceof ApiError && error.status === 400 ? 'The debrief was rejected. Correct and review the details again.' : 'Save could not be confirmed. Retry this same debrief to avoid duplicates.');
+      const rejected = error instanceof ApiError && [400, 409].includes(error.status);
+      if (rejected) { this.pending = null; this.reviewed.set(false); }
+      this.message.set(rejected ? 'The debrief was rejected. Check dates, action ownership and draft consent/contact, then review again.' : 'Save could not be confirmed. Retry this same debrief to avoid duplicates.');
     } finally { if (current()) this.busy.set(false); }
   }
 }

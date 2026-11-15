@@ -14,7 +14,7 @@ function setup() {
     action: WritableSignal<string>; reviewed: WritableSignal<boolean>; saved: WritableSignal<boolean>; message: WritableSignal<string>;
     ready: WritableSignal<boolean>; pending: DebriefInput | null; propose(): void; save(e: Event): Promise<void>;
   };
-  const prepare = () => { page.raw.set('Discussed Academy.\nAction: Send report\nDue: 2026-12-01\nSubject: Our report\nDraft: Thank you.'); page.propose(); page.occurred.set('2026-01-01T10:00'); };
+  const prepare = () => { page.raw.set('Discussed Academy.\nAction: Send report\nDue: 2026-12-01T09:00\nSubject: Our report\nDraft: Thank you.'); page.propose(); page.occurred.set('2026-01-01T10:00'); };
   const save = () => page.save(new Event('submit', { cancelable: true }));
   return { fixture, page, api, store, prepare, save };
 }
@@ -42,19 +42,24 @@ it('does not infer dates and rejects missing, normalized or future contact dates
   expect(f.api.saveDebrief).not.toHaveBeenCalled(); expect(f.page.message()).toContain('explicit valid due date');
 });
 
-it('retries uncertain saves with the exact request ID and reviewed payload', async () => {
-  const f = setup(); f.prepare(); f.page.reviewed.set(true); f.api.saveDebrief.mockRejectedValueOnce(new ApiError(0));
+it.each([0, 503])('retries uncertain %s saves with the exact request ID and reviewed payload', async status => {
+  const f = setup(); f.prepare(); f.page.reviewed.set(true); f.api.saveDebrief.mockRejectedValueOnce(new ApiError(status));
   await f.save(); const first = structuredClone(f.api.saveDebrief.mock.calls[0]);
   expect(f.page.saved()).toBe(false); f.page.note.set('Unreviewed change'); await f.save();
   expect(f.api.saveDebrief.mock.calls[1]).toEqual(first); expect(f.page.saved()).toBe(true);
 });
 
-it('allows correction only after a definitive validation rejection and requires renewed review', async () => {
-  const f = setup(); f.prepare(); f.page.reviewed.set(true); f.api.saveDebrief.mockRejectedValueOnce(new ApiError(400));
+it.each([400, 409])('allows correction after a definitive %s rejection and requires renewed review', async status => {
+  const f = setup(); f.prepare(); f.page.reviewed.set(true); f.api.saveDebrief.mockRejectedValueOnce(new ApiError(status));
   await f.save(); const firstId = f.api.saveDebrief.mock.calls[0][1].request_id;
   expect(f.page.pending).toBeNull(); expect(f.page.reviewed()).toBe(false);
   f.page.note.set('Corrected'); await f.save(); expect(f.api.saveDebrief).toHaveBeenCalledOnce();
   f.page.reviewed.set(true); await f.save(); expect(f.api.saveDebrief.mock.calls[1][1].request_id).not.toBe(firstId);
+});
+
+it('does not invent a time when notes supply only a due date', () => {
+  const f = setup(); f.page.raw.set('Contact note\nAction: Call\nDue: 2026-12-01'); f.page.propose();
+  expect(f.page.due()).toBe(''); expect(f.page.action()).toBe('Call');
 });
 
 it.each(['session', 'donor'])('clears private notes and ignores a late save after a %s change', async change => {
