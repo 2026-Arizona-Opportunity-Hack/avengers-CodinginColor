@@ -25,5 +25,13 @@ This test creates roles/schema and synthetic data; it skips when the variable is
 absent. It proves actual blocking with separate connections, commit visibility
 and rollback. Local native tests require a running PostgreSQL server.
 
-Admin reassignment, Outreach task updates and API create routes are separate
-follow-ups; this migration does not implement those workflows.
+Migration `003_owner_override.sql` adds `reassign_donor(donor_id, owner_id)` for
+active admins. It accepts only an active board member in the same organization,
+locks the assignment cursor before changing ownership, and records an audit event
+in the same transaction. It returns only the donor and owner IDs. Missing or
+foreign donors raise `P0002`; invalid owners raise `P0001`; unauthorized callers
+raise `42501`. Existing gifts remain attached to the donor. Runtime cannot update
+ownership directly. Run `node --test tests/owner-override.test.mjs` for embedded
+database authorization and rollback checks.
+
+Outreach task updates and API create and reassignment routes remain follow-ups.
