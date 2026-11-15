@@ -59,3 +59,21 @@ it('leaves demo mode only for explicit live entry, keeping live roles protected'
   expect(sessionStorage.getItem('cadence.demo-workspace')).toBeNull();
   expect(store.live()).toBe(true); expect(store.demoAdmin()).toBe(false); expect(store.isAdmin()).toBe(false);
 });
+
+it('Try Now re-enters the central admin dashboard after logout without resetting demo edits', async () => {
+  history.replaceState({}, '', '/sign-in?demo=1');
+  const store = TestBed.inject(Store); await initializeWorkspace(store);
+  store.setSession('m-bell');
+  const donorId = store.donors()[0].id;
+  await store.updateDonor(donorId, { name: 'Retained judge edit' });
+  await store.signOut(); TestBed.tick();
+  TestBed.resetTestingModule();
+  const signedOut = TestBed.inject(Store); await initializeWorkspace(signedOut);
+  expect(signedOut.signedIn()).toBe(false);
+  history.replaceState({}, '', '/sign-in?demo=1&next=/donors');
+  await initializeWorkspace(signedOut);
+  expect(location.pathname + location.search).toBe('/');
+  expect(signedOut.signedIn()).toBe(true); expect(signedOut.isAdmin()).toBe(true);
+  expect(signedOut.me().id).toBe('m-ceo');
+  expect(signedOut.donor(donorId)?.name).toBe('Retained judge edit');
+});
