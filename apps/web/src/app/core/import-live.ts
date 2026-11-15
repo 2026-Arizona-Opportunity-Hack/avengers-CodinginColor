@@ -2,7 +2,7 @@ import type { Request } from './outreach-live';
 
 export const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 export const IMPORT_FIELDS = ['first_name', 'last_name', 'email', 'phone', 'company', 'contact_person',
-  'campaign', 'occurred_at', 'currency', 'external_id', 'amount_decimal', 'amount_cents'];
+  'campaign', 'occurred_at', 'currency', 'external_id', 'amount_decimal', 'amount_cents', 'status', 'refund_decimal', 'refund_cents'];
 export interface ImportIssue { recordNumber?: number | null; field: string; code: string }
 export interface ImportPreview {
   headers: string[]; mapping: Array<string | null>; issues: ImportIssue[];
