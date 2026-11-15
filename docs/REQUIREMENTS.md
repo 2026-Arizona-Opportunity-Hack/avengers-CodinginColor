@@ -53,8 +53,8 @@ CLI reference: [GoogleChrome Lighthouse documentation](https://github.com/Google
 
 ## Remaining release acceptance gates
 
-- Complete the key-authenticated summary retention contract in #29; its current response has totals/groups but no retention field.
-- Seed approved program outcomes for #31; current demo seed tests cover donor/gift/follow-up fixtures but do not satisfy that remaining seed requirement.
+The summary retention contract and approved-outcome demo seed are implemented. Actual Neon migration/permission checks, a local real-Clerk board sign-in, the desktop tour and a configured-provider Ask benchmark have [recorded acceptance evidence](audits/service-acceptance-2026-11-15.md). Those checks do not establish deployed end-to-end acceptance.
+
 - Run the full currently integrated test suite after all feature stacks and migrations are combined; earlier branch counts are not a release-wide guarantee.
 - Verify the deployed same-origin app/API/config, Clerk sign-in and admin MFA, active board membership, cross-owner denials and external donor separation. Record the release commit and smoke result.
 - Rehearse three-source import, repeat-safe gifts, manual-entry retry, ownership override, actual manual-send confirmation, matched retention and audited funder export with synthetic data. Keep real donor/student PII out of demo recordings.
@@ -62,7 +62,7 @@ CLI reference: [GoogleChrome Lighthouse documentation](https://github.com/Google
 - Confirm CIC's real source mappings, status/refund/date meanings, contact consent/qualifying-touch policy, program attribution, approved outcome sources and desired current-owner reporting policy.
 - Confirm hosting/auth/database/mail/model eligibility, usage caps and actual costs against the PDF's <=$20/month and <=$250 setup targets. No paid AI dependency is required for core flows.
 - Verify automated typecheck/tests in CI, a scheduled backup policy, a private restore rehearsal and CIC ownership of accounts/domain. The runbook's backup instructions are not proof that backups/restores ran.
-- Complete keyboard, focus, zoom and authenticated responsive checks; retain this sign-in score without presenting it as a site-wide audit.
+- Complete desktop keyboard, focus and zoom checks; retain this sign-in score without presenting it as a site-wide audit. Mobile polish is not a completion gate per the user's later priority.
 - Finish the Team Dashboard project story, a demo video **no longer than four minutes**, its link and final **Submit** action. The README still needs the final verified live/demo links. These submission actions were not performed by this audit.
 
 ## Suggested roles, non-goals and deliberately deferred work
