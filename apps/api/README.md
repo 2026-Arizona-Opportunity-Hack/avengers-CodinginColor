@@ -40,6 +40,10 @@ required `consent`, and optional `metadata`, returning 201 with exactly
 who is not the owner cannot read the new row; no name, email, contact or other
 donor fields are returned. Non-members get 403 and an organization with no
 eligible board owner gets 409 without creating a donor or audit row.
+Optional UUID `request_id` makes manual creation retry-safe: the same organization,
+actor, request and exact normalized facts return the original IDs with 200. Changed
+facts with a reused key return 409. Creation, assignment, audit and the replay
+receipt commit together. Existing callers without a key still create normally.
 `PATCH /api/v1/donors/:id` accepts a nonempty subset of name, email, phone,
 consent, and metadata; ownership is not accepted there.
 `POST /api/v1/donors/:id/owner` reassigns a donor to a board member of the same
