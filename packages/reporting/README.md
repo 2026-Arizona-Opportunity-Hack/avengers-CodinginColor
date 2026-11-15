@@ -53,3 +53,28 @@ gifts (already scoped by an authorized query) and returns:
 Every cell starting with `=`, `+`, `-`, `@`, tab or CR is prefixed with `'` (CSV/formula
 injection), and fields are quoted per RFC 4180. Money uses `formatCents` (exact
 `1234.56`, no floating point). Exporting is admin-only; enforce that in the route.
+
+## Summary and activity API core (`summary.ts`, issue #29)
+
+This is the pure core behind `GET /api/v1/summary` and `GET /api/v1/activity`. The
+route and the `api_keys` table come in a later slice.
+
+- **Keys:** `generateApiKey()` returns `cic_live_` plus 32 random bytes (base64url).
+  Show the key once and store only `hashApiKey(key)` (SHA-256 hex) and the `hint`.
+  `keyMatches` compares in constant time. `readApiKey(headers)` accepts
+  `Authorization: Bearer <key>` **or** `X-API-Key: <key>` (never both). Anything else
+  throws `ApiKeyError`, which maps to 401.
+- **Query:** `parseSummaryQuery({from, to, groupBy}, '-07:00')` takes CIC-local days
+  (`to` exclusive), an allowlisted `groupBy` of `month` (default), `program` or
+  `owner`, and at most a 5-year range. Unknown parameters throw `QueryError`, which
+  maps to 400.
+- **Summary:** `summarize(gifts, query, {offset, minDonors})` gives net cents and gift
+  counts **per currency**, plus distinct donor counts, for each group and in total.
+  Void gifts are ignored; pending gifts count as gifts with 0 net. A group, or the
+  totals, with fewer than `minDonors` donors is returned as `{ key, suppressed: true }`
+  with no numbers. Missing program or owner values show as `unattributed` and
+  `unassigned`.
+- **Activity:** `recentActivity(gifts, {limit 1-100, offset, programTitles})` returns
+  the newest non-void gifts as `{date, program, source, status, currency, net_cents}`,
+  with **no donor or owner identifiers**. Exact amounts and dates can still hint at
+  identity in a small org, so only expose this feed to the dashboard key.
