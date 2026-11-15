@@ -1,4 +1,4 @@
-﻿# Try Now entry verification
+# Try Now entry verification
 
 Issue: #246. Local production build served on `http://127.0.0.1:4311`.
 
@@ -13,6 +13,7 @@ Issue: #246. Local production build served on `http://127.0.0.1:4311`.
 - Orca network inspection: 118 requests across the walkthrough, 0 config/Clerk/API requests, untruncated.
 - Orca console inspection: 0 entries, untruncated.
 - Angular focused tests: 21/21 pass, including own-record scope, admin guards, epoch, reload/edit persistence and four switch-to-overview cases.
+- Full Angular frontend suite: 25 files, 129/129 tests pass.
 - Node startup HTML test: 1/1 pass. Production build passes; existing style/CommonJS/compiler warnings remain.
 
 Before image is the original initial HTML startup card; after image is the rendered Angular entry.
