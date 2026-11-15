@@ -136,7 +136,7 @@ until a reviewer passes both date flags, so every preview remains `needs_review`
 External transaction IDs are optional in
 the backend baseline; reimport safety still needs reconciliation logic.
 Phone formatting is normalized without guessing
-a country; contact-person names do not assign owners. XLSX, Jev suggestions,
+a country; contact-person names do not assign owners. Jev suggestions,
 donor/gift deduplication, saved review decisions and transactional import remain
 follow-up work against the baseline published in [backend issue #7](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/7),
 with persistence integration after the shared foundation is reviewed and merged.
@@ -148,6 +148,15 @@ Keys must exactly match source headers. Targets are `first_name`, `last_name`,
 `currency`, `external_id`, `amount_decimal`, or `amount_cents`; null explicitly
 ignores a column while retaining its raw cells. Unknown targets/headers and
 multiple columns targeting the same field are rejected.
+
+`node tools/import-xlsx.ts <source> <file.xlsx> [mapping.json] [--date-format FMT --utc-offset ±HH:MM]`
+previews a limited `.xlsx` by converting it to CSV text for the same validation
+(counts only; failures print a constant safe message). Accepted: one visible
+worksheet, at most 5 MiB, 256 entries, 8 MiB per entry / 16 MiB inflated, 20,001
+rows by 200 columns, text/number cells (numbers stay exact text). Rejected:
+formulas, date-formatted cells (enter dates as text and confirm the format),
+hidden/multiple sheets, DOCTYPE/ENTITY XML, duplicate or malformed archive entries.
+This is not full Excel support.
 
 ```json
 {"Contribution Value":"amount_decimal","When Received":"occurred_at","Money Code":"currency","Unused":null}
