@@ -40,9 +40,9 @@ Wiring to the backend replaces `Store` reads with calls to the routes in
 
 ## Design rules
 
-- Black text on white, or white on black. No gray text, shadows or gradients.
+- Coding in Color palette from the brand guidelines: dark green `#007A3D`, white, tinted green `#E6F4ED`, `#00A850` for small accents only. Text is black, or white on dark green. No gray text.
 - Hierarchy from size, weight, the mono face and 1px rules.
-- Charts use black fill, hatching and dots instead of color.
+- Charts use brand-green fill, hatching and dots, so series never depend on color alone.
 - Every control is a native button, link or form element with a visible focus ring.
 
 Lighthouse accessibility is 100 on every route (checked against the production build).

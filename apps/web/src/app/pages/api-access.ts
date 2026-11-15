@@ -100,7 +100,7 @@ const MIN_DONORS = 3;
   `,
   styles: `
     .key-notice { margin-bottom: 16px; }
-    .secret { font-size: 13px; padding: 8px 10px; border: 1px solid #000; border-radius: 3px; word-break: break-all; background: #fff; }
+    .secret { font-size: 13px; padding: 8px 10px; border: 1px solid var(--brand); border-radius: 3px; word-break: break-all; background: #fff; }
     .create { margin-top: 16px; align-items: flex-end; }
     .create .grow { flex: 1; max-width: 360px; }
     .try { align-items: flex-end; gap: 12px; margin-bottom: 16px; }

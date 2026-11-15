@@ -151,21 +151,21 @@ import { SOURCE_LABEL } from '../core/models';
   styles: `
     .window { font-size: 12px; margin: -12px 0 16px; }
     .flow { display: flex; flex-direction: column; gap: 8px; max-width: 900px; }
-    .stackbar { display: flex; height: 30px; border: 1px solid var(--ink); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
-    .seg { display: grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 600; min-width: 24px; border-right: 1px solid var(--ink); }
+    .stackbar { display: flex; height: 30px; border: 1px solid var(--brand); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+    .seg { display: grid; place-items: center; font-family: var(--mono); font-size: 11px; font-weight: 600; min-width: 24px; border-right: 1px solid var(--brand); }
     .seg:last-child { border-right: 0; }
-    .seg.solid { background: #000; color: #fff; }
-    .seg.hatch { background: repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 6px); color: #000; }
-    .seg.outline { background: #fff; color: #000; }
-    .seg.dots { background: radial-gradient(#000 1px, #fff 1.3px) 0 0 / 5px 5px; color: #000; }
-    .seg b { background: #fff; color: #000; padding: 0 4px; border-radius: 2px; }
-    .seg.solid b { background: #000; color: #fff; }
+    .seg.solid { background: var(--brand); color: var(--paper); }
+    .seg.hatch { background: repeating-linear-gradient(45deg, var(--brand) 0 2px, var(--paper) 2px 6px); }
+    .seg.outline { background: var(--paper); }
+    .seg.dots { background: radial-gradient(var(--brand) 1.2px, var(--paper) 1.5px) 0 0 / 5px 5px; }
+    .seg b { background: var(--paper); color: var(--ink); padding: 0 4px; border-radius: 2px; }
+    .seg.solid b { background: var(--brand); color: var(--paper); }
     .legend { list-style: none; padding: 0; margin: 4px 0 0; display: flex; gap: 20px; flex-wrap: wrap; font-size: 12.5px; }
     .legend li { display: flex; align-items: center; gap: 8px; }
-    .swatch { width: 16px; height: 12px; border: 1px solid #000; display: inline-block; }
-    .swatch.solid { background: #000; }
-    .swatch.hatch { background: repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 5px); }
-    .swatch.dots { background: radial-gradient(#000 1px, #fff 1.3px) 0 0 / 4px 4px; }
+    .swatch { width: 16px; height: 12px; border: 1px solid var(--brand); display: inline-block; }
+    .swatch.solid { background: var(--brand); }
+    .swatch.hatch { background: repeating-linear-gradient(45deg, var(--brand) 0 2px, var(--paper) 2px 5px); }
+    .swatch.dots { background: radial-gradient(var(--brand) 1.2px, var(--paper) 1.5px) 0 0 / 4px 4px; }
     .seg-btn { padding: 0; height: auto; font-weight: 600; }
     tr.picked { background: var(--wash); }
     .drill { margin-top: 20px; padding: 16px 20px; border: 1px solid var(--rule); border-radius: var(--radius); }

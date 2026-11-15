@@ -1,15 +1,21 @@
 /*
-  Cadence design system.
-  Two inks only: black text on white, or white text on black. No gray text, no shadows,
-  no gradients. Hierarchy comes from size, weight, the mono face and 1px rules.
+  Cadence design system, in Coding in Color's brand palette (CIC brand guidelines):
+  dark green #007A3D, white, tinted green #E6F4ED and restrained #00A850 accents.
+  Text is black on white or tint, or white on dark green. No gray text, no shadows.
+  Hierarchy comes from size, weight, the mono face and 1px rules.
 */
 
 :root {
   --ink: #000;
   --paper: #fff;
-  --rule: #000;
-  --hair: #d9d9d9; /* row separators only; never used for text */
-  --wash: #f3f3f3; /* hover and selected backgrounds only; text on it stays black */
+  --brand: #007a3d;        /* CIC dark green: actions, selection, rules, chart ink. 5.4:1 on white */
+  --brand-strong: #005c2e; /* hover/pressed state of brand surfaces */
+  --brand-deep: #0b2616;   /* code blocks */
+  --accent: #00a850;       /* restrained: decorative marks only, never text */
+  --tint: #e6f4ed;         /* CIC tinted green: hover, selected and sidebar surfaces */
+  --rule: var(--brand);
+  --hair: #cfe3d7; /* row separators only; never used for text */
+  --wash: var(--tint); /* hover and selected backgrounds only; text on it stays black */
   --radius: 4px;
   --sans: 'Geist Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'Geist Mono Variable', ui-monospace, 'SFMono-Regular', Menlo, monospace;
@@ -36,10 +42,10 @@ h1 { font-size: 28px; line-height: 1.15; font-weight: 600; letter-spacing: -0.02
 h2 { font-size: 17px; line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; }
 h3 { font-size: 14px; line-height: 1.4; font-weight: 600; }
 
-a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+a { color: inherit; text-underline-offset: 3px; text-decoration-thickness: 1px; text-decoration-color: var(--brand); }
 a:hover { text-decoration-thickness: 2px; }
 
-:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 
@@ -59,7 +65,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .skip-link {
   position: absolute; left: 12px; top: -48px; z-index: 100;
-  background: var(--ink); color: var(--paper); padding: 8px 12px; border-radius: var(--radius);
+  background: var(--brand); color: var(--paper); padding: 8px 12px; border-radius: var(--radius);
 }
 .skip-link:focus { top: 12px; }
 
@@ -70,7 +76,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: flex; align-items: flex-end; justify-content: space-between; gap: 24px;
   padding-bottom: 20px; margin-bottom: 28px; border-bottom: 1px solid var(--rule);
 }
-.page-head .eyebrow { margin-bottom: 8px; }
+.page-head .eyebrow { margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.page-head .eyebrow::before { content: ''; width: 8px; height: 8px; background: var(--accent); border-radius: 1px; }
 .page-head .lede { margin-top: 8px; max-width: 64ch; font-size: 15px; }
 .page-head .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 
@@ -93,13 +100,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   height: 34px; padding: 0 14px; border-radius: var(--radius);
-  border: 1px solid var(--ink); background: var(--paper); color: var(--ink);
+  border: 1px solid var(--brand); background: var(--paper); color: var(--ink);
   font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap;
   cursor: pointer; text-decoration: none;
 }
 .btn:hover { background: var(--wash); text-decoration: none; }
-.btn.primary { background: var(--ink); color: var(--paper); }
-.btn.primary:hover { background: #222; }
+.btn.primary { background: var(--brand); color: var(--paper); }
+.btn.primary:hover { background: var(--brand-strong); border-color: var(--brand-strong); }
 .btn.small { height: 28px; padding: 0 10px; font-size: 12px; }
 .btn.link { border-color: transparent; background: none; padding: 0 4px; text-decoration: underline; }
 .btn.link:hover { text-decoration-thickness: 2px; }
@@ -118,7 +125,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .textarea { min-height: 120px; resize: vertical; line-height: 1.5; }
 .select { appearance: none; padding-right: 30px; cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, #000 50%), linear-gradient(135deg, #000 50%, transparent 50%);
+  background-image: linear-gradient(45deg, transparent 50%, #007a3d 50%), linear-gradient(135deg, #007a3d 50%, transparent 50%);
   background-position: calc(100% - 15px) 50%, calc(100% - 10px) 50%;
   background-size: 5px 5px; background-repeat: no-repeat; }
 .input[aria-invalid='true'] { border-width: 2px; }
@@ -129,15 +136,16 @@ button, input, select, textarea { font: inherit; color: inherit; }
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 legend { padding: 0; }
 .check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
-.check input { width: 16px; height: 16px; accent-color: #000; }
+.check input { width: 16px; height: 16px; accent-color: var(--brand); }
 
-.segmented { display: inline-flex; border: 1px solid var(--ink); border-radius: var(--radius); overflow: hidden; }
+.segmented { display: inline-flex; border: 1px solid var(--brand); border-radius: var(--radius); overflow: hidden; }
 .segmented button {
-  height: 30px; padding: 0 12px; border: 0; border-right: 1px solid var(--ink);
+  height: 30px; padding: 0 12px; border: 0; border-right: 1px solid var(--brand);
   background: var(--paper); font-size: 12px; font-weight: 500; cursor: pointer;
 }
 .segmented button:last-child { border-right: 0; }
-.segmented button[aria-pressed='true'] { background: var(--ink); color: var(--paper); }
+.segmented button[aria-pressed='true'] { background: var(--brand); color: var(--paper); }
+.segmented button:hover:not([aria-pressed='true']) { background: var(--tint); }
 
 /* ---------- Tables ---------- */
 
@@ -167,7 +175,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
   font-family: var(--mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase;
   white-space: nowrap; background: var(--paper);
 }
-.tag.solid { background: var(--ink); color: var(--paper); }
+.tag.solid { background: var(--brand); border-color: var(--brand); color: var(--paper); }
 .tag.dashed { border-style: dashed; }
 
 /* ---------- Stats ---------- */
@@ -187,11 +195,12 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .list > li { padding: 12px 0; border-bottom: 1px solid var(--hair); }
 .list > li:last-child { border-bottom: 0; }
 .panel .list > li { padding: 12px 16px; }
-.empty { padding: 28px 16px; text-align: center; border: 1px dashed var(--ink); border-radius: var(--radius); }
+.empty { padding: 28px 16px; text-align: center; border: 1px dashed var(--brand); background: var(--tint); border-radius: var(--radius); }
 .empty p { margin-top: 4px; font-size: 13px; }
 .notice {
   display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
-  border: 1px solid var(--ink); border-left-width: 4px; border-radius: var(--radius); font-size: 13px;
+  border: 1px solid var(--brand); border-left-width: 4px; border-radius: var(--radius); font-size: 13px;
+  background: var(--tint);
 }
 .kv { display: grid; grid-template-columns: 112px minmax(0, 1fr); gap: 10px 16px; font-size: 13.5px; margin: 0; }
 .kv dt { font-family: var(--mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding-top: 2px; }
@@ -199,10 +208,10 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 
 /* ---------- Bars (charts are black ink only; patterns separate series) ---------- */
 
-.bar-track { height: 10px; border: 1px solid var(--ink); border-radius: 2px; overflow: hidden; background: var(--paper); }
-.bar-fill { height: 100%; background: var(--ink); }
-.bar-fill.hatch { background: repeating-linear-gradient(45deg, #000 0 2px, #fff 2px 5px); }
-.bar-fill.outline { background: var(--paper); border-right: 1px solid var(--ink); }
+.bar-track { height: 10px; border: 1px solid var(--brand); border-radius: 2px; overflow: hidden; background: var(--paper); }
+.bar-fill { height: 100%; background: var(--brand); }
+.bar-fill.hatch { background: repeating-linear-gradient(45deg, var(--brand) 0 2px, var(--paper) 2px 5px); }
+.bar-fill.outline { background: var(--paper); border-right: 1px solid var(--brand); }
 
 /* ---------- Steps ---------- */
 
@@ -210,22 +219,22 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .steps li { flex: 1; min-width: 140px; padding: 10px 14px; border-right: 1px solid var(--rule); font-size: 13px; }
 .steps li:last-child { border-right: 0; }
 .steps li .label { display: block; margin-bottom: 2px; }
-.steps li[aria-current='step'] { background: var(--ink); color: var(--paper); }
+.steps li[aria-current='step'] { background: var(--brand); color: var(--paper); }
 .steps li.done { text-decoration: line-through; text-decoration-thickness: 1px; }
 
 /* ---------- Dialog ---------- */
 
 dialog.modal {
-  width: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--ink); border-radius: 6px;
+  width: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid var(--brand); border-radius: 6px;
   color: var(--ink); background: var(--paper);
 }
-dialog.modal::backdrop { background: rgba(0, 0, 0, 0.55); }
+dialog.modal::backdrop { background: rgba(11, 38, 22, 0.6); }
 dialog.modal .panel-head { border-bottom: 1px solid var(--rule); }
 dialog.modal .foot { padding: 14px 16px; border-top: 1px solid var(--rule); display: flex; justify-content: flex-end; gap: 8px; }
 
 pre.code {
   margin: 0; padding: 14px 16px; overflow-x: auto; border-radius: var(--radius);
-  background: var(--ink); color: var(--paper); font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+  background: var(--brand-deep); color: var(--paper); font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
 }
 code { font-family: var(--mono); font-size: 0.92em; }
 

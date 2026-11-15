@@ -16,13 +16,13 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     <a class="skip-link" href="#main">Skip to content</a>
     <div class="shell" [class.nav-open]="navOpen()">
       <header class="mobile-bar">
-        <a routerLink="/" class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6"/><rect x="8" y="8" width="16" height="4" fill="#fff"/><rect x="8" y="14" width="10" height="4" fill="#fff"/><rect x="8" y="20" width="16" height="4" fill="#fff"/></svg>Cadence</a>
+        <a routerLink="/" class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6" fill="#007a3d"/><rect x="8" y="8" width="16" height="4" fill="#fff"/><rect x="8" y="14" width="10" height="4" fill="#00a850"/><rect x="8" y="20" width="16" height="4" fill="#fff"/></svg>Cadence</a>
         <button class="btn small" type="button" (click)="navOpen.set(!navOpen())"
           [attr.aria-expanded]="navOpen()" aria-controls="sidebar">Menu</button>
       </header>
 
       <aside id="sidebar" class="sidebar" aria-label="Navigation and account">
-        <a routerLink="/" class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6"/><rect x="8" y="8" width="16" height="4" fill="#fff"/><rect x="8" y="14" width="10" height="4" fill="#fff"/><rect x="8" y="20" width="16" height="4" fill="#fff"/></svg>Cadence</a>
+        <a routerLink="/" class="brand"><svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="6" fill="#007a3d"/><rect x="8" y="8" width="16" height="4" fill="#fff"/><rect x="8" y="14" width="10" height="4" fill="#00a850"/><rect x="8" y="20" width="16" height="4" fill="#fff"/></svg>Cadence</a>
         <p class="org">Coding in Color</p>
 
         <nav aria-label="Primary">
@@ -63,7 +63,7 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
   `,
   styles: `
     .shell { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); min-height: 100vh; }
-    .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; background: var(--tint);
       padding: 20px 14px; display: flex; flex-direction: column; }
     .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px;
       letter-spacing: -0.02em; text-decoration: none; padding: 0 8px; }
@@ -74,8 +74,8 @@ const ADMIN_PATHS = ['/import', '/funders', '/api', '/settings'];
     ul { list-style: none; margin: 0; padding: 0; }
     nav a { display: flex; align-items: center; justify-content: space-between; height: 32px; padding: 0 8px;
       border-radius: var(--radius); text-decoration: none; font-size: 13.5px; font-weight: 500; }
-    nav a:hover { background: var(--wash); }
-    nav a.active { background: var(--ink); color: var(--paper); }
+    nav a:hover { background: var(--paper); }
+    nav a.active { background: var(--brand); color: var(--paper); box-shadow: inset 3px 0 0 var(--accent); }
     .count { font-size: 11px; min-width: 20px; height: 18px; padding: 0 5px; display: inline-grid; place-items: center;
       border: 1px solid currentColor; border-radius: 3px; }
     .session { border-top: 1px solid var(--rule); padding: 14px 8px 0; display: flex; flex-direction: column; gap: 8px; }
