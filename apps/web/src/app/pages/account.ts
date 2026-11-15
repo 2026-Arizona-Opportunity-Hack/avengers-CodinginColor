@@ -3,11 +3,10 @@ import { Router } from '@angular/router';
 import { NgIcon } from '@ng-icons/core';
 import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { Store } from '../core/store';
-import { Api } from '../core/api';
 
 interface Permission { label: string; allowed: boolean; }
 
-/** Account and security: who you are, what your role can do, how sign-in is protected. */
+/** Profile: fictional identity and actual role scope. */
 @Component({
   selector: 'app-account',
   imports: [NgIcon, HlmButtonImports],
@@ -16,8 +15,8 @@ interface Permission { label: string; allowed: boolean; }
     <div class="page">
       <header class="page-head">
         <div>
-          <h1>Account and security</h1>
-          <p class="lede">Your profile, what your role can do, and how sign-in is protected.</p>
+          <h1>Profile</h1>
+          <p class="lede">Your profile and role permissions.</p>
         </div>
       </header>
 
@@ -32,16 +31,15 @@ interface Permission { label: string; allowed: boolean; }
             <span class="role ms-auto" [class.admin]="store.isAdmin()">{{ store.isAdmin() ? 'Admin' : 'Board member' }}</span>
           </div>
           <dl class="kv mt-6">
-            <dt>Email</dt><dd>{{ store.me().email || 'Managed by Clerk' }}</dd>
+            <dt>Email</dt><dd>{{ store.me().email || 'Not provided' }}</dd>
             <dt>Organization</dt><dd>Coding in Color</dd>
             <dt>Donors visible</dt><dd>{{ store.donors().length }} {{ store.isAdmin() ? '(whole organization)' : '(only donors you own)' }}</dd>
-            <dt>Workspace</dt><dd>{{ store.live() ? 'Live: every request is checked by the server' : 'Demo: synthetic records stored in this browser' }}</dd>
           </dl>
         </section>
 
         <section class="panel p-6" aria-labelledby="perm-h">
           <h2 id="perm-h">What your role can do</h2>
-          <p class="text-muted-foreground mt-1 text-sm">Least privilege: the server enforces the same rules on every route and query.</p>
+          <p class="text-muted-foreground mt-1 text-sm">Admins see the organization; board personas see their assigned donor records.</p>
           <ul class="perms mt-4">
             @for (p of permissions(); track p.label) {
               <li>
@@ -54,18 +52,8 @@ interface Permission { label: string; allowed: boolean; }
         </section>
       </div>
 
-      <section class="panel mt-5 p-6" aria-labelledby="sec-h">
-        <h2 id="sec-h">Sign-in and security</h2>
-        <div class="mt-4 grid gap-4 md:grid-cols-3">
-          <div class="tile"><ng-icon name="lucideShieldCheck" size="18" aria-hidden="true" />
-            <p class="font-medium">Invitation only</p><p class="text-muted-foreground text-sm">No public sign-up and no shared passwords. Clerk holds credentials; Coding in Color never sees them.</p></div>
-          <div class="tile"><ng-icon name="lucideKeyRound" size="18" aria-hidden="true" />
-            <p class="font-medium">Second factor for admins</p><p class="text-muted-foreground text-sm">Admin requests must carry a verified second factor, checked on every call.</p></div>
-          <div class="tile"><ng-icon name="lucideMonitor" size="18" aria-hidden="true" />
-            <p class="font-medium">This session</p><p class="text-muted-foreground text-sm">{{ store.live() ? 'Signed in with Clerk. Donor records stay in memory and clear on sign-out.' : 'Demo session in this browser only.' }}</p></div>
-        </div>
+      <section class="panel mt-5 p-6" aria-label="Session">
         <div class="mt-6 flex flex-wrap gap-2">
-          @if (store.live()) { <button hlmBtn variant="outline" type="button" (click)="api.manageSecurity()">Manage sign-in security</button> }
           <button hlmBtn variant="outline" (click)="signOut()"><ng-icon name="lucideLogOut" size="16" /> Sign out</button>
         </div>
       </section>
@@ -86,7 +74,6 @@ interface Permission { label: string; allowed: boolean; }
 })
 export class AccountPage {
   protected readonly store = inject(Store);
-  protected readonly api = inject(Api);
   private readonly router = inject(Router);
   protected readonly name = computed(() => this.store.me().name || 'Signed in');
 
@@ -95,11 +82,11 @@ export class AccountPage {
     return [
       { label: admin ? 'See every donor in the organization' : 'See and update the donors you own', allowed: true },
       { label: 'Log calls, texts, meetings and notes', allowed: true },
-      { label: 'Approve and send drafted messages for your donors', allowed: true },
+      { label: 'Review outreach for your donors', allowed: true },
       { label: 'Reassign donors between board members', allowed: admin },
       { label: 'Import spreadsheets and platform exports', allowed: admin },
       { label: 'Export funder packets', allowed: admin },
-      { label: 'Create and revoke Read API keys', allowed: admin },
+      { label: 'Explore Read API settings', allowed: admin },
     ];
   });
 

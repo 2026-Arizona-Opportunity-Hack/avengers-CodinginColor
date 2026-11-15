@@ -8,8 +8,59 @@
     <meta name="description" content="Donor and funder relationships for Coding in Color." />
     <meta name="theme-color" content="#f2f6f3" />
     <link rel="icon" type="image/jpeg" href="branding/coding-in-color-logo.jpg" />
+    <style>
+      html { background: #f2f6f3; }
+      body { margin: 0; }
+      .startup-shell { box-sizing: border-box; min-height: 100dvh; max-width: 1180px; margin: auto; padding: 48px 32px;
+        display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; align-items: center;
+        color: #0f1a15; font: 14px/1.5 'Instrument Sans Variable', ui-sans-serif, system-ui, sans-serif; }
+      .startup-brand { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 600; }
+      .startup-brand img { width: 40px; height: 40px; border-radius: 12px; object-fit: cover; }
+      .startup-story h1 { max-width: 15ch; margin: 28px 0; font-size: clamp(30px, 4vw, 46px); line-height: 1.08; letter-spacing: -.035em; }
+      .startup-story ul { max-width: 44ch; padding-left: 20px; color: #3c4a43; }
+      .startup-story li + li { margin-top: 14px; }
+      #startup-card { box-sizing: border-box; width: 100%; max-width: 460px; min-height: 350px; justify-self: end;
+        padding: 32px; border-radius: 28px; background: rgba(255,255,255,.86);
+        box-shadow: 0 0 0 1px rgba(15,26,21,.06), 0 2px 4px rgba(15,26,21,.04); }
+      #startup-card h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
+      .startup-demo { margin-top: 20px; }
+      .startup-demo p { margin: 0 0 12px; }
+      .startup-demo a { box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; min-height: 64px; border-radius: 16px; background: #007a3d; color: white; font-size: 20px; font-weight: 600; text-decoration: none; box-shadow: 0 6px 16px rgba(0,92,46,.18); }
+      .startup-demo a:hover { background: #005c2e; }
+      .startup-demo a:focus-visible { outline: 3px solid #005c2e; outline-offset: 3px; }
+      .startup-status { margin: 24px 0 12px; color: #3c4a43; }
+      .startup-lines span { display: block; height: 28px; margin-top: 10px; border-radius: 8px; background: rgba(15,26,21,.06); }
+      .startup-lines span:last-child { width: 66%; }
+      body:has(app-root > router-outlet + :not(hlm-toaster)) > .startup-shell { display: none; }
+      @media (max-width: 900px) {
+        .startup-shell { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 24px 16px; align-items: start; }
+        .startup-story h1 { margin: 16px 0 0; }
+        .startup-story ul { display: none; }
+        #startup-card { max-width: none; padding: 22px; }
+      }
+    </style>
   </head>
   <body>
+      <!-- Public demo entry remains visible while JavaScript loads. -->
+      <div class="startup-shell">
+        <section class="startup-story" aria-labelledby="startup-title">
+          <div class="startup-brand"><img src="branding/coding-in-color-logo.jpg" alt="" width="40" height="40" />Coding in Color</div>
+          <h1 id="startup-title">Know every donor. Keep every promise to follow up.</h1>
+          <ul>
+            <li>See who gave, who grew and who lapsed, year over year.</li>
+            <li>Every thank-you and nudge is drafted for you and sent by a person.</li>
+            <li>Board members see only the donors they own.</li>
+          </ul>
+        </section>
+        <main id="startup-card" aria-labelledby="startup-signin">
+          <h2 id="startup-signin">Explore Coding in Color</h2>
+          <section class="startup-demo" aria-label="Try Now">
+            <a href="/sign-in?demo=1">Try Now <span aria-hidden="true">&#8594;</span></a>
+          </section>
+          <p class="startup-status" role="status">Opening your workspace…</p>
+          <div class="startup-lines" aria-hidden="true"><span></span><span></span><span></span></div>
+        </main>
+      </div>
     <app-root></app-root>
   </body>
 </html>

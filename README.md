@@ -1,6 +1,8 @@
 # Cadence for Coding in Color
 
-Cadence is an open-source donor and funder relationship platform built for Coding in Color at the ASU Fall Hackathon 2026. It brings donor and gift records, human-reviewed follow-ups, import review, and funder reporting into one workspace. The deployed app is [cadence-cic.vercel.app](https://cadence-cic.vercel.app). **Try Now** on the sign-in page ([`/sign-in?demo=1`](https://cadence-cic.vercel.app/sign-in?demo=1)) opens a synthetic browser demo without an account; demo data is fictional and proves nothing about the server. The live site's unauthenticated full-stack smoke check passed 7/7 on 2026-11-15 at 18:13 UTC. Signed-in deployed acceptance is still being checked.
+Cadence is an open-source donor and funder relationship platform built for Coding in Color at the ASU Fall Hackathon 2026. It brings donor and gift records, human-reviewed follow-ups, import review, and funder reporting into one workspace. Open [cadence-cic.vercel.app](https://cadence-cic.vercel.app), choose **Try Now**, and explore fictional records stored in your browser. No account is required. Admins see the organization; board personas see their assigned records. Switching people returns to Overview; edits and persona selection survive refresh.
+
+The public frontend never loads Clerk, `config.json` or protected API routes, even with `?demo=0`. Browser data does not prove server persistence, authorization or delivery. The separate backend retains Clerk verification, admin MFA and database row-level security. Source implementation, recorded tests and deployment acceptance are distinct; see [requirements](docs/REQUIREMENTS.md) and [the live acceptance gate](docs/P0-LIVE-PLAN.md). No new deployment check was performed for this documentation repair.
 
 | | |
 |---|---|
@@ -36,7 +38,8 @@ Hackathon schedule for Sun Nov 15: recording starts at **12:00 PM MST**; hacking
 - **Import:** CSV and XLSX upload, mapping, validation, explicit review of donor/gift matches and atomic commit. Missing dates or financial facts are never guessed. Re-imports are fingerprinted.
 - **Follow-ups:** tasks, quarterly touches and message drafts. People approve exact content and send through their own email or phone. Nothing sends automatically.
 - **Reporting:** retention views and audited funder packets. A read-only aggregate API suppresses small groups.
-- **Sign-in and access:** invite-only Clerk sign-in, admin MFA and organization/member-scoped database access.
+- **Public workspace:** one-click Try Now, actual admin/board persona scope, potential donors, Ask your data and Bar/Line/Area donation charts.
+- **Separate backend:** Clerk-verified sessions, admin MFA and organization/member-scoped database access; this is not the public frontend login flow.
 
 These describe implemented code, not a claim that each signed-in flow has passed deployed acceptance. See [requirements and acceptance evidence](docs/REQUIREMENTS.md) and [the live gate](docs/P0-LIVE-PLAN.md).
 
@@ -44,21 +47,22 @@ These describe implemented code, not a claim that each signed-in flow has passed
 
 ```mermaid
 flowchart LR
-  Browser[Angular browser app] -->|same origin| Vercel[Vercel Function: src/index.ts]
+  Browser[Public Angular Try Now] --> Local[Synthetic browser storage]
+  Client[Separately authenticated API client] --> Vercel[Vercel Function: src/index.ts]
   Vercel -->|static app from public/| Browser
   Vercel -->|Express API: apps/api| Neon[(Neon PostgreSQL with RLS)]
   Clerk[Clerk: invite-only auth] -->|verified identity| Vercel
   Vercel -. optional, bounded AI advice .-> AI[Configured AI provider]
 ```
 
-The app and API share one Vercel project and origin. `src/index.ts` serves the built Angular app from `public/` and routes API requests to Express. Clerk authenticates users. PostgreSQL row-level security (RLS) enforces organization and donor visibility. Optional AI calls are not required for core flows.
+The app and API share one Vercel project and origin. `src/index.ts` serves the built Angular app from `public/` and routes API requests to Express. Public startup uses local fixtures and does not connect to that API. Separately authenticated API requests require Clerk verification; PostgreSQL row-level security (RLS) enforces organization and donor visibility. Optional backend AI calls are not required for Try Now.
 
 **Key decisions**
 
 - One same-origin service keeps browser/API routing and CORS configuration simple.
 - RLS plus a restricted runtime database role limits data access; the API does not connect as the migration owner.
 - Only a migration owner runs schema changes and trusted organization provisioning.
-- `config.json` switches the web app between browser demo data and the live API; missing config keeps it in demo mode.
+- Public startup selects browser data before config/auth access; `config.json` cannot enable live frontend access. Retained live-client source is not an exposed login option.
 - People review every outbound message; there is no automatic send.
 - Money uses integer cents; ambiguous dates and missing facts are not guessed.
 - The aggregate read API returns no donor identities and suppresses groups smaller than three.
@@ -82,7 +86,7 @@ Architecture and delivery decisions are recorded in [`docs/`](docs/), GitHub iss
 
 ### Requirements
 
-- Node.js **24.15.x** (`package.json` requires `>=24.15.0 <25`).
+- Node.js **24.15 or newer within 24.x** (`package.json` requires `>=24.15.0 <25`).
 - PostgreSQL 16 or newer for a full local API/database stack. The web demo alone needs no database or Clerk account.
 
 ### Clone and install
@@ -96,7 +100,7 @@ npm ci --prefix apps/web
 
 ### Run the browser demo only
 
-Do not add `config.json`. From the repository root:
+No `.env`, database, Clerk account or `config.json` is needed. From the repository root:
 
 ```bash
 npm start --prefix apps/web
@@ -104,7 +108,7 @@ npm start --prefix apps/web
 
 Open the URL printed by Angular, normally `http://localhost:4200`. The app uses synthetic data in the browser. It does not call the API or prove server persistence or authorization.
 
-### Run the full local stack
+### Run the protected backend separately (optional)
 
 Create a local `.env` from the example and supply your own values. Never commit `.env`:
 
@@ -125,17 +129,13 @@ For fictional local demo records only, after provisioning an active admin and bo
 node --env-file-if-exists=.env db/seed-demo.ts --yes-demo-data
 ```
 
-The seed refuses an organization with real/non-demo donors. To run API and web, use two terminals from the repository root:
+The seed refuses an organization with real/non-demo donors. These are operator actions for an authorized local database, not prerequisites for Try Now. Start the API from the repository root:
 
 ```bash
 npm run start:api
 ```
 
-```bash
-npm start --prefix apps/web
-```
-
-The web dev server proxies `/api` to `http://localhost:3000`. Use a Clerk instance and matching local `APP_ORIGIN` settings for authenticated API use. The demo seed is fictional, not real nonprofit data.
+The API listens on port 3000 by default. Use separately authenticated API clients and the contracts in [`apps/api/README.md`](apps/api/README.md) for backend development; starting it does not connect the public frontend. The Angular server retains its `/api` proxy, but public startup makes no API requests. Adding a public config file cannot enable a live sign-in screen. Keep Clerk secrets, session credentials and database URLs out of frontend configuration.
 
 ## Environment variables
 
@@ -150,9 +150,9 @@ The API validates required settings at startup. Deployment validation checks var
 | `APP_ORIGIN` | Yes for live API | `apps/api/env.ts`, `apps/api/app.ts`, `deploy/check-env.ts` | Local `.env`; Vercel runtime | No | Exact allowed origin, without a path or trailing slash. HTTPS in Vercel; local HTTP allowed only for localhost/127.0.0.1. |
 | `PORT` | No; defaults to `3000` | `apps/api/env.ts`, `apps/api/server.ts` | Local `.env` or host runtime | No | API listen port, integer 1–65535. Vercel function does not call `listen()`. |
 | `MIGRATION_DATABASE_URL` | Required for migration/provision/seed tools | `db/migrate.ts`, `db/provision.ts`, `db/seed-demo.ts`, `db/api-key.ts` | Local `.env` only; never Vercel | Yes | Privileged direct PostgreSQL URL for operator tools. Do not use as API runtime credential. |
-| `CLERK_PUBLISHABLE_KEY` | Yes for live web build | `deploy/vercel-build.ts`, `deploy/check-env.ts` | Local build environment or Vercel build settings | No; public | Public Clerk key written into generated `public/config.json`. Must match test/live mode of secret key. |
+| `CLERK_PUBLISHABLE_KEY` | Required by default deployment builder | `deploy/vercel-build.ts`, `deploy/check-env.ts` | Local build environment or Vercel build settings | No; public | Public Clerk key written into generated `public/config.json`. Must match test/live mode of secret key. |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Alias for above | `deploy/vercel-build.ts` | Build environment | No; public | Fallback alias if `CLERK_PUBLISHABLE_KEY` is unset. |
-| `CIC_WEB_DEMO_MODE` | Optional | `deploy/check-env.ts`, `deploy/vercel-build.ts` | Build environment, usually Vercel | No | Set exactly to `1` to deliberately build without `config.json`, keeping the web app on synthetic browser data. Otherwise required API and Clerk build settings are validated. |
+| `CIC_WEB_DEMO_MODE` | Optional | `deploy/check-env.ts`, `deploy/vercel-build.ts` | Build environment, usually Vercel | No | Set exactly to `1` to omit generated config and skip build-time validation. Runtime API validation/authentication still applies; this flag is not needed for public Try Now. |
 | `OPENAI_BASE_URL` | Optional | `apps/api/ai.ts`, `tools/benchmark-search.ts` | Local `.env`; Vercel runtime if enabling AI | No | Optional AI-compatible API base URL; defaults to `https://api.openai.com/v1`. |
 | `OPENAI_API_KEY` | Optional | `apps/api/ai.ts`, `tools/benchmark-search.ts` | Local `.env`; Vercel runtime if enabling AI | Yes | Optional model-provider credential. Missing key uses deterministic fallback where supported. |
 | `OPENAI_MODEL` | Optional | `apps/api/ai.ts`, `tools/benchmark-search.ts` | Local `.env`; Vercel runtime if enabling AI | No | Optional configured model name. |
@@ -161,11 +161,11 @@ The API validates required settings at startup. Deployment validation checks var
 | `VERCEL` | Set by Vercel | `deploy/check-env.ts` | Vercel platform | No | When `1`, requires `APP_ORIGIN` to start with HTTPS. Do not set manually for local work. |
 | `CIC_NATIVE_TEST_URL` | Optional; native DB test only | `tests/import-native.test.ts` | Test environment/CI only | Yes | Enables the optional native PostgreSQL concurrency test. Use only the empty disposable loopback database described in `apps/api/README.md`; never point it at live data. |
 | `CORE_TEST_DATABASE_URL` | Optional; assignment PostgreSQL test | `tests/assignment-postgres.test.mjs`, `.github/workflows/ci.yml` | Test environment/CI only | Yes | Disposable PostgreSQL database for the assignment integration test. |
-| `API_BASE_URL` | Not used by code | `.env.example` only | Not needed | No | Example-file setting only. The web app gets its API base from `config.json`; Vercel generates same-origin `apiBase: ""`. |
+| `API_BASE_URL` | Not used by code | `.env.example` only | Not needed | No | Example-file setting only. Retained live-client code understands config; public startup ignores it. |
 
 On Vercel, `deploy/check-env.ts` also validates the API variables during the build, so a missing or malformed value fails the deploy before it goes live.
 
-`config.json` is public runtime web configuration with `apiBase` and `clerkPublishableKey`. `deploy/vercel-build.ts` writes it into `public/` during a live build. Do not put secrets in it. Without a valid config file, the web app stays in demo mode. `CIC_WEB_DEMO_MODE=1` omits the file intentionally.
+The default builder still writes public `apiBase` and `clerkPublishableKey` into `public/config.json` for retained integration code and the smoke contract. Public startup does not request it; its presence cannot enable live sign-in. Never put secrets in it. `CIC_WEB_DEMO_MODE=1` omits the file, but `src/index.ts` still validates backend settings at runtime.
 
 ## Deploy
 
@@ -229,7 +229,9 @@ Saved review fingerprints exact file bytes and binds decisions to a plan hash; t
 
 ## Demo video
 
-See the [demo script](docs/DEMO.md). Clearly label the Try Now workspace as synthetic browser data. A 7/7 smoke result only proves public routes/config behavior; include signed-in server proofs only after rehearsing them on the deployed site.
+Demo video: not yet supplied. Add the final link here and on the Team Dashboard before submission.
+
+See the [demo script](docs/DEMO.md). Narrate once that Try Now uses fictional browser data; no on-screen synthetic badge is required. A 7/7 smoke result only proves public routes/config behavior; include signed-in server proofs only after rehearsing them on the deployed site.
 
 ## Agent message board
 
