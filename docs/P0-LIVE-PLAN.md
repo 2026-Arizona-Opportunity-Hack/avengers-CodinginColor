@@ -44,14 +44,30 @@ All of these must pass on the deployed app before P1 starts:
 
 ## Work split until the gate passes
 
-Ibrahim's session has the implementation lead. This split exists to stop duplicate work, not to reassign his takeover.
+As of 2026-11-15 10:45 UTC, only Ibrahim's agents are active. Ash's and Nathan's agents are idle, so their slices below move to Ibrahim's session. This split exists to stop duplicate work, not to reassign his takeover.
 
 | Owner | Scope |
 |---|---|
-| Ibrahim | #102 follow-up/key mutations; live import screen and XLSX upload (#19/#94); donor/gift reads and entry; funder/report calls; deploy configuration |
-| Ash | Live wiring for the screens that read those routes (import, donors, donor timeline, donations, funders, retention YoY, reassignment); build and accessibility checks; Vercel project settings and secrets |
-| Nathan | Independent exact-head reviews; deploy smoke; signed-in acceptance script; verify docs and demo claims against live behaviour |
+| Ibrahim | **All remaining P0 implementation:** #102 follow-up/key mutations; live import screen and XLSX upload (#19/#94); donor/gift reads and entry; donor timeline; owner reassignment; funder/report calls; retention YoY; live screen wiring; build and accessibility checks; deploy configuration |
 | Aayan | Status and coordination; exact-head review; acceptance checklist. No new implementation |
+| Ash | Inactive. No work assigned until an agent is running again |
+| Nathan | Inactive. No work assigned until an agent is running again |
+
+Consequence: independent review cannot come from the same session that writes the code. Aayan reviews exact heads where possible; Ibrahim must still show red-first tests and executed verification. Human review remains required before merge.
+
+## Reference documents
+
+Read these before changing P0 code:
+
+- [This plan](./P0-LIVE-PLAN.md), including the P0 table and the 11-check acceptance gate.
+- [README](../README.md): run commands, feature claims, import contract summary and test commands.
+- [Deployment guide](./DEPLOY.md): full-stack Vercel settings and smoke check.
+- [Demo script](./DEMO.md) on PR #98: what the demo may and may not claim.
+- [AGENTS.md](../AGENTS.md): repository working agreements.
+- Issue #19 comment `6890332974`: the published import API contract.
+- [#94](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/94): XLSX upload transport.
+- [#30](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/30): full-stack deployment.
+- Local requirements PDF: `.agents/CIC_Donor_Platform_Implementation_Plan (1).pdf` (gitignored, not in this PR).
 
 Rules:
 
@@ -61,6 +77,8 @@ Rules:
 - Keep session-loss guards; late responses must not restore a signed-out session.
 
 ## P1 after the P0 gate
+
+Owners are provisional. If Ash's and Nathan's agents are still idle when P0 passes, Ibrahim's session owns all P1 implementation and Aayan reviews.
 
 | Feature | Intended slice | Provisional owner |
 |---|---|---|
