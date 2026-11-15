@@ -6,7 +6,7 @@ import { NgxEchartsDirective } from 'ngx-echarts';
 import type { EChartsCoreOption } from 'echarts/core';
 import { CountUp } from '../shared/count-up';
 import { BASE, BLUE, GREEN, INK, INK_MUTED, axisLine, axisTick, splitLine } from '../shared/chart-theme';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Store } from '../core/store';
 import { ReportFilters } from '../core/report-filters';
 import { ReportFiltersControl } from '../shared/report-filters';
@@ -27,6 +27,7 @@ import { SOURCE_LABEL } from '../core/models';
         <div>
           <h1>Retention</h1>
           <p class="lede">Who stayed, grew, shrank or left, year over year.</p>
+          <button class="btn" type="button" (click)="selected.set('lapsed')">Review lapsed donors</button>
         </div>
         @if (!store.live()) { <div class="segmented" role="group" aria-label="Period">
           @for (p of periods; track p.value) {
@@ -96,12 +97,12 @@ import { SOURCE_LABEL } from '../core/models';
                 <span class="d-avatar" aria-hidden="true">{{ store.initials(name(d.donor_id)) }}</span>
                 <div class="min-w-0 flex-1">
                   <a class="font-semibold no-underline hover:underline" [routerLink]="['/donors', d.donor_id]">{{ name(d.donor_id) }}</a>
-                  <p class="sub">{{ store.member(store.donor(d.donor_id)?.owner_id ?? null)?.name ?? 'Owner not visible' }}</p>
+                  <p class="sub">{{ store.member(store.historicalDonor(d.donor_id)?.owner_id ?? null)?.name ?? 'Owner not visible' }}</p>
                 </div>
                 <div class="amounts"><span class="sub">{{ money(d.prior_cents) }}</span><ng-icon name="lucideArrowRight" size="13" aria-hidden="true" /><span class="font-semibold">{{ money(d.current_cents) }}</span></div>
                 @if (s === 'lapsed') {
                   @if (nudged().has(d.donor_id)) { <span class="tag solid"><ng-icon name="lucideCheck" size="12" aria-hidden="true" />Drafted</span> }
-                  @else { <button hlmBtn variant="outline" size="sm" type="button" (click)="nudge(d.donor_id)">Draft nudge</button> }
+                  @else { <button hlmBtn variant="outline" size="sm" type="button" (click)="nudge(d.donor_id)" [disabled]="nudging().has(d.donor_id) || !store.donor(d.donor_id)?.email || store.donor(d.donor_id)?.consent === 'denied'">Draft nudge</button> }
                 }
               </li>
             } @empty { <li class="sub">No donors in this segment.</li> }
@@ -220,8 +221,9 @@ export class RetentionPage {
     { value: String(this.thisYear - 2), label: String(this.thisYear - 2) },
   ];
   protected readonly period = signal('ytd');
-  protected readonly selected = signal<Segment | null>(null);
+  protected readonly selected = signal<Segment | null>(inject(ActivatedRoute, { optional: true })?.snapshot.queryParamMap.get('segment') === 'lapsed' ? 'lapsed' : null);
   protected readonly nudged = signal(new Set<string>());
+  protected readonly nudging = signal(new Set<string>());
 
   private readonly windows = computed(() => (this.period() === 'ytd' ? ytdWindows(this.now) : yearWindows(Number(this.period()))));
   protected readonly r = computed(() => this.store.live()
@@ -244,7 +246,7 @@ export class RetentionPage {
   };
   protected readonly rate = computed(() => (this.r().priorDonors ? (this.r().retained / this.r().priorDonors) * 100 : 0));
   protected change(s: Segment) { return this.r().cents[s].current - this.r().cents[s].prior; }
-  protected name(id: string) { return this.store.donor(id)?.name ?? this.serverNames().get(id) ?? 'Donor'; }
+  protected name(id: string) { return this.store.historicalDonor(id)?.name ?? this.serverNames().get(id) ?? 'Donor'; }
   protected readonly maxSource = computed(() => Math.max(1, ...this.newBySource().map((s) => s.n)));
 
   private readonly periodNames = computed(() => {
@@ -311,7 +313,7 @@ export class RetentionPage {
   }).reverse());
 
   protected readonly byOwner = computed(() => this.store.boardMembers().filter(m => !this.scope.owner() || m.id === this.scope.owner()).map((m) => {
-    const mine = this.r().donors.filter((d) => this.store.donor(d.donor_id)?.owner_id === m.id);
+    const mine = this.r().donors.filter((d) => this.store.historicalDonor(d.donor_id)?.owner_id === m.id);
     return {
       name: m.name,
       kept: mine.filter((d) => ['increased', 'flat', 'decreased'].includes(d.segment)).length,
@@ -322,7 +324,7 @@ export class RetentionPage {
   protected readonly newBySource = computed(() => {
     const counts = new Map<string, number>();
     for (const d of this.r().donors.filter((x) => x.segment === 'new')) {
-      const first = this.store.giftsFor(d.donor_id).sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))[0];
+      const first = this.scope.gifts().filter(g => g.donor_id === d.donor_id).sort((a, b) => a.occurred_at.localeCompare(b.occurred_at))[0];
       const label = first ? SOURCE_LABEL[first.source] : 'Unknown';
       counts.set(label, (counts.get(label) ?? 0) + 1);
     }
@@ -352,8 +354,13 @@ export class RetentionPage {
   }
 
   protected async nudge(donorId: string) {
-    if (!await this.store.createDraft(donorId, 't-nudge', 'Lapsed: gave last period, not this period')) return;
-    this.nudged.update((s) => new Set(s).add(donorId));
-    toast.success(`Nudge drafted for ${this.name(donorId)}`, { description: 'Approve it in Follow-ups before it is sent.' });
+    if (this.nudging().has(donorId) || this.nudged().has(donorId)) return;
+    this.nudging.update(s => new Set(s).add(donorId));
+    const epoch = this.store.sessionEpoch();
+    try {
+      if (!await this.store.createDraft(donorId, 't-nudge', 'Lapsed: gave last period, not this period') || epoch !== this.store.sessionEpoch()) return;
+      this.nudged.update((s) => new Set(s).add(donorId));
+      toast.success(`Nudge drafted for ${this.name(donorId)}`, { description: 'Approve it in Follow-ups before it is sent.' });
+    } finally { this.nudging.update(s => { const next = new Set(s); next.delete(donorId); return next; }); }
   }
 }

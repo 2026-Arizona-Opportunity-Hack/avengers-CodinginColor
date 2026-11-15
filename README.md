@@ -56,7 +56,7 @@ Judges score **Scope, Documentation, Polish and Security**, plus a separate **Ac
 ## What we built
 
 Coding in Color keeps its donors in spreadsheets and platform exports (Zeffy, Benevity, AZ Gives), and
-follow-ups live in people's heads. **Cadence** gives the CEO and the board one place to see every
+follow-ups live in people's heads. **Coding in Color** gives the CEO and the board one place to see every
 donor and gift, know who owns each relationship, and keep the next touch from slipping. It also
 produces the funder report CIC needs, without re-keying anything.
 
@@ -80,11 +80,11 @@ What's built on `main` (API, database and rules):
 - **Security:** invite-only Clerk sign-in, MFA required for admins, PostgreSQL row-level security
   (board members see only their own donors), and audit events for changes, sends and exports.
 
-The backend above is built and tested. Still in progress is connecting the web screens to it: the
-live import screen (#106), remaining Follow-ups integration (#48), and
-the Funder reports screen, which still builds its CSV in the browser instead of downloading the
-server's audited export. Until a full-stack deploy is live (#30), the hosted app runs on synthetic
-demo data in the browser.
+The live web screens now connect imports, donor/gift history and entry, follow-ups,
+retention, audited funder exports and staff settings to these APIs. Automated tests
+cover the integrated workflows; a deployed signed-in rehearsal remains the release
+gate in #30. Demo mode uses synthetic browser data and does not prove persistence
+or deployed authorization.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
@@ -112,9 +112,6 @@ uses synthetic review state; deployed signed-in acceptance remains pending.
 
 ## Run it locally
 
-Live administrators can reassign a donor to any active same-organization board
-member, including members without donors. Assignment and open-task transfer remain
-server-controlled and audited; board members cannot list other eligible owners.
 Administrators can use the live Funder reports screen to select a donor, program
 and inclusive calendar range, inspect the server packet, then download its audited
 CSV or print it. Gift totals stay separated by currency and attribution. Until
@@ -126,6 +123,10 @@ Retention accepts optional `from`, `programId`, `ownerId`, `campaignId` and
 matched Phoenix calendar windows within one year. Cohort is the donor's first
 positive settled gift year across their visible history, before campaign/program
 narrowing. Every filter intersects the caller's existing organization/owner scope.
+
+Live administrators can reassign a donor to any active same-organization board
+member, including members without donors. Assignment and open-task transfer remain
+server-controlled and audited; board members cannot list other eligible owners.
 
 Live donor views load their scoped gift and contact history from the API. Logging
 a call, text, email or meeting persists a real communication and refreshes the queue;
@@ -454,3 +455,7 @@ confirmed gifts update that currency in the timeline.
 Live admin Team settings list actual membership roles and activity, add existing
 verified Clerk users and save audited access changes. Reassign a board member's
 active donor portfolio before deactivation.
+
+Admin Team settings send and revoke seven-day staff invitation emails through
+Clerk on explicit submission. The invitation sign-up page links verified primary
+email to stored role intent; failed, expired and revoked invitations grant no access.

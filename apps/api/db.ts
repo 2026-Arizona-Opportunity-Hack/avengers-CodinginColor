@@ -24,7 +24,8 @@ export async function withMember<T>(db: Database, orgId: string, identity: Ident
       'SELECT id, org_id, role FROM memberships WHERE org_id = $1 AND clerk_subject = $2 AND active', [org, subject]);
     if (result.rows.length !== 1) throw new HttpError(403);
     const member = Membership.parse(result.rows[0]);
-    if (member.org_id !== org || (member.role === 'admin' && !identity.mfa)) throw new HttpError(403);
+    if (member.org_id !== org) throw new HttpError(403);
+    if (member.role === 'admin' && !identity.mfa) throw new HttpError(403, 'admin_mfa_required');
     const value = await action(client, member);
     await client.query('COMMIT');
     return value;
