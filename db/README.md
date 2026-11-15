@@ -41,3 +41,24 @@ Admin reassignment and automatic assignment need separately reviewed scoped
 functions. Application services must pair mutations with audit inserts in the
 same transaction; database grants alone do not supply that service workflow.
 Communications/follow-ups and import staging remain their owners' later slices.
+
+## Dashboard API keys (`004_reporting_api.sql`, #29)
+
+- **`api_keys`** stores only a SHA-256 `key_hash`, a short `hint`, `scopes`
+  (`read:aggregates`) and `revoked_at`.
+  - Admins create and revoke keys through `cic_runtime`.
+  - Revocation is one-way, and there's no delete.
+  - **Runtime can never select `key_hash`.**
+- **`cic_reporting`** is a non-login definer role.
+  - The migration fails if it already exists with unsafe attributes or memberships.
+  - Its column grants exclude every donor contact field.
+- It owns three functions, executable only by `cic_runtime`:
+  - `cic_reporting_gifts(key_hash, from, to)` (window ≤ 1830 days)
+  - `cic_reporting_recent(key_hash, limit 1-100)`
+  - `cic_reporting_programs(key_hash)`
+
+  Each resolves the organization from an active key with the right scope, returns that
+  org's non-void gift rows (internal UUIDs and amounts only), and raises `Invalid API
+  key` otherwise.
+- The API turns those rows into suppressed aggregates with `packages/reporting/summary.ts`;
+  per-gift rows never leave the server. Tests: `node --test tests/reporting-api.test.ts`.
