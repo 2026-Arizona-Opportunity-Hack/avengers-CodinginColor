@@ -139,10 +139,24 @@ until a reviewer passes both date flags, so every preview remains `needs_review`
 External transaction IDs are optional in
 the backend baseline; reimport safety still needs reconciliation logic.
 Phone formatting is normalized without guessing
-a country; contact-person names do not assign owners. XLSX, Jev suggestions,
+a country; contact-person names do not assign owners. XLSX,
 donor/gift deduplication, saved review decisions and transactional import remain
 follow-up work against the baseline published in [backend issue #7](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/7),
 with persistence integration after the shared foundation is reviewed and merged.
+
+Jev column suggestions are proposals only. Even `accepted: true` means only
+high-confidence eligibility; a human must always accept the mapping. Suggestions
+use the fixed TypeSafe endpoint and `jev-latest`; `TYPESAFE_API_KEY` is canonical,
+with `JEV_API_KEY` accepted as a legacy fallback. Put a real key in local `.env`
+(see `.env.example`; never commit `.env`). With Node 24+, call the exported helper
+directly, for example:
+
+```sh
+node --env-file=.env --input-type=module -e "import { suggestColumn } from './tools/import-suggest.ts'; console.log(await suggestColumn({header:'Donation amount',samples:[]}))"
+```
+
+This sends only the selected header, not sample values. It proposes a mapping;
+it does not persist data or calculate money.
 
 For ambiguous headers, pass an optional JSON mapping file as the final argument:
 `node tools/import-preview.ts spreadsheet export.csv mapping.json`.
