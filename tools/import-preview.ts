@@ -1,13 +1,16 @@
 import { readFile } from 'node:fs/promises';
 import { basename } from 'node:path';
+import { GiftWriteSchema } from '../packages/contracts/index.ts';
 
 const aliases = new Map([
   ['first name', 'first_name'], ['last name', 'last_name'],
   ['email', 'email'], ['email address', 'email'],
   ['phone', 'phone'], ['phone number', 'phone'], ['company', 'company'],
   ['donation amount', 'amount_cents'], ['contact person', 'contact_person'],
-  ['campaign', 'campaign'],
+  ['campaign', 'campaign'], ['amount cents', 'amount_cents'],
+  ['occurred at', 'occurred_at'], ['currency', 'currency'], ['external id', 'external_id'],
 ]);
+const mappingTargets = new Set([...aliases.values(), 'amount_decimal']);
 const sources = ['spreadsheet', 'zeffy', 'benevity'];
 const MAX_BYTES = 5 * 1024 * 1024;
 type Issue = { recordNumber: number | null; field: string; code: string };
@@ -53,7 +56,7 @@ export function parseAmountCents(value: string): number | null {
   return cents <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(cents) : null;
 }
 
-export function previewCsv(text: string, source: string, file: string) {
+export function previewCsv(text: string, source: string, file: string, columnMapping: unknown = {}) {
   if (!sources.includes(source)) throw new Error('Source must be spreadsheet, zeffy or benevity');
   const [headers, ...records] = parseCsv(text);
   if (!headers || headers.every(header => !header.trim())) throw new Error('CSV header is missing');
@@ -61,19 +64,34 @@ export function previewCsv(text: string, source: string, file: string) {
   if (normalized.some(header => !header) || new Set(normalized).size !== headers.length) {
     throw new Error('CSV has blank or duplicate headers');
   }
-  const mapping = normalized.map(header => aliases.get(header) ?? null);
+  if (!columnMapping || typeof columnMapping !== 'object' || Array.isArray(columnMapping)) {
+    throw new Error('Column mapping must be a JSON object');
+  }
+  const chosen = new Map<string, string | null>();
+  for (const [header, target] of Object.entries(columnMapping)) {
+    if (!headers.includes(header) || (target !== null &&
+        (typeof target !== 'string' || !mappingTargets.has(target)))) {
+      throw new Error('Mapping must reference existing headers and supported fields');
+    }
+    chosen.set(header, target);
+  }
+  const mapping = normalized.map((header, i) => {
+    const target = chosen.has(headers[i]) ? chosen.get(headers[i]) : aliases.get(header);
+    return target === 'amount_decimal' ? 'amount_cents' : target ?? null;
+  });
   const mapped = mapping.filter(field => field !== null);
   if (new Set(mapped).size !== mapped.length) throw new Error('Multiple columns map to the same field');
   const issues: Issue[] = [];
   mapping.forEach((field, i) => {
-    if (!field) issues.push({ recordNumber: null, field: headers[i], code: 'unmapped_column' });
+    if (!field && !chosen.has(headers[i])) {
+      issues.push({ recordNumber: null, field: headers[i], code: 'unmapped_column' });
+    }
   });
   if (!mapping.includes('amount_cents')) {
     issues.push({ recordNumber: null, field: 'amount_cents', code: 'missing_column' });
   }
-  // shortcut: sample exports lack gift metadata; add source adapters after real export contracts are agreed.
   for (const field of ['occurred_at', 'currency']) {
-    issues.push({ recordNumber: null, field, code: 'unresolved_gift_metadata' });
+    if (!mapping.includes(field)) issues.push({ recordNumber: null, field, code: 'unresolved_gift_metadata' });
   }
   if (!records.length) issues.push({ recordNumber: null, field: 'rows', code: 'empty_file' });
   const rows = records.map((raw, index) => {
@@ -89,9 +107,23 @@ export function previewCsv(text: string, source: string, file: string) {
         issue(field, 'spreadsheet_formula');
       }
       if (field === 'amount_cents') {
-        values[field] = parseAmountCents(value);
+        const alreadyCents = chosen.has(headers[i])
+          ? chosen.get(headers[i]) === 'amount_cents' : normalized[i] === 'amount cents';
+        if (alreadyCents) {
+          const cents = /^\d+$/.test(value) ? Number(value) : NaN;
+          values[field] = GiftWriteSchema.shape.amount_cents.safeParse(cents).success ? cents : null;
+        } else values[field] = parseAmountCents(value);
         if (values[field] === null) issue(field, value ? 'invalid_amount' : 'missing_amount');
         else if (values[field] === 0) issue(field, 'non_positive_amount');
+      }
+      if (field === 'occurred_at' || field === 'currency' || field === 'external_id') {
+        const input = field === 'currency' ? value.toUpperCase() : value || null;
+        const parsed = GiftWriteSchema.shape[field].safeParse(input);
+        if (parsed.success) values[field] = parsed.data ?? null;
+        else {
+          values[field] = null;
+          issue(field, value ? `invalid_${field}` : 'missing_gift_metadata');
+        }
       }
       if (field === 'email' && value) {
         values[field] = value.toLowerCase();
@@ -113,13 +145,22 @@ export function previewCsv(text: string, source: string, file: string) {
 
 if (import.meta.main) {
   try {
-    const [source, file, ...extra] = process.argv.slice(2);
-    if (!source || !file || extra.length || !file.toLowerCase().endsWith('.csv')) {
-      throw new Error('Usage: node tools/import-preview.ts <spreadsheet|zeffy|benevity> <file.csv>');
+    const [source, file, mappingFile, ...extra] = process.argv.slice(2);
+    if (!source || !file || extra.length || !file.toLowerCase().endsWith('.csv') ||
+        (mappingFile && !mappingFile.toLowerCase().endsWith('.json'))) {
+      throw new Error('Usage: node tools/import-preview.ts <spreadsheet|zeffy|benevity> <file.csv> [mapping.json]');
     }
     const bytes = await readFile(file);
     if (bytes.length > MAX_BYTES) throw new Error('CSV exceeds 5 MiB');
-    const preview = previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes), source, basename(file));
+    let columnMapping: unknown = {};
+    if (mappingFile) {
+      const content = await readFile(mappingFile, 'utf8');
+      if (Buffer.byteLength(content, 'utf8') > MAX_BYTES) throw new Error('Mapping exceeds 5 MiB');
+      try { columnMapping = JSON.parse(content); }
+      catch { throw new Error('Mapping file must contain valid JSON'); }
+    }
+    const preview = previewCsv(new TextDecoder('utf-8', { fatal: true }).decode(bytes),
+      source, basename(file), columnMapping);
     const issueCounts: Record<string, number> = {};
     for (const issue of preview.issues) issueCounts[issue.code] = (issueCounts[issue.code] ?? 0) + 1;
     console.log(JSON.stringify({ source, file: preview.file, status: preview.status,

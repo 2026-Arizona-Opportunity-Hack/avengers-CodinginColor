@@ -85,13 +85,15 @@ cp .env.example .env   # fill in your own values — never commit .env
 
 ## CSV import preflight
 
-Requires Node.js 24.2 or newer; no npm packages or credentials are needed.
+Requires Node.js 24.2 or newer. Install the shared contract's locked dependencies;
+no credentials are needed.
 
 ```bash
+npm ci
 node tools/import-preview.ts spreadsheet data/cic_donor_spreadsheet.csv
 node tools/import-preview.ts zeffy data/zeffy_export.csv
 node tools/import-preview.ts benevity data/benevity_export.csv
-node --test tests/import-preview.test.ts
+node --test tests/import-preview.test.ts tests/import-mapping.test.ts
 ```
 
 The CLI prints row counts and issue categories without donor contact details.
@@ -109,6 +111,27 @@ a country; contact-person names do not assign owners. XLSX, Jev suggestions,
 donor/gift deduplication, saved review decisions and transactional import remain
 follow-up work against the baseline published in [backend issue #7](https://github.com/2026-Arizona-Opportunity-Hack/avengers-CodinginColor/issues/7),
 with persistence integration after the shared foundation is reviewed and merged.
+
+For ambiguous headers, pass an optional JSON mapping file as the final argument:
+`node tools/import-preview.ts spreadsheet export.csv mapping.json`.
+Keys must exactly match source headers. Targets are `first_name`, `last_name`,
+`email`, `phone`, `company`, `contact_person`, `campaign`, `occurred_at`,
+`currency`, `external_id`, `amount_decimal`, or `amount_cents`; null explicitly
+ignores a column while retaining its raw cells. Unknown targets/headers and
+multiple columns targeting the same field are rejected.
+
+```json
+{"Contribution Value":"amount_decimal","When Received":"occurred_at","Money Code":"currency","Unused":null}
+```
+
+`amount_decimal` consumes major units (12.34 becomes 1234 cents); `amount_cents`
+consumes integers already in cents (1234 stays 1234). The known `donation amount`
+header uses decimal units; `amount_cents` uses integer cents. Gift timestamps
+require real calendar dates and explicit timezones. Currency codes are uppercased
+then validated, together with timestamps and optional external IDs, using the
+shared schemas from contract PR #8. Missing/invalid facts remain review issues.
+Mappings are explicit input choices, not final approval: previews still report
+`needs_review`, and donor IDs, refunds, gift status and persistence are not inferred.
 
 ## Agent message board
 

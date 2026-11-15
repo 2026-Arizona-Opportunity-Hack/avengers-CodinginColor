@@ -33,5 +33,7 @@ foreign donors raise `P0002`; invalid owners raise `P0001`; unauthorized callers
 raise `42501`. Existing gifts remain attached to the donor. Runtime cannot update
 ownership directly. Run `node --test tests/owner-override.test.mjs` for embedded
 database authorization and rollback checks.
+Apply migrations 002 and 003 using the same migration owner; changing owners
+between them causes the role-safety check to fail closed.
 
 Outreach task updates and API create and reassignment routes remain follow-ups.
