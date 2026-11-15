@@ -6,6 +6,7 @@ import { toast } from '@spartan-ng/brain/sonner';
 import { Store } from '../core/store';
 import { date, dateShort, money, quarterOf, relativeDue, today } from '../core/format';
 import { Draft, FollowUp } from '../core/models';
+import { OwnerDigests } from './owner-digests';
 
 type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
 
@@ -15,7 +16,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
  */
 @Component({
   selector: 'app-outreach',
-  imports: [RouterLink, NgIcon, HlmButtonImports],
+  imports: [RouterLink, NgIcon, HlmButtonImports, OwnerDigests],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page">
@@ -194,6 +195,7 @@ type Tab = 'approve' | 'followups' | 'quarterly' | 'history';
               </section>
             }
           </div>
+          @if (store.live() && store.isAdmin()) { <app-owner-digests class="mt-6 block" /> }
           <h2 class="mt-8 mb-3">Templates</h2>
           <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             @for (t of visibleTemplates(); track t.id) {
