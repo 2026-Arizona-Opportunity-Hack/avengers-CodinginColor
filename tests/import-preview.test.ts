@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { parseAmountCents, parseCsv, previewCsv } from '../tools/import-preview.ts';
 
 const header = 'first name,last name,email,phone,company,donation amount,contact person,campaign';
@@ -92,13 +93,13 @@ test('all three sample files retain every row and remain repeatable without muta
 });
 
 test('CLI prints counts without donor contact details and fails visibly on bad input', () => {
-  const cli = new URL('../tools/import-preview.ts', import.meta.url);
-  const file = new URL('../data/cic_donor_spreadsheet.csv', import.meta.url);
-  const result = spawnSync(process.execPath, [cli.pathname, 'spreadsheet', file.pathname], { encoding: 'utf8' });
+  const cli = fileURLToPath(new URL('../tools/import-preview.ts', import.meta.url));
+  const file = fileURLToPath(new URL('../data/cic_donor_spreadsheet.csv', import.meta.url));
+  const result = spawnSync(process.execPath, [cli, 'spreadsheet', file], { encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).rowCount, 75);
   assert.doesNotMatch(result.stdout, /@|555|Avery/);
-  const bad = spawnSync(process.execPath, [cli.pathname, 'spreadsheet', '/missing/private.csv'], { encoding: 'utf8' });
+  const bad = spawnSync(process.execPath, [cli, 'spreadsheet', '/missing/private.csv'], { encoding: 'utf8' });
   assert.equal(bad.status, 1);
   assert.equal(bad.stderr.trim(), 'Unable to read CSV file');
   assert.equal(bad.stdout, '');
