@@ -146,21 +146,52 @@ test('bounds archive expansion, worksheet coordinates and malformed structures',
     sheet: '<!DOCTYPE x><worksheet><sheetData/></worksheet>' })), /unsupported XML/i);
 });
 
-test('rejects a compressed bomb before a large inflated buffer is allocated', () => {
+test('rejects declared and forged-size bombs before a large inflated allocation', () => {
   const directory = mkdtempSync(join(tmpdir(), 'cic-xlsx-bomb-'));
   try {
-    const file = join(directory, 'bomb.xlsx');
-    writeFileSync(file, xlsx([header], { extra: { 'xl/sharedStrings.xml': `<sst>${'A'.repeat(80 * 1024 * 1024)}</sst>` } }));
+    const bomb = xlsx([header], { extra: { 'xl/sharedStrings.xml': `<sst>${'A'.repeat(80 * 1024 * 1024)}</sst>` } });
+    const forged = Buffer.from(bomb);
+    let patched = 0;
+    for (let offset = 0; offset + 46 < forged.length; offset++) {
+      const signature = forged.readUInt32LE(offset);
+      const local = signature === 0x04034b50, central = signature === 0x02014b50;
+      if (!local && !central) continue;
+      const nameStart = offset + (local ? 30 : 46);
+      const nameLength = forged.readUInt16LE(offset + (local ? 26 : 28));
+      if (forged.toString('utf8', nameStart, nameStart + nameLength) !== 'xl/sharedStrings.xml') continue;
+      forged.writeUInt32LE(0, offset + (local ? 22 : 24)); patched++;
+    }
+    assert.equal(patched, 2, 'forge both local and central declared sizes to exercise streaming limits');
     const module = new URL('../tools/import-xlsx.ts', import.meta.url).href;
+    // Node/module startup RSS varies by host; guard the inflater's allocation before it happens.
     const script = `import { readFileSync } from 'node:fs';
+      import assert from 'node:assert/strict';
+      const cap = 16 * 1024 * 1024;
+      let blocked = 0, largest = 0;
+      // Install before importing fflate, which captures the typed-array constructor.
+      globalThis.Uint8Array = new Proxy(Uint8Array, { construct(target, args, receiver) {
+        if (typeof args[0] === 'number') {
+          largest = Math.max(largest, args[0]);
+          if (args[0] > cap) { blocked++; throw new Error('Oversized inflated allocation'); }
+        }
+        return Reflect.construct(target, args, receiver);
+      }});
+      // Calibrate the guard without allocating the bomb-sized negative control.
+      assert.throws(() => new Uint8Array(80 * 1024 * 1024), /Oversized/);
+      assert.equal(blocked, 1); blocked = 0; largest = 0;
       const { previewXlsx } = await import(process.argv[1]);
-      try { await previewXlsx(readFileSync(process.argv[2]), 'spreadsheet', 'bomb.xlsx'); process.exitCode = 2; }
-      catch (error) { if (!/safety limits/.test(error.message)) process.exitCode = 3; }
-      console.log(process.resourceUsage().maxRSS);`;
-    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script, module, file],
-      { encoding: 'utf8', maxBuffer: 1024 * 1024 });
-    assert.equal(result.status, 0, result.stderr);
-    assert.ok(Number(result.stdout.trim()) < 120_000, `peak RSS exceeded 120 MiB: ${result.stdout.trim()} KiB`);
+      let failure;
+      try { await previewXlsx(readFileSync(process.argv[2]), 'spreadsheet', 'bomb.xlsx'); } catch (error) { failure = error; }
+      assert.equal(blocked, 0, 'reader attempted an oversized allocation before rejection: ' + largest);
+      assert.match(failure?.message ?? '', /safety limits/);
+      console.log(largest);`;
+    for (const [name, bytes] of [['declared', bomb], ['forged', forged]] as const) {
+      const file = join(directory, `${name}.xlsx`); writeFileSync(file, bytes);
+      const result = spawnSync(process.execPath, ['--input-type=module', '-e', script, module, file],
+        { encoding: 'utf8', maxBuffer: 1024 * 1024 });
+      assert.equal(result.status, 0, `${name}: ${result.stderr}`);
+      assert.ok(Number(result.stdout.trim()) <= 16 * 1024 * 1024, result.stdout);
+    }
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
