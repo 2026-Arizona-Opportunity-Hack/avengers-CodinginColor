@@ -81,6 +81,12 @@ demo data in the browser.
 
 Project requirements and delivery roles: [CIC Donor Platform Implementation Plan](CIC_Donor_Platform_Implementation_Plan.pdf).
 
+The live admin Import screen uses the API for upload, mapping, donor/gift review
+and atomic commit. It requires explicit status/refund and missing date/currency
+facts, acknowledges invalid records, and separates source totals from canonical
+changes by currency. [Local synthetic UI preview](docs/screenshots/live-import-review.png)
+uses synthetic review state; deployed signed-in acceptance remains pending.
+
 ## Tech stack
 
 - Frontend: Angular 22 web app in [`apps/web`](apps/web/README.md). It runs on built-in sample data until a `config.json` points it at the API.

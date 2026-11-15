@@ -23,7 +23,7 @@ export const NAV: NavGroup[] = [
     { path: '/funders', label: 'Funder reports', icon: 'lucideFileText', admin: true },
   ] },
   { label: 'Data', items: [
-    { path: '/import', label: 'Import', icon: 'lucideUpload', admin: true },
+    { path: '/import', label: 'Import', icon: 'lucideUpload', admin: true, live: true },
     { path: '/api', label: 'Read API', icon: 'lucideKeyRound', admin: true, live: true },
     { path: '/settings', label: 'Settings', icon: 'lucideSettings', admin: true },
   ] },
