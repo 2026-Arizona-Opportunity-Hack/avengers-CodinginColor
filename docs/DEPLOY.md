@@ -7,11 +7,13 @@ passwords and paste keys**. Nothing in this file is a real credential. Tracked i
 
 | Piece | Service | Notes |
 |---|---|---|
-| API + built web app | One Node 24 web service (proposed: Render Starter, see #30) | `npm run start:api`, health check `GET /healthz` |
+| API + built web app | One Vercel project (chosen on #30): the Express API runs as a Vercel Function from `src/index.ts`, and the web app is served from `public/` on the same origin | health check `GET /healthz` |
 | Database | Neon Postgres (Free) | Two logins: a **migration owner** and a restricted **runtime login** |
 | Sign-in | Clerk (development instance for the demo) | Invite-only; admins need a second factor |
 
-Budget: about $7/month (Render Starter). Neon and Clerk are $0 on the plans above; see #30.
+Budget: Vercel Hobby is $0 but limited to **non-commercial personal use**. That's fine for the
+hackathon demo, but CIC's ongoing use likely needs Vercel Pro (about $20/month, the whole
+OHack recurring budget) or another approved plan. Neon and Clerk are $0 on the plans above; see #30.
 
 ## 1. Neon: database and the two logins
 
@@ -74,16 +76,28 @@ Budget: about $7/month (Render Starter). Neon and Clerk are $0 on the plans abov
 
 ## 4. The web service
 
-Example for Render (similar on other hosts):
+**Vercel** (chosen on #30). Import the GitHub repo as a new Vercel project. `vercel.json`
+already sets the install and build steps:
 
 | Setting | Value |
 |---|---|
-| Runtime | Node 24 |
-| Build command | `npm ci` (plus the web build once the UI lands) |
-| Start command | `npm run start:api` |
-| Health check path | `/healthz` |
+| Framework | Detected as Express from `src/index.ts`, which default-exports the app (no `listen`) |
+| Node.js version | 24.x (Angular's build needs 24.15 or newer) |
+| Install | `npm ci && npm ci --prefix apps/web` |
+| Build | builds `apps/web` and copies `apps/web/dist/web/browser` into `public/` |
+| Routing | static files from `public/`; page routes rewrite to `index.html`; `/api/*` and `/healthz` reach the API |
 
-Environment variables on the host (the API exits at startup if any is missing or invalid):
+Check these on the **first deploy**; none have been verified on Vercel yet:
+1. The build log shows the Angular build succeeding. If npm blocks install scripts
+   (for example esbuild's), approve them for `apps/web`.
+2. `GET /healthz` returns 200 from the function.
+3. A deep link such as `/donors` loads the web app instead of the API's 404.
+
+Running elsewhere: `npm run start:api` (`apps/api/server.ts`) still starts a normal
+long-running server.
+
+Environment variables in Vercel → Settings → Environment Variables (the function refuses
+to start, logging only the variable *names*, if any is missing or invalid):
 
 | Variable | Value | Secret? |
 |---|---|---|
@@ -91,8 +105,7 @@ Environment variables on the host (the API exits at startup if any is missing or
 | `CIC_ORG_ID` | the UUID from step 3 | no |
 | `CLERK_SECRET_KEY` | `sk_test_…` / `sk_live_…` | yes |
 | `CLERK_JWT_ISSUER` | `https://<name>.clerk.accounts.dev` | no |
-| `APP_ORIGIN` | the public URL of the service, exact origin, `https://` | no |
-| `PORT` | set by the host | no |
+| `APP_ORIGIN` | the production URL, exact origin, e.g. `https://<project>.vercel.app` | no |
 
 **Never** set `MIGRATION_DATABASE_URL` on the web service. It's only used from a
 person's machine for migrations, provisioning and seeding.
