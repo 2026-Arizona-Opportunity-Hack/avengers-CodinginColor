@@ -1,5 +1,6 @@
 import { Component, ElementRef, computed, inject, signal, viewChild } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
 import { readSheet } from 'read-excel-file/browser';
 import { ImportRow, Store } from '../core/store';
 import { ColumnGuess, TARGETS, Target, classifyColumns, parseCsv } from '../core/csv';
@@ -35,25 +36,27 @@ interface Match { row: Checked; donor: Donor; reason: string; }
 
 @Component({
   selector: 'app-import',
-  imports: [RouterLink],
+  imports: [RouterLink, NgIcon],
   template: `
     <div class="page">
       <header class="page-head">
         <div>
-          <p class="label eyebrow">Import</p>
-          <h1>Bring a file into one donor table</h1>
-          <p class="lede">Spreadsheets and exports from Zeffy, Benevity, AZ Gives and United Way. Nothing is saved until you confirm the last step.</p>
+          <h1>Import</h1>
+          <p class="lede">The CIC spreadsheet, Zeffy, Benevity and AZ Gives exports into one donor table, with duplicates merged. Nothing saves until you confirm.</p>
         </div>
       </header>
 
-      <ol class="steps" aria-label="Import progress">
+      <div class="wizard">
+      <ol class="rail glass" aria-label="Import progress">
         @for (s of steps; track s; let i = $index) {
           <li [attr.aria-current]="step() === i ? 'step' : null" [class.done]="step() > i">
-            <span class="label">Step {{ i + 1 }}</span>{{ s }}
+            <span class="r-dot" aria-hidden="true">@if (step() > i) { <ng-icon name="lucideCheck" size="13" /> } @else { {{ i + 1 }} }</span>
+            <span class="flex flex-col"><span class="text-xs text-[var(--ink-600)]">Step {{ i + 1 }}</span><span class="font-semibold">{{ s }}</span></span>
           </li>
         }
       </ol>
 
+      <section class="stage glass">
       <h2 #stepHeading tabindex="-1" class="step-title">{{ steps[step()] }}</h2>
 
       @switch (step()) {
@@ -64,7 +67,10 @@ interface Match { row: Checked; donor: Donor; reason: string; }
                 <select class="select" (change)="source.set($any($event.target).value)">
                   @for (s of sources; track s) { <option [value]="s" [selected]="source() === s">{{ sourceLabel[s] }}</option> }
                 </select></label>
-              <label class="field"><span>File (.csv or .xlsx, up to 5 MB)</span>
+              <label class="drop">
+                <ng-icon name="lucideUpload" size="26" aria-hidden="true" />
+                <span class="font-semibold">Choose a .csv or .xlsx file</span>
+                <span class="hint">Up to 5 MB. Nothing is saved until the last step.</span>
                 <input class="input file" type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" (change)="pick($event)" /></label>
               <label class="field"><span>Gift date for rows without one</span>
                 <input class="input" type="date" [max]="now" [value]="fallbackDate()" (input)="fallbackDate.set($any($event.target).value)" />
@@ -77,47 +83,51 @@ interface Match { row: Checked; donor: Donor; reason: string; }
                 <button class="btn primary" type="button" [disabled]="!fileName()" (click)="go(1)">Continue to mapping</button>
               </div>
             </form>
-            <aside class="panel" aria-label="Sample files">
-              <div class="panel-head"><h3>Try a sample file</h3></div>
-              <ul class="list">
+            <aside class="samples-box" aria-label="Sample files">
+              <h3>Or try a sample</h3>
+              <ul class="sample-list">
                 @for (s of samples; track s.file) {
-                  <li class="sample"><span>{{ s.label }}</span><button class="btn small" type="button" (click)="loadSample(s.file, s.source)">Load</button></li>
+                  <li><button type="button" class="sample" (click)="loadSample(s.file, s.source)">
+                    <span class="s-icon" aria-hidden="true"><ng-icon name="lucideFileText" size="16" /></span>
+                    <span class="flex-1 text-start font-medium">{{ s.label }}</span><span class="s-cta">Load</span></button></li>
                 }
               </ul>
-              <p class="panel-body hint">Synthetic data. The AZ Gives sample has non-standard headers, a bad email, a formula cell and people who already exist.</p>
+              <p class="hint mt-3">Synthetic data. The AZ Gives sample has non-standard headers, a bad email, a formula cell and people who already exist.</p>
             </aside>
           </div>
         }
 
         @case (1) {
-          <p class="intro">Exact header matches are mapped automatically. Anything else is a <strong>suggestion</strong> you must accept or change. Data is never mapped on a guess.</p>
-          <div class="table-wrap">
-            <table class="table">
-              <caption class="sr-only">Column mapping</caption>
-              <thead><tr><th scope="col">Column in file</th><th scope="col">Sample values</th><th scope="col">Maps to</th><th scope="col">How</th><th scope="col">Why</th></tr></thead>
-              <tbody>
-                @for (g of guesses(); track g.header; let i = $index) {
-                  <tr>
-                    <th scope="row"><code>{{ g.header }}</code></th>
-                    <td class="samples">{{ sampleValues(i) }}</td>
-                    <td>
-                      <select class="select compact" [attr.aria-label]="'Field for column ' + g.header" (change)="setTarget(i, $any($event.target).value)">
-                        @for (t of targetKeys; track t) { <option [value]="t" [selected]="g.target === t">{{ targets[t] }}</option> }
-                      </select>
-                    </td>
-                    <td>
-                      @if (g.method === 'exact') { <span class="tag solid">Exact</span> }
-                      @else if (g.method === 'suggested') {
-                        <label class="check"><input type="checkbox" [checked]="accepted().has(i)" (change)="toggleAccept(i)" />
-                          <span class="tag dashed">Suggested</span> Accept</label>
-                      } @else { <span class="tag">{{ g.target === 'ignore' ? 'Skipped' : 'Chosen' }}</span> }
-                    </td>
-                    <td class="why">{{ g.reason }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+          <div class="intro-row">
+            <p class="intro">Exact header matches are mapped automatically. Anything else is a <strong>suggestion</strong> you must accept or change. Data is never mapped on a guess.</p>
+            @if (pendingSuggestions() > 0) {
+              <button class="btn" type="button" (click)="acceptAll()"><ng-icon name="lucideCheck" size="15" aria-hidden="true" /> Accept all {{ pendingSuggestions() }} suggestions</button>
+            }
           </div>
+          <ul class="maps" aria-label="Column mapping">
+            @for (g of guesses(); track g.header; let i = $index) {
+              <li class="map" [attr.data-method]="g.method">
+                <div class="m-src">
+                  <code>{{ g.header }}</code>
+                  <span class="hint truncate">{{ sampleValues(i) }}</span>
+                </div>
+                <ng-icon name="lucideArrowRight" size="16" class="m-arrow" aria-hidden="true" />
+                <div class="m-dst">
+                  <select class="select" [attr.aria-label]="'Field for column ' + g.header" (change)="setTarget(i, $any($event.target).value)">
+                    @for (t of targetKeys; track t) { <option [value]="t" [selected]="g.target === t">{{ targets[t] }}</option> }
+                  </select>
+                </div>
+                <div class="m-how">
+                  @if (g.method === 'exact') { <span class="tag solid"><ng-icon name="lucideCheck" size="12" aria-hidden="true" />Exact match</span> }
+                  @else if (g.method === 'suggested') {
+                    <label class="accept" [class.on]="accepted().has(i)"><input type="checkbox" [checked]="accepted().has(i)" (change)="toggleAccept(i)" />
+                      {{ accepted().has(i) ? 'Accepted' : 'Accept suggestion' }}</label>
+                  } @else { <span class="tag">{{ g.target === 'ignore' ? 'Skipped' : 'Chosen by you' }}</span> }
+                </div>
+                <p class="m-why">{{ g.reason }}</p>
+              </li>
+            }
+          </ul>
           @if (mappingProblem()) { <p class="error" role="alert">{{ mappingProblem() }}</p> }
           <div class="row nav-row">
             <button class="btn" type="button" (click)="go(0)">Back</button>
@@ -126,7 +136,7 @@ interface Match { row: Checked; donor: Donor; reason: string; }
         }
 
         @case (2) {
-          <section class="stats small-stats" aria-label="Row check results">
+          <section class="stats small-stats" aria-label="Row check results" style="grid-template-columns: repeat(4, minmax(0, 1fr))">
             <div class="stat"><p class="label">Rows in file</p><p class="value">{{ checked().length }}</p></div>
             <div class="stat"><p class="label">Ready</p><p class="value">{{ ready().length }}</p></div>
             <div class="stat"><p class="label">Need a fix</p><p class="value">{{ checked().length - ready().length }}</p></div>
@@ -147,8 +157,8 @@ interface Match { row: Checked; donor: Donor; reason: string; }
                     <td class="num mono">{{ r.amount_cents === null ? '—' : money(r.amount_cents) }}</td>
                     <td>{{ r.campaign ?? 'General support' }}</td>
                     <td>
-                      @if (r.problems.length) { <span class="tag dashed">Needs fix</span> <span class="issue">{{ r.problems.join('; ') }}</span> }
-                      @else { <span class="tag solid">Ready</span> @if (r.notes.length) { <span class="issue">{{ r.notes.join('; ') }}</span> } }
+                      @if (r.problems.length) { <span class="tag danger"><ng-icon name="lucideCircleAlert" size="12" aria-hidden="true" />Needs fix</span> <span class="issue">{{ r.problems.join('; ') }}</span> }
+                      @else { <span class="tag solid"><ng-icon name="lucideCheck" size="12" aria-hidden="true" />Ready</span> @if (r.notes.length) { <span class="issue">{{ r.notes.join('; ') }}</span> } }
                     </td>
                   </tr>
                 }
@@ -170,15 +180,20 @@ interface Match { row: Checked; donor: Donor; reason: string; }
               @for (m of matches(); track m.row.line) {
                 <li class="dup">
                   <div class="pair">
-                    <div><p class="label">Line {{ m.row.line }} in file</p><p class="strong">{{ m.row.name }}</p><p>{{ m.row.email ?? 'No email' }} · {{ m.row.phone ?? 'No phone' }}</p></div>
-                    <div><p class="label">Already in Cadence</p><p class="strong"><a [routerLink]="['/donors', m.donor.id]" target="_blank">{{ m.donor.name }}</a></p><p>{{ m.donor.email ?? 'No email' }} · {{ m.donor.phone ?? 'No phone' }}</p></div>
+                    <div class="rec"><p class="label">Line {{ m.row.line }} in the file</p><p class="strong">{{ m.row.name }}</p>
+                      <p class="hint">{{ m.row.email ?? 'No email' }}</p><p class="hint">{{ m.row.phone ?? 'No phone' }}</p></div>
+                    <div class="match" aria-hidden="true"><ng-icon name="lucideRepeat" size="16" /></div>
+                    <div class="rec existing"><p class="label">Already in Cadence</p><p class="strong"><a [routerLink]="['/donors', m.donor.id]" target="_blank">{{ m.donor.name }}</a></p>
+                      <p class="hint">{{ m.donor.email ?? 'No email' }}</p><p class="hint">{{ m.donor.phone ?? 'No phone' }}</p></div>
                   </div>
                   <fieldset class="choice">
                     <legend><span class="tag solid">{{ m.reason }}</span></legend>
-                    @for (opt of decisions; track opt.value) {
-                      <label class="check"><input type="radio" [name]="'dup-' + m.row.line" [value]="opt.value" [checked]="decisionFor(m.row.line) === opt.value"
-                        (change)="decide(m.row.line, opt.value)" /> {{ opt.label }}</label>
-                    }
+                    <div class="seg-choice">
+                      @for (opt of decisions; track opt.value) {
+                        <label [class.on]="decisionFor(m.row.line) === opt.value"><input type="radio" class="sr-only" [name]="'dup-' + m.row.line" [value]="opt.value" [checked]="decisionFor(m.row.line) === opt.value"
+                          (change)="decide(m.row.line, opt.value)" />{{ opt.label }}</label>
+                      }
+                    </div>
                   </fieldset>
                 </li>
               }
@@ -195,9 +210,10 @@ interface Match { row: Checked; donor: Donor; reason: string; }
 
         @case (4) {
           @if (result(); as r) {
-            <div class="panel">
-              <div class="panel-head"><h3>Import saved</h3><span class="tag solid">Done</span></div>
-              <div class="panel-body stack">
+            <div class="done-state">
+              <span class="done-icon" aria-hidden="true"><ng-icon name="lucideCircleCheck" size="30" /></span>
+              <h3 class="text-lg">Import saved</h3>
+              <div class="stack items-center">
                 <p>{{ r.created }} new donors, {{ r.merged }} merged into existing records, {{ r.gifts }} gifts recorded, {{ r.skipped }} rows skipped. The import is in the audit log.</p>
                 <div class="row"><a class="btn primary" routerLink="/donors">Open donors</a><a class="btn" routerLink="/donations">Open donations</a>
                   <button class="btn" type="button" (click)="restart()">Import another file</button></div>
@@ -230,15 +246,63 @@ interface Match { row: Checked; donor: Donor; reason: string; }
           }
         }
       }
+      </section>
+      </div>
     </div>
   `,
   styles: `
+    .wizard { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 20px; align-items: start; }
+    .rail { list-style: none; margin: 0; padding: 10px; border-radius: 20px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: calc(var(--topbar-h) + 24px); }
+    .rail li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 14px; font-size: 13.5px; color: var(--ink-600); }
+    .rail li[aria-current='step'] { background: #fff; color: var(--foreground); box-shadow: 0 1px 3px rgb(15 50 30 / 0.1); }
+    .r-dot { width: 26px; height: 26px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 600; border: 2px solid rgb(15 26 21 / 0.15); }
+    .rail li[aria-current='step'] .r-dot { border-color: var(--primary); color: var(--primary); }
+    .rail li.done .r-dot { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .stage { border-radius: 22px; padding: 24px 26px; min-width: 0; }
+    .drop { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px 20px; border-radius: 18px; text-align: center;
+      border: 2px dashed rgb(0 122 61 / 0.3); background: rgb(255 255 255 / 0.6); color: var(--green-700); cursor: pointer; transition: border-color 150ms var(--ease), background-color 150ms var(--ease); }
+    .drop:hover, .drop:focus-within { border-color: var(--primary); background: #fff; }
+    .drop .input.file { margin-top: 10px; max-width: 360px; }
+    .samples-box { padding: 4px 0; }
+    .samples-box h3 { font-size: 13px; color: var(--muted-foreground); font-weight: 600; margin-bottom: 10px; }
+    .sample-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .sample { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; border: 1px solid var(--border); background: rgb(255 255 255 / 0.7); cursor: pointer; }
+    .sample:hover { background: #fff; border-color: rgb(0 122 61 / 0.35); }
+    .s-icon { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--green-50); color: var(--green-700); }
+    .s-cta { font-size: 12.5px; font-weight: 600; color: var(--primary); }
+    .maps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+    .map { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) 190px; grid-template-areas: 'src arrow dst how' 'why why why why'; align-items: center; gap: 6px 14px;
+      padding: 12px 14px; border-radius: 16px; background: rgb(255 255 255 / 0.7); border: 1px solid var(--border); }
+    .map[data-method='suggested'] { border-color: #fcd9b6; background: #fffbf5; }
+    .m-src { grid-area: src; display: flex; flex-direction: column; min-width: 0; }
+    .m-src code { font-weight: 600; font-size: 13px; }
+    .m-arrow { grid-area: arrow; color: var(--ink-400); }
+    .m-dst { grid-area: dst; }
+    .m-how { grid-area: how; justify-self: end; }
+    .m-why { grid-area: why; font-size: 12px; color: var(--muted-foreground); }
+    .accept { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 999px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+      border: 1px solid #fcd9b6; color: var(--amber-600); background: #fff; }
+    .accept.on { background: var(--green-50); border-color: var(--green-200); color: var(--green-700); }
+    .accept input { accent-color: var(--primary); }
+    .rec { padding: 14px; border-radius: 14px; background: #fff; border: 1px solid var(--border); }
+    .rec.existing { border-color: var(--green-200); background: #fbfefc; }
+    .match { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--green-50); color: var(--green-700); align-self: center; }
+    .seg-choice { display: flex; flex-direction: column; gap: 4px; }
+    .seg-choice label { display: flex; align-items: center; height: 36px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--border); background: rgb(255 255 255 / 0.7);
+      font-size: 13px; cursor: pointer; }
+    .seg-choice label.on { border-color: var(--primary); background: var(--green-50); color: var(--green-700); font-weight: 600; }
+    .seg-choice label:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+    .done-state { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 24px; }
+    .done-icon { width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: var(--green-50); color: var(--green-700); }
+    @media (max-width: 1000px) { .wizard { grid-template-columns: 1fr; } .rail { position: static; flex-direction: row; overflow-x: auto; } .rail li { min-width: 170px; } }
+    @media (max-width: 700px) { .map { grid-template-columns: 1fr; grid-template-areas: 'src' 'dst' 'how' 'why'; } .m-arrow { display: none; } .m-how { justify-self: start; } }
     .step-title { margin-bottom: 16px; outline: none; }
     .gap { gap: 20px; }
     .file { padding: 6px; }
     .hint { font-size: 12.5px; }
     .sample { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
     .intro { margin-bottom: 16px; max-width: 72ch; }
+    .intro-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
     .samples { font-size: 12.5px; max-width: 260px; }
     .why { font-size: 12.5px; }
     .compact { min-height: 30px; padding: 3px 28px 3px 8px; font-size: 13px; min-width: 160px; }
@@ -246,9 +310,10 @@ interface Match { row: Checked; donor: Donor; reason: string; }
     .small-stats { margin-bottom: 20px; }
     .small-stats .value { font-size: 22px; }
     .issue { display: block; font-size: 12px; margin-top: 4px; }
-    .dup-list { border-top: 1px solid var(--rule); }
-    .dup { display: grid; grid-template-columns: 1fr 300px; gap: 24px; align-items: start; }
-    .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .dup-list { display: flex; flex-direction: column; gap: 12px; }
+    .dup-list > li { border: 0; padding: 0; }
+    .dup { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: center; padding: 14px; border-radius: 18px; background: rgb(255 255 255 / 0.5); border: 1px solid var(--border); }
+    .pair { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; }
     .pair p { font-size: 13px; }
     .strong { font-weight: 600; font-size: 14px !important; margin: 2px 0; }
     .choice { display: flex; flex-direction: column; gap: 6px; }
@@ -340,6 +405,11 @@ export class ImportPage {
 
   protected setTarget(i: number, target: Target) {
     this.guesses.update((gs) => gs.map((g, k) => (k === i ? { ...g, target, method: g.method === 'exact' && g.target === target ? 'exact' : 'none', reason: 'Chosen by you' } : g)));
+  }
+
+  protected readonly pendingSuggestions = computed(() => this.guesses().filter((g, i) => g.method === 'suggested' && !this.accepted().has(i)).length);
+  protected acceptAll() {
+    this.accepted.set(new Set(this.guesses().flatMap((g, i) => (g.method === 'suggested' ? [i] : []))));
   }
 
   protected toggleAccept(i: number) {

@@ -9,6 +9,7 @@ import { money, quarterOf, today } from './format';
 
 const STORE_KEY = 'cadence.dataset';
 const SESSION_KEY = 'cadence.session';
+const SIGNED_IN_KEY = 'cadence.signed-in';
 
 function load<T>(key: string): T | null {
   try {
@@ -78,6 +79,14 @@ export class Store {
   private readonly rawMetadata = new Map<string, Record<string, unknown>>();
   private readonly data = signal<Dataset>(this.initial());
   readonly sessionId = signal<string>(load<string>(SESSION_KEY) ?? 'm-ceo');
+  /** Demo mode only: whether someone picked a demo account. Live mode asks Clerk instead. */
+  private readonly demoSignedIn = signal<boolean>(load<boolean>(SIGNED_IN_KEY) ?? false);
+  readonly signedIn = computed(() => (this.live() ? this.api.status() === 'ready' : this.demoSignedIn()));
+  /**
+   * Changes whenever a session starts or ends. Async work captures it before a request and
+   * drops the result if it changed, so a late response can never repopulate a signed-out view.
+   */
+  readonly sessionEpoch = signal(0);
 
   readonly members = computed(() => this.data().members);
   readonly programs = computed(() => this.data().programs);
@@ -119,6 +128,7 @@ export class Store {
     // Live donor records stay in memory only: no donor PII is written to browser storage.
     effect(() => { if (!this.live()) save(STORE_KEY, this.data()); });
     effect(() => { if (!this.live()) save(SESSION_KEY, this.sessionId()); });
+    effect(() => { if (!this.live()) save(SIGNED_IN_KEY, this.demoSignedIn()); });
   }
 
   private initial(): Dataset {
@@ -143,6 +153,26 @@ export class Store {
 
   setSession(id: string) { if (!this.live()) this.sessionId.set(id); }
 
+  /** Demo sign-in: no password exists because no real account exists. Live mode uses Clerk. */
+  signInDemo(id: string) {
+    if (this.live() || !this.members().some((m) => m.id === id)) return;
+    this.sessionId.set(id);
+    this.demoSignedIn.set(true);
+    this.sessionEpoch.update((n) => n + 1);
+  }
+
+  async signOut() {
+    this.sessionEpoch.update((n) => n + 1);
+    if (this.live()) await this.api.signOut();
+    else this.demoSignedIn.set(false);
+    this.notice.set(null);
+  }
+
+  /** Initials for avatars. */
+  initials(name: string) {
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join('') || '?';
+  }
+
   resetDemo() {
     if (this.live()) return;
     this.data.set(buildDemoDataset());
@@ -153,6 +183,7 @@ export class Store {
     this.live.set(true);
     this.data.set(this.emptyDataset([], []));
     void this.api.start(config, () => void this.refreshLive(), () => {
+      this.sessionEpoch.update((n) => n + 1);
       this.rawMetadata.clear();
       this.data.set(this.emptyDataset([], []));
       this.notice.set(null);
@@ -193,6 +224,7 @@ export class Store {
     ];
     this.data.set(this.emptyDataset(members, donors.map(fromApiDonor)));
     this.sessionId.set(me.id);
+    this.sessionEpoch.update((n) => n + 1);
   }
 
   private putDonor(saved: ApiDonor) {

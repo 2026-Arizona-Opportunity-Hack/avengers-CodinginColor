@@ -1,5 +1,7 @@
 import { Component, ElementRef, computed, inject, input, signal, viewChild } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { NgIcon } from '@ng-icons/core';
+import { HlmButtonImports } from '@spartan-ng/helm/button';
 import { Store } from '../core/store';
 import { date, money, relativeDue, today } from '../core/format';
 import { CommunicationKind, Consent, SOURCE_LABEL } from '../core/models';
@@ -9,34 +11,47 @@ type TimelineEntry =
   | { type: CommunicationKind; at: string; id: string; title: string; detail: string; by: string; direction: string; viaDraft: boolean };
 
 const KIND_LABEL: Record<CommunicationKind, string> = { email: 'Email', text: 'Text', call: 'Call', meeting: 'Meeting', note: 'Note' };
+const KIND_ICON: Record<CommunicationKind | 'gift', string> = {
+  gift: 'lucideHandCoins', email: 'lucideMail', text: 'lucideMessageSquare', call: 'lucidePhone', meeting: 'lucideCalendar', note: 'lucideStickyNote',
+};
 
 @Component({
   selector: 'app-donor-detail',
-  imports: [RouterLink],
+  imports: [RouterLink, NgIcon, HlmButtonImports],
   template: `
     @let d = donor();
     @if (!d) {
       <div class="page">
-        <header class="page-head"><div><p class="label eyebrow">Donor</p><h1>Donor not found</h1>
+        <header class="page-head"><div><h1>Donor not found</h1>
           <p class="lede">This record does not exist or is owned by another board member.</p></div></header>
         <a class="btn" routerLink="/donors">Back to donors</a>
       </div>
     } @else {
       <div class="page">
-        <nav aria-label="Breadcrumb" class="crumbs"><a routerLink="/donors">Donors</a> <span aria-hidden="true">/</span> <span aria-current="page">{{ d.name }}</span></nav>
-        <header class="page-head">
-          <div>
-            <p class="label eyebrow">{{ d.kind === 'individual' ? 'Individual donor' : d.kind === 'foundation' ? 'Foundation' : 'Company' }}</p>
+        <nav aria-label="Breadcrumb" class="crumbs"><a routerLink="/donors">{{ store.isAdmin() ? 'Donors' : 'Your donors' }}</a>
+          <ng-icon name="lucideChevronRight" size="14" aria-hidden="true" /><span aria-current="page">{{ d.name }}</span></nav>
+        <header class="hero glass">
+          <span class="hero-avatar" [attr.data-kind]="d.kind" aria-hidden="true">
+            @if (d.kind === 'individual') { {{ store.initials(d.name) }} } @else { <ng-icon name="lucideBuilding2" size="26" /> }
+          </span>
+          <div class="min-w-0 flex-1">
+            <p class="kind">{{ d.kind === 'individual' ? (d.company ? 'Individual · ' + d.company : 'Individual donor') : d.kind === 'foundation' ? 'Foundation' : 'Company' }}</p>
             <h1>{{ d.name }}</h1>
-            <p class="lede">Owned by <strong>{{ store.member(d.owner_id)?.name ?? 'nobody' }}</strong> · donor since {{ since() }} · {{ d.sources.length }} source{{ d.sources.length === 1 ? '' : 's' }} merged</p>
+            <div class="facts">
+              <span><ng-icon name="lucideUser" size="14" aria-hidden="true" />Owned by <strong>{{ store.member(d.owner_id)?.name ?? 'nobody' }}</strong></span>
+              <span><ng-icon name="lucideHistory" size="14" aria-hidden="true" />Donor since {{ since() }}</span>
+              <span><ng-icon name="lucideDatabase" size="14" aria-hidden="true" />{{ d.sources.length }} source{{ d.sources.length === 1 ? '' : 's' }} merged</span>
+              <span class="consent" [attr.data-consent]="d.consent"><ng-icon [name]="d.consent === 'granted' ? 'lucideCircleCheck' : 'lucideCircleAlert'" size="14" aria-hidden="true" />Consent {{ d.consent }}</span>
+            </div>
           </div>
-          <div class="actions">
-            <button class="btn" type="button" (click)="openLog()">Log contact</button>
-            <button class="btn primary" type="button" (click)="draftThanks()">Draft thank-you</button>
+          <div class="hero-actions">
+            <button hlmBtn variant="outline" size="sm" type="button" (click)="openLog('text')"><ng-icon name="lucideMessageSquare" size="15" /> Log text</button>
+            <button hlmBtn variant="outline" size="sm" type="button" (click)="openLog('call')"><ng-icon name="lucidePhone" size="15" /> Log call</button>
+            <button hlmBtn size="sm" type="button" (click)="draftThanks()"><ng-icon name="lucideHeartHandshake" size="15" /> Draft thank-you</button>
           </div>
         </header>
 
-        @if (flash()) { <p class="notice" role="status">{{ flash() }} @if (flashOutreach()) { <a routerLink="/outreach">Open outreach</a> }</p> }
+        @if (flash()) { <p class="notice" role="status">{{ flash() }} @if (flashOutreach()) { <a routerLink="/outreach">Open follow-ups</a> }</p> }
 
         <section class="stats" aria-label="Giving summary">
           <div class="stat"><p class="label">Lifetime, net</p><p class="value">{{ money(store.lifetime(d.id)) }}</p></div>
@@ -57,7 +72,7 @@ const KIND_LABEL: Record<CommunicationKind, string> = { email: 'Email', text: 'T
                   <li class="step">
                     <div>
                       <p class="strong">{{ f.action }}</p>
-                      <p class="meta"><span class="tag" [class.solid]="f.due_on < now">{{ relativeDue(f.due_on) }}</span> {{ date(f.due_on) }} · {{ f.kind === 'quarterly' ? 'Quarterly touch' : 'Next step' }}</p>
+                      <p class="meta"><span class="tag" [class.danger]="f.due_on < now" [class.warn]="f.due_on >= now"><ng-icon [name]="f.due_on < now ? 'lucideCircleAlert' : 'lucideClock'" size="12" aria-hidden="true" />{{ relativeDue(f.due_on) }}</span> {{ date(f.due_on) }} · {{ f.kind === 'quarterly' ? 'Quarterly touch' : 'Next step' }}</p>
                     </div>
                     <div class="row">
                       <button class="btn small" type="button" (click)="store.setFollowUpStatus(f.id, 'done')">Mark done</button>
@@ -89,11 +104,11 @@ const KIND_LABEL: Record<CommunicationKind, string> = { email: 'Email', text: 'T
               <ol class="timeline" aria-label="Gifts and communications, newest first">
                 @for (e of timeline(); track e.id) {
                   <li>
-                    <time class="mono when" [attr.datetime]="e.at">{{ date(e.at) }}</time>
-                    <span class="tag kind" [class.solid]="e.type === 'gift'">{{ e.type === 'gift' ? 'Gift' : kindLabel[e.type] }}</span>
+                    <span class="node" [attr.data-type]="e.type" aria-hidden="true"><ng-icon [name]="icons[e.type]" size="15" /></span>
                     <div class="what">
+                      <p class="when"><span class="kind-label">{{ e.type === 'gift' ? 'Gift' : kindLabel[e.type] }}</span> · <time [attr.datetime]="e.at">{{ date(e.at) }}</time></p>
                       @if (e.type === 'gift') {
-                        <p class="strong"><span class="mono">{{ money(e.amount) }}</span> · {{ e.title }}</p>
+                        <p class="strong"><span class="amount">{{ money(e.amount) }}</span> {{ e.title }}</p>
                         <p>{{ e.detail }} · via {{ e.source }} @if (e.status !== 'settled') { <span class="tag dashed">{{ e.status }}</span> }</p>
                       } @else {
                         <p class="strong">{{ e.title }}</p>
@@ -200,25 +215,47 @@ const KIND_LABEL: Record<CommunicationKind, string> = { email: 'Email', text: 'T
     }
   `,
   styles: `
-    .crumbs { font-size: 13px; margin-bottom: 16px; display: flex; gap: 8px; }
+    .crumbs { font-size: 13px; margin-bottom: 14px; display: flex; align-items: center; gap: 6px; color: var(--muted-foreground); }
+    .crumbs a { color: var(--muted-foreground); text-decoration: none; }
+    .crumbs a:hover { color: var(--foreground); text-decoration: underline; }
+    .crumbs span[aria-current] { color: var(--foreground); font-weight: 500; }
+    .hero { display: flex; gap: 20px; align-items: center; padding: 22px 24px; border-radius: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+    .hero-avatar { width: 64px; height: 64px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 22px; font-weight: 600;
+      background: linear-gradient(135deg, #dcefe3, #b9e0c8); color: var(--green-700); }
+    .hero-avatar[data-kind='company'], .hero-avatar[data-kind='foundation'] { border-radius: 18px; background: linear-gradient(135deg, #eaf2fb, #cde2fb); color: #1c5cab; }
+    .kind { font-size: 13px; color: var(--muted-foreground); }
+    .hero h1 { font-size: 28px; margin-top: 2px; }
+    .facts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; font-size: 13px; color: var(--ink-600); }
+    .facts span { display: inline-flex; align-items: center; gap: 6px; }
+    .facts ng-icon { color: var(--ink-400); }
+    .consent[data-consent='granted'] ng-icon { color: var(--positive); }
+    .consent[data-consent='denied'] ng-icon { color: var(--danger); }
+    .hero-actions { display: flex; gap: 8px; flex-wrap: wrap; }
     .value.small { font-size: 20px; }
     .strong { font-weight: 600; }
-    .steps-list { border-top: 1px solid var(--rule); }
+    .steps-list { padding: 4px 18px; border-radius: 18px; background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
     .step { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; flex-wrap: wrap; }
     .meta { font-size: 12.5px; margin-top: 4px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .none { font-size: 13px; padding: 14px 0; }
     .add-step { display: flex; gap: 10px; align-items: flex-end; margin-top: 12px; flex-wrap: wrap; }
     .add-step .grow { flex: 1; min-width: 200px; }
-    .timeline { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--rule); }
-    .timeline li { display: grid; grid-template-columns: 112px 84px 1fr; gap: 12px; padding: 14px 0; border-bottom: 1px solid var(--hair); }
-    .when { font-size: 12px; padding-top: 2px; }
-    .kind { justify-self: start; }
+    .timeline { list-style: none; margin: 0; padding: 4px 0 0; position: relative; }
+    .timeline::before { content: ''; position: absolute; inset-block: 8px; inset-inline-start: 17px; width: 2px; border-radius: 2px; background: rgb(15 26 21 / 0.08); }
+    .timeline li { position: relative; display: flex; gap: 14px; padding: 10px 0; }
+    .node { position: relative; z-index: 1; width: 36px; height: 36px; flex: none; border-radius: 12px; display: grid; place-items: center;
+      background: #fff; color: var(--ink-600); box-shadow: 0 0 0 4px var(--background), 0 1px 3px rgb(15 50 30 / 0.12); }
+    .node[data-type='gift'] { background: var(--green-600); color: #fff; }
+    .node[data-type='text'], .node[data-type='email'] { color: #1c5cab; }
+    .what { flex: 1; min-width: 0; padding: 10px 14px 12px; border-radius: 16px; background: var(--glass); border: 1px solid var(--glass-edge); box-shadow: var(--glass-shadow); }
+    .when { font-size: 12px; color: var(--muted-foreground); margin-bottom: 2px; }
+    .kind-label { font-weight: 600; color: var(--foreground); }
+    .amount { font-size: 15px; font-weight: 700; margin-inline-end: 4px; }
     .what p { font-size: 13.5px; }
     .body { white-space: pre-line; margin-top: 2px; }
     .by { font-size: 12px; margin-top: 4px; }
     .hint { font-size: 12.5px; }
     .field-legend { font-size: 13px; font-weight: 500; margin-bottom: 6px; }
-    @media (max-width: 640px) { .timeline li { grid-template-columns: 1fr; gap: 4px; } }
+    @media (max-width: 640px) { .hero { padding: 18px; } .hero-actions { width: 100%; } }
   `,
 })
 export class DonorDetailPage {
@@ -230,6 +267,7 @@ export class DonorDetailPage {
   protected readonly date = date;
   protected readonly relativeDue = relativeDue;
   protected readonly kindLabel = KIND_LABEL;
+  protected readonly icons = KIND_ICON;
   protected readonly kinds: CommunicationKind[] = ['text', 'email', 'call', 'meeting', 'note'];
   protected readonly consents: Consent[] = ['unknown', 'granted', 'denied'];
   protected readonly filters = [
@@ -285,8 +323,8 @@ export class DonorDetailPage {
     return entries.sort((a, b) => b.at.localeCompare(a.at));
   });
 
-  protected openLog() {
-    this.logKind.set(this.donor()?.preferred_channel ?? 'text');
+  protected openLog(kind?: CommunicationKind) {
+    this.logKind.set(kind ?? this.donor()?.preferred_channel ?? 'text');
     this.logDialog()?.nativeElement.showModal();
   }
 
