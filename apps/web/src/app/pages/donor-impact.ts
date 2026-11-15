@@ -48,7 +48,7 @@ export class DonorImpactPage{
   protected readonly money=donorMoney;private generation=0;
   protected date(value:string){return new Intl.DateTimeFormat('en-US',{timeZone:'America/Phoenix',dateStyle:'medium'}).format(new Date(value));}
   constructor(){inject(DestroyRef).onDestroy(()=>this.generation++);effect(onCleanup=>{
-    this.api.identityVersion();
+    this.api.identityVersion();this.feed.set(null);
     if(this.api.authenticated()){void this.load(0);return;}
     this.generation++;this.feed.set(null);this.message.set('');
     const node=this.auth()?.nativeElement;if(this.api.status()!=='signed-out'||!node)return;

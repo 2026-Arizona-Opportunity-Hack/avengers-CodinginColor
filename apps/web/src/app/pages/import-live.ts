@@ -1,4 +1,4 @@
-import { Component, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { Api, ApiError } from '../core/api';
 import { Store } from '../core/store';
 import { IMPORT_FIELDS, LiveImports, importTotals, type ImportDecision, type ImportLayout,
@@ -161,7 +161,10 @@ export class LiveImportPage {
   private generation = 0;
   private readonly heading = viewChild<ElementRef<HTMLHeadingElement>>('stageHeading');
 
-  constructor() { effect(() => { this.store.sessionEpoch(); this.generation++; this.busy.set(false); this.clear(); }); }
+  constructor() {
+    inject(DestroyRef).onDestroy(() => { this.generation++; this.clear(); });
+    effect(() => { this.store.sessionEpoch(); this.generation++; this.busy.set(false); this.clear(); });
+  }
 
   protected clear() {
     this.suggestions.set({});
@@ -174,16 +177,18 @@ export class LiveImportPage {
   private async run<T>(work: () => Promise<T>, apply: (value: T) => void) {
     if (this.busy()) return;
     const generation = ++this.generation;
+    const epoch = this.store.sessionEpoch();
+    const current = () => generation === this.generation && epoch === this.store.sessionEpoch();
     this.busy.set(true); this.error.set(null);
-    try { const value = await work(); if (generation === this.generation) {
-      apply(value); setTimeout(() => { if (generation === this.generation) this.heading()?.nativeElement.focus(); }, 0);
+    try { const value = await work(); if (current()) {
+      apply(value); setTimeout(() => { if (current()) this.heading()?.nativeElement.focus(); }, 0);
     } }
     catch (e) {
-      if (generation !== this.generation) return;
+      if (!current()) return;
       if (e instanceof ApiError && e.status === 409) { this.plan.set(null); this.phase.set('mapping'); this.applied.set(false); }
       this.error.set(e instanceof ApiError && e.status === 409 ? 'The review changed. Apply mapping again and review fresh proposals.'
         : e instanceof Error ? e.message : 'The import could not be saved.');
-    } finally { if (generation === this.generation) this.busy.set(false); }
+    } finally { if (current()) this.busy.set(false); }
   }
 
   protected upload(event: Event) {

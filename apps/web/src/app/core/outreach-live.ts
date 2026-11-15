@@ -20,9 +20,10 @@ export interface ApiDraft {
 }
 export interface ApiKeyRow { id: string; name: string; hint: string; created_by: string; created_at: string; revoked_at: string | null }
 
-/** UI template IDs the server can render. Nudges and board digests stay local-only for now. */
+/** UI template IDs rendered by the server; sending always requires separate approval. */
 export const LIVE_TEMPLATES: Readonly<Record<string, string>> = {
   't-thanks-email': 'thank_you', 't-thanks-text': 'thank_you_sms', 't-quarterly': 'quarterly_update',
+  't-nudge': 'lapsed_nudge',
 };
 const UI_TEMPLATE: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(LIVE_TEMPLATES).map(([ui, api]) => [api, ui]));

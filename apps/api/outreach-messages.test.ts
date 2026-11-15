@@ -207,6 +207,31 @@ test('logging a call is a qualifying contact; the timeline shows only visible do
   assert.equal((await call('GET', '/api/v1/communications?offset=-1', 'board-a')).status, 400);
 });
 
+test('archived contact history remains visible only within its owner and organization scope', async (t) => {
+  const { call, asOwner } = await setup(t);
+  for (const [donor, actor] of [[DONOR_A, 'board-a'], [DONOR_B, 'board-b']]) {
+    assert.equal((await call('POST', `/api/v1/donors/${donor}/communications`, actor,
+      { channel: 'call', occurred_at: NOW, note: 'Historical contact' })).status, 201);
+  }
+  await asOwner(`UPDATE donors SET archived_at = now() WHERE id IN ('${DONOR_A}', '${DONOR_B}')`);
+  const foreignOrg = id(80), foreignMember = id(81), foreignDonor = id(82);
+  await asOwner(`INSERT INTO organizations (id, name) VALUES ('${foreignOrg}', 'Other organization')`);
+  await asOwner(`INSERT INTO memberships (id, org_id, clerk_subject, role)
+    VALUES ('${foreignMember}', '${foreignOrg}', 'foreign-board', 'board')`);
+  await asOwner(`INSERT INTO donors (id, org_id, owner_id, name, consent, archived_at)
+    VALUES ('${foreignDonor}', '${foreignOrg}', '${foreignMember}', 'Foreign donor', 'unknown', now())`);
+  await asOwner(`INSERT INTO communications (org_id, donor_id, channel, actor_id, occurred_at, status, qualifying, note)
+    VALUES ('${foreignOrg}', '${foreignDonor}', 'call', '${foreignMember}', '${NOW}', 'logged_contact', true, 'Private foreign contact')`);
+  const donorIds = async (actor: string) => {
+    const response = await call('GET', '/api/v1/communications', actor);
+    assert.equal(response.status, 200);
+    return (await response.json()).items.map((row: { donor_id: string }) => row.donor_id).sort();
+  };
+  assert.deepEqual(await donorIds('board-a'), [DONOR_A]);
+  assert.deepEqual(await donorIds('board-b'), [DONOR_B]);
+  assert.deepEqual(await donorIds('admin'), [DONOR_A, DONOR_B]);
+});
+
 test('the message routes are mounted in the real app behind its session and origin checks', async (t) => {
   const { createApp } = await import('./app.ts');
   const env = EnvSchema.parse({ DATABASE_URL: 'postgresql://localhost/test', CIC_ORG_ID: ORG,
@@ -222,4 +247,16 @@ test('the message routes are mounted in the real app behind its session and orig
   assert.equal((await fetch(`${base}/api/v1/drafts`, { method: 'POST', headers: json, body: JSON.stringify(thanks) })).status, 401);
   assert.equal((await fetch(`${base}/api/v1/donors/${DONOR_A}/communications`)).status, 401);
   assert.equal((await fetch(`${base}/api/v1/drafts/${DONOR_A}/compose`, { headers: { Origin: 'https://evil.example' } })).status, 403);
+});
+
+
+test('lapsed outreach creates an editable unapproved server draft', async t => {
+  const { call } = await setup(t);
+  const response = await call('POST', '/api/v1/drafts', 'board-a', {
+    donor_id: DONOR_A, template: 'lapsed_nudge', fields: { first_name: 'Avery', program: 'Academy' },
+  });
+  assert.equal(response.status, 201);
+  const draft = await response.json(); assert.equal(draft.status, 'draft');
+  assert.match(draft.body, /Would you like an update on Academy/);
+  assert.doesNotMatch(draft.body, /transformed|incredible|\u2014/);
 });
