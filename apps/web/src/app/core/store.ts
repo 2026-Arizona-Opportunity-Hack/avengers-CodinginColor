@@ -78,6 +78,7 @@ export class Store {
   /** Last failed or unsupported action, shown to the person instead of a silent no-op. */
   readonly notice = signal<string | null>(null);
   private liveLoadGeneration = 0;
+  private outreachLoadGeneration = 0;
   private readonly rawMetadata = new Map<string, Record<string, unknown>>();
   private readonly data = signal<Dataset>(this.initial());
   readonly sessionId = signal<string>(load<string>(SESSION_KEY) ?? 'm-ceo');
@@ -197,6 +198,7 @@ export class Store {
 
   async refreshLive() {
     const generation = ++this.liveLoadGeneration;
+    const outreachGeneration = ++this.outreachLoadGeneration;
     this.api.status.set('loading');
     try {
       const [me, donors] = await Promise.all([this.api.me(), this.api.allDonors()]);
@@ -208,8 +210,11 @@ export class Store {
         me.role === 'admin' ? outreach.loadApiKeys(request) : Promise.resolve([]),
       ]);
       if (generation !== this.liveLoadGeneration) return;
+      const current = this.data();
+      const queues = outreachGeneration === this.outreachLoadGeneration ? { followUps, drafts }
+        : { followUps: current.followUps, drafts: current.drafts };
       this.loadLive(me, donors);
-      this.data.update((d) => ({ ...d, followUps, drafts, apiKeys }));
+      this.data.update((d) => ({ ...d, ...queues, apiKeys }));
       this.api.status.set('ready');
     } catch (e) {
       if (generation !== this.liveLoadGeneration) return;
@@ -231,6 +236,7 @@ export class Store {
    * Visibility comes from the server: board members only ever receive their own donors.
    */
   private loadLive(me: ApiMe, donors: ApiDonor[]) {
+    const newSession = !this.members().length || this.sessionId() !== me.id;
     this.rawMetadata.clear();
     for (const d of donors) this.rawMetadata.set(d.id, d.metadata ?? {});
     const others = [...new Set(donors.map((d) => d.owner_id).filter((id): id is string => !!id && id !== me.id))];
@@ -240,7 +246,7 @@ export class Store {
     ];
     this.data.set(this.emptyDataset(members, donors.map(fromApiDonor)));
     this.sessionId.set(me.id);
-    this.sessionEpoch.update((n) => n + 1);
+    if (newSession) this.sessionEpoch.update((n) => n + 1);
   }
 
   private putDonor(saved: ApiDonor) {
@@ -519,10 +525,11 @@ export class Store {
     return this.liveWrite(async () => {
       const request: outreach.Request = (path, init) => this.api.request(path, init);
       await run(request);
+      const generation = ++this.outreachLoadGeneration;
       const [followUps, drafts] = await Promise.all([
         outreach.loadFollowUps(request, this.isAdmin() ? 'all' : 'mine'), outreach.loadDrafts(request),
       ]);
-      if (epoch !== this.sessionEpoch()) return;
+      if (epoch !== this.sessionEpoch() || generation !== this.outreachLoadGeneration) return;
       this.data.update((d) => ({ ...d, followUps, drafts }));
     });
   }

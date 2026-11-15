@@ -143,4 +143,51 @@ describe('live workspace data and keys', () => {
     expect(api.request).toHaveBeenCalledWith('/api/v1/follow-ups',
       expect.objectContaining({ body: '{"donor_id":"donor","title":"Call","due_at":"2026-11-15T09:00:00-07:00"}' }));
   });
+
+  it('does not let an older outreach reload restore a task completed by a newer write', async () => {
+    const { store, api } = session('board');
+    await store.refreshLive();
+    let resolveOld!: (value: unknown) => void;
+    let started!: () => void;
+    const oldStarted = new Promise<void>((resolve) => { started = resolve; });
+    let reads = 0;
+    api.request.mockImplementation(async (path) => {
+      if (path.includes('/follow-ups?')) {
+        if (++reads === 1) { started(); return new Promise((resolve) => { resolveOld = resolve; }); }
+        return { overdue: [], due_this_week: [], upcoming: [] };
+      }
+      return { items: [] };
+    });
+    const older = store.setFollowUpStatus('first', 'done');
+    await oldStarted;
+    expect(await store.setFollowUpStatus('second', 'done')).toBe(true);
+    expect(store.followUps()).toEqual([]);
+    resolveOld({ overdue: [task], due_this_week: [], upcoming: [] });
+    expect(await older).toBe(true);
+    expect(store.followUps()).toEqual([]);
+  });
+
+  it('keeps a newer outreach snapshot when an older full refresh finishes', async () => {
+    const { store, api } = session('board');
+    await store.refreshLive();
+    const epoch = store.sessionEpoch();
+    let resolveOld!: (value: unknown) => void;
+    let started!: () => void;
+    const oldStarted = new Promise<void>((resolve) => { started = resolve; });
+    let reads = 0;
+    api.request.mockImplementation(async (path) => {
+      if (path.includes('/follow-ups?')) {
+        if (++reads === 1) { started(); return new Promise((resolve) => { resolveOld = resolve; }); }
+        return { overdue: [], due_this_week: [], upcoming: [] };
+      }
+      return { items: [] };
+    });
+    const older = store.refreshLive();
+    await oldStarted;
+    expect(await store.setFollowUpStatus('task', 'done')).toBe(true);
+    resolveOld({ overdue: [task], due_this_week: [], upcoming: [] });
+    await older;
+    expect(store.followUps()).toEqual([]);
+    expect(store.sessionEpoch()).toBe(epoch);
+  });
 });
