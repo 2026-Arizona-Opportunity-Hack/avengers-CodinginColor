@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import express from 'express';
 import { webApp } from '../src/web.ts';
 
-async function serve(t: test.TestContext, dir: string) {
-  const app = express().use(webApp(dir));
+async function serve(t: test.TestContext, dir: string, assets?: express.RequestHandler) {
+  const app = express().use(webApp(dir, assets));
   app.use((_req, res) => { res.status(404).json({ error: 'Request rejected' }); }); // stands in for the API
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -55,4 +55,25 @@ test('without a built web app every request falls through to the API', async (t)
   const get = await serve(t, join(tmpdir(), 'cic-web-does-not-exist'));
   assert.equal((await get('/')).status, 404);
   assert.equal((await get('/donors', { headers: { Accept: 'text/html' } })).status, 404);
+});
+
+test('equal-length deployments with fixed file times never validate stale HTML', async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), 'cic-html-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const index = join(dir, 'index.html'), fixed = new Date('2018-10-20T01:46:40Z');
+  await writeFile(index, '<script src="main-old.js"></script>');
+  await utimes(index, fixed, fixed);
+  const get = await serve(t, dir, express.static(dir, { index: false }));
+  const old = await get('/');
+  const etag = old.headers.get('etag') ?? 'W/"22-1668f272800"';
+  await writeFile(index, '<script src="main-new.js"></script>');
+  await utimes(index, fixed, fixed);
+  for (const path of ['/', '/donors', '/index.html']) {
+    const response = await get(path, { headers: { 'If-None-Match': etag, 'If-Modified-Since': fixed.toUTCString(), 'Cache-Control': 'max-age=0' } });
+    assert.equal(response.status, 200, path);
+    assert.match(await response.text(), /main-new/);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.notEqual(response.headers.get('etag'), etag);
+    assert.equal(response.headers.get('last-modified'), null);
+  }
 });

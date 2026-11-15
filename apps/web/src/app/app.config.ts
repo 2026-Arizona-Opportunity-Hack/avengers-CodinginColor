@@ -1,5 +1,5 @@
 import { ApplicationConfig, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter, withComponentInputBinding, withInMemoryScrolling, withViewTransitions } from '@angular/router';
+import { provideRouter, withComponentInputBinding, withInMemoryScrolling, withNavigationErrorHandler, withViewTransitions } from '@angular/router';
 import { provideIcons } from '@ng-icons/core';
 import { provideEchartsCore } from 'ngx-echarts';
 import { APP_ICONS } from './core/icons';
@@ -16,7 +16,8 @@ export async function initializeWorkspace(store: Store) {
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'top' }), withViewTransitions({ skipInitialTransition: true })),
+    provideRouter(routes, withComponentInputBinding(), withInMemoryScrolling({ scrollPositionRestoration: 'top' }), withViewTransitions({ skipInitialTransition: true }),
+      withNavigationErrorHandler(event => { window.dispatchEvent(new CustomEvent('cic:module-error', { detail: event.error })); })),
     provideIcons(APP_ICONS),
     provideEchartsCore({ echarts: () => import('./core/echarts-setup').then((m) => m.default) }),
     // The public app always stays synthetic, even when live backend config is deployed.
