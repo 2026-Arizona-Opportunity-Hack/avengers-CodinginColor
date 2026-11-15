@@ -113,7 +113,7 @@ curl -H "Authorization: Bearer $CIC_DASHBOARD_KEY" "https://<host>/api/v1/activi
   `{key, label, suppressed: true}` with no numbers.
 - `owner` keys are membership IDs.
 - Retention compares positive settled net giving in the selected window with the immediately
-  preceding window of equal duration, independently of `groupBy`. Each currency is separate;
+  matching calendar window one year earlier, independently of `groupBy`. Each currency is separate;
   prior cohorts below **3**, or nonzero retained, lapsed or current-only cohorts below **3**,
   return only `{suppressed: true}`. Donor identities and individual segments are never returned.
 - **Errors:** `401` for a missing, malformed, unknown or revoked key; `400` for a bad

@@ -6,7 +6,7 @@ import {
 import { HttpError } from './env.ts';
 import type { Client, Database } from './db.ts';
 import { RateLimiter } from './rate-limit.ts';
-import { retentionReport } from '../../packages/reporting/retention.ts';
+import { checkGift, netCents } from '../../packages/reporting/retention.ts';
 
 export type DashboardOptions = {
   /** CIC reports in Phoenix time: '-07:00'. */
@@ -94,7 +94,19 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     }
     rateLimit(hash, res);
     const current = query.window;
-    const prior = { from: new Date(2 * Date.parse(current.from) - Date.parse(current.to)).toISOString(), to: current.from };
+    const previousYear = (value: string) => {
+      const year = Number(value.slice(0, 4)) - 1;
+      if (year < 1) throw new HttpError(400);
+      const date = value.slice(5, 10) === '02-29' && new Date(Date.UTC(year, 1, 29)).getUTCMonth() !== 1
+        ? '02-28' : value.slice(5, 10);
+      return `${String(year).padStart(4, '0')}-${date}${value.slice(10)}`;
+    };
+    const lastDay = new Date(`${current.to.slice(0, 10)}T00:00:00Z`);
+    lastDay.setUTCDate(lastDay.getUTCDate() - 1);
+    const priorLastDay = previousYear(lastDay.toISOString().slice(0, 10) + current.to.slice(10));
+    const priorEnd = new Date(`${priorLastDay.slice(0, 10)}T00:00:00Z`);
+    priorEnd.setUTCDate(priorEnd.getUTCDate() + 1);
+    const prior = { from: previousYear(current.from), to: priorEnd.toISOString().slice(0, 10) + current.to.slice(10) };
     const { gifts, priorGifts, titles } = await forKey(hash, async (client) => ({
       gifts: (await client.query(`SELECT ${ROW} FROM cic_reporting_gifts($1, $2, $3)`,
         [hash, query.window.from, query.window.to])).rows.map(toGift),
@@ -105,15 +117,17 @@ export function createDashboardRouter(db: Database, options: DashboardOptions) {
     }));
     const summary = summarize(gifts, query, { offset: options.offset, minDonors: options.minDonors });
     const windows = { current, prior };
-    const retention = retentionReport([...priorGifts, ...gifts], windows);
-    const byCurrency = Object.fromEntries(Object.entries(retention.byCurrency).map(([currency, report]) => {
-      const { prior_donors, retained_donors } = report.retention;
-      const lapsed = prior_donors - retained_donors;
-      const currentOnly = report.donors.length - prior_donors;
-      // Suppress complementary cohorts too: subtraction must not reveal a small group.
+    for (const gift of priorGifts) checkGift(gift);
+    const currencies = new Set([...priorGifts, ...gifts].filter(g => netCents(g) > 0).map(g => g.currency));
+    const byCurrency = Object.fromEntries([...currencies].map(currency => {
+      const priorDonors = new Set(priorGifts.filter(g => g.currency === currency && netCents(g) > 0).map(g => g.donor_id));
+      const currentDonors = new Set(gifts.filter(g => g.currency === currency && netCents(g) > 0).map(g => g.donor_id));
+      const retained = [...priorDonors].filter(id => currentDonors.has(id)).length;
+      const lapsed = priorDonors.size - retained;
+      const currentOnly = currentDonors.size - retained;
       const small = (n: number) => n > 0 && n < options.minDonors;
-      return [currency, prior_donors < options.minDonors || small(retained_donors) || small(lapsed) || small(currentOnly)
-        ? { suppressed: true } : { suppressed: false, ...report.retention }];
+      return [currency, priorDonors.size < options.minDonors || small(retained) || small(lapsed) || small(currentOnly)
+        ? { suppressed: true } : { suppressed: false, retained_donors: retained, prior_donors: priorDonors.size }];
     }));
     const label = (key: string) => query.groupBy === 'program'
       ? (key === 'unattributed' ? 'Unattributed' : titles.get(key) ?? 'Unknown program')
