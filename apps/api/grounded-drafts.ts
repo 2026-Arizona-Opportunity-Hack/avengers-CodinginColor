@@ -76,8 +76,8 @@ export function groundedDrafts(env: Env, db: Database, verify: (header: string |
       if (base.context_hash !== input.context_hash) throw new HttpError(409);
       const draft = editDraft(base.draft,{subject:input.subject,body:input.body});
       const existing = (await client.query(`SELECT id FROM drafts WHERE donor_id=$1 AND author_id=$2
-        AND subject=$3 AND body=$4 AND status IN ('draft','approved') ORDER BY created_at,id LIMIT 1`,
-      [input.donor_id,member.id,draft.subject,draft.body])).rows[0];
+        AND subject=$3 AND body=$4 AND channel=$5 AND recipient=$6 AND status IN ('draft','approved') ORDER BY created_at,id LIMIT 1`,
+      [input.donor_id,member.id,draft.subject,draft.body,draft.channel,draft.recipient])).rows[0];
       if (existing) return existing;
       const row = (await client.query(`INSERT INTO drafts(org_id,donor_id,author_id,channel,recipient,subject,body)
         VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, [env.CIC_ORG_ID,input.donor_id,member.id,draft.channel,draft.recipient,draft.subject,draft.body])).rows[0];
