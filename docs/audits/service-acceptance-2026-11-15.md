@@ -23,13 +23,15 @@ At 17:53 UTC, eight labeled synthetic questions ran against the actual Neon conn
 | Measurement | Result |
 | --- | --- |
 | Labeled intent/clarification cases | 8/8 correct |
-| Provider exact structured output | 4/4 correct |
+| Provider semantically matching structured output | 4/4 correct |
 | Answered request p50 (nearest rank) | 1,594 ms |
 | Answered request p95 | 2,966 ms |
 | Clarification p50 (nearest rank) | 380 ms |
 | Provider request duration | 585–927 ms |
 
 With only four answered requests, p95 is the sample maximum. This is one small functional benchmark, not a general accuracy estimate, load test, production latency guarantee, or a claim that the free tier will always cover usage. The model received only validated, nonpersonal filter objects; the raw questions and donor records were not sent. Raw sanitized results and expected filters are in [the benchmark artifact](ask-data-benchmark-2026-11-15.json).
+
+This pilot checks semantic equality of provider output but does not instrument whether the route selects it. The separate [corpus benchmark](search-provider-benchmark-2026-11-15.md) found that valid model output was rejected by the route's JSON property-order comparison. Therefore correct final filters and schema-valid responses are not evidence of accepted AI interpretation; deterministic fallback remains part of these measurements.
 
 ## Desktop tour and release limits
 
