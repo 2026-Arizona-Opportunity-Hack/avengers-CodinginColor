@@ -35,7 +35,7 @@ function session(role: 'board' | 'admin' = 'admin') {
   return { store, api, signOut: () => { onOut(); api.status.set('signed-out'); } };
 }
 
-describe('live workspace data and keys', () => {
+describe('connected data and keys', () => {
   it('loads zero-donor owners for admins and refreshes donor ownership after a real reassignment', async () => {
     const { store, api } = session(); await store.refreshLive();
     expect(store.boardMembers().map(m => m.id)).toEqual(['board', 'empty-owner']);
